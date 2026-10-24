@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
-import { COLORS, FONT, makeRobotTextures } from '../art';
+import { COLORS, FONT } from '../art';
+import { Showcase } from '../three/showcase';
+import { getStage } from '../three/stage';
 import { BUILD_COST, GEAR_INFO, type GearId, hasSeen, markSeen, save } from '../state';
-import { H, W, button, dialog, panel, scrapBadge, text } from '../ui/widgets';
+import { W, button, dialog, scrapBadge, text } from '../ui/widgets';
 
 const ROMAN = ['', 'I', 'II', 'III'];
 const BENCH_SCENE: Record<GearId, string> = { armor: 'ArmorBench', blaster: 'BlasterBench', boots: 'BootsBench' };
@@ -18,11 +20,14 @@ export class EngineeringScene extends Phaser.Scene {
 
   create() {
     const s = save();
-    this.cameras.main.setBackgroundColor(0x1a1423);
-    const g = this.add.graphics();
-    // Workshop wall stripes.
-    for (let x = 0; x < W; x += 80) g.fillStyle(x % 160 ? 0x221a2e : 0x1e1729, 1).fillRect(x, 0, 80, H);
-    g.fillStyle(0xf77f00, 1).fillRect(0, 120, W, 8);
+    // Each bench shows the robot wearing that bench's next upgrade.
+    const gears: GearId[] = ['armor', 'blaster', 'boots'];
+    new Showcase(getStage(this.game.canvas), gears.map((gear, i) => {
+      const look = { color: s.color, ...s.gear };
+      if (look[gear] < 3) look[gear] = (look[gear] + 1) as 1 | 2 | 3;
+      return { look, x: 230 + i * 410, y: 400, height: 220, spin: 0.6, yaw: 0.5 + i };
+    }));
+    this.add.graphics().fillStyle(0x0b0f1a, 0.75).fillRect(0, 0, W, 122).fillStyle(0xf77f00, 1).fillRect(0, 120, W, 6);
 
     text(this, W / 2, 60, 'ENGINEERING ZONE', 56, '#ffd166').setStroke('#6a040f', 10);
     scrapBadge(this, W - 180, 60, s.scrap);
@@ -47,18 +52,15 @@ export class EngineeringScene extends Phaser.Scene {
     const cost = maxed ? 0 : BUILD_COST[next];
     const afford = s.scrap >= cost;
 
-    panel(this, x, 400, 380, 520, 0x16213e, maxed ? 0x06d6a0 : 0xf77f00);
-    text(this, x, 175, `${info.title.toUpperCase()} BENCH`, 32, '#ffffff');
-
-    // A preview of the robot wearing the next mark of this gear.
-    const look = { color: s.color, ...s.gear };
-    if (!maxed) look[gear] = next;
-    makeRobotTextures(this, look, `prev-${gear}`, 2);
-    this.add.image(x, 315, `prev-${gear}0`);
+    const card = this.add.graphics();
+    card.fillStyle(0x0b0f1a, 0.55).fillRoundedRect(x - 190, 140, 380, 520, 20);
+    card.fillStyle(0x0b0f1a, 0.85).fillRoundedRect(x - 190, 410, 380, 250, { tl: 0, tr: 0, bl: 20, br: 20 });
+    card.lineStyle(4, maxed ? 0x06d6a0 : 0xf77f00, 1).strokeRoundedRect(x - 190, 140, 380, 520, 20);
+    text(this, x, 170, `${info.title.toUpperCase()} BENCH`, 30, '#ffffff').setStroke('#000000', 6);
 
     // Mark pips.
     for (let m = 1; m <= 3; m++) {
-      this.add.circle(x - 50 + (m - 1) * 50, 418, 14, m <= mark ? 0x06d6a0 : 0x3d4458).setStrokeStyle(3, 0xffffff, 0.6);
+      this.add.circle(x - 50 + (m - 1) * 50, 440, 14, m <= mark ? 0x06d6a0 : 0x3d4458).setStrokeStyle(3, 0xffffff, 0.6);
     }
 
     if (maxed) {

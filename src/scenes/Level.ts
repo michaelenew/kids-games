@@ -2,16 +2,24 @@ import Phaser from 'phaser';
 import { COLORS, FONT, ROBOT_CX, ROBOT_H, ROBOT_W, TILE, makeRobotTextures } from '../art';
 import { GROUND_ROW, LEVELS, ROWS, type LevelDef } from '../levels';
 import {
-  ARMOR, BLASTER_COOLDOWN, BLASTER_DAMAGE, BLASTER_SCALE, JUMP_VELOCITY,
+  ARMOR, BLASTER_COOLDOWN, BLASTER_DAMAGE, JUMP_VELOCITY,
   canDoubleJump, hasSeen, markSeen, persist, save,
 } from '../state';
+import { getStage } from '../three/stage';
+import { type TrackKind, WorldView } from '../three/world';
 import { Controls } from '../ui/controls';
-import { H, W, button, dialog, panel, sparks, speak, text, toast } from '../ui/widgets';
+import { H, W, button, dialog, panel, speak, text, toast } from '../ui/widgets';
 
 const GRAVITY = 1500;
 const RUN_SPEED = 290;
+const CAR_SPEED = 470;
 const COYOTE_MS = 110;
 const JUMP_BUFFER_MS = 130;
+/** Where shots leave the cannon, relative to the robot's feet, per blaster mark (px). */
+const MUZZLE_X = [34, 46, 48, 50];
+const MUZZLE_Y = 58;
+/** The action camera is zoomed in so the robot is big on screen; menus use a second, unzoomed camera. */
+const ZOOM = 1.4;
 
 type Hurt = 'fall' | 'boss' | 'enemy';
 type Sprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -32,12 +40,19 @@ interface EnemyData {
 
 const DAMAGE: Record<EnemyKind, number> = { rustbot: 50, turret: 50, drone: 40, boss: 150 };
 const HP: Record<EnemyKind, number> = { rustbot: 2, turret: 3, drone: 1, boss: 30 };
+const RAM_DAMAGE = 3;
+
+/** The car unlocks once the first mission is done. */
+export function carUnlocked(): boolean {
+  return save().levelsDone.includes('junkyard');
+}
 
 export class LevelScene extends Phaser.Scene {
   private def!: LevelDef;
   private solid: boolean[][] = [];
   private player!: Sprite;
   private controls!: Controls;
+  private view!: WorldView;
   private solids!: Phaser.Physics.Arcade.StaticGroup;
   private spikes!: Phaser.Physics.Arcade.StaticGroup;
   private pickups!: Phaser.Physics.Arcade.Group;
@@ -47,8 +62,6 @@ export class LevelScene extends Phaser.Scene {
   private boss: Sprite | null = null;
   private bossBar: Phaser.GameObjects.Graphics | null = null;
   private bossLabel: Phaser.GameObjects.Text | null = null;
-  private bgFar!: Phaser.GameObjects.TileSprite;
-  private bgNear!: Phaser.GameObjects.TileSprite;
   private hud!: Phaser.GameObjects.Graphics;
   private armorText!: Phaser.GameObjects.Text;
   private scrapText!: Phaser.GameObjects.Text;
@@ -67,6 +80,9 @@ export class LevelScene extends Phaser.Scene {
   private over = false;
   private paused = false;
   private bossStarted = false;
+  private car = false;
+  private nextTransform = 0;
+  private uiCam!: Phaser.Cameras.Scene2D.Camera;
 
   constructor() {
     super('Level');
@@ -83,6 +99,8 @@ export class LevelScene extends Phaser.Scene {
     this.bossStarted = false;
     this.runScrap = 0;
     this.usedDoubleJump = false;
+    this.car = false;
+    this.facing = 1;
   }
 
   create() {
@@ -98,10 +116,11 @@ export class LevelScene extends Phaser.Scene {
     this.physics.world.gravity.y = GRAVITY;
     this.physics.world.setBounds(0, 0, worldW, H + 400, true, true, true, false);
     this.cameras.main.setBounds(0, 0, worldW, H);
-    this.cameras.main.setBackgroundColor(COLORS.bg);
 
-    this.bgFar = this.add.tileSprite(0, 0, W, H, 'bg-far').setOrigin(0).setScrollFactor(0);
-    this.bgNear = this.add.tileSprite(0, 0, W, H, 'bg-near').setOrigin(0).setScrollFactor(0);
+    // Everything you see in the level is drawn by the 3D layer; the game
+    // objects here are invisible and only handle movement and collisions.
+    this.view = new WorldView(getStage(this.game.canvas), map, { color: s.color, ...s.gear });
+    this.view.blasterMark = s.gear.blaster;
 
     this.solids = this.physics.add.staticGroup();
     this.spikes = this.physics.add.staticGroup();
@@ -111,18 +130,23 @@ export class LevelScene extends Phaser.Scene {
     this.enemyShots = this.physics.add.group({ allowGravity: false });
 
     this.buildWorld(map);
+    this.solids.setVisible(false);
+    this.spikes.setVisible(false);
 
     // Player.
     const start = this.respawn;
     this.player = this.physics.add.sprite(start.x, start.y, 'robot0') as Sprite;
     this.player.setOrigin(ROBOT_CX / ROBOT_W, 1);
-    this.player.body.setSize(34, 76).setOffset(ROBOT_CX - 17, ROBOT_H - 76);
+    this.setPlayerBody(false);
     this.player.setCollideWorldBounds(true);
-    this.player.setDepth(10);
+    this.player.setVisible(false);
 
     this.physics.add.collider(this.player, this.solids);
     this.physics.add.collider(this.enemies, this.solids, undefined, (e) => (e as Sprite).getData('e').kind !== 'drone');
-    this.physics.add.collider(this.bullets, this.solids, (b) => b.destroy());
+    this.physics.add.collider(this.bullets, this.solids, (b) => {
+      this.view.burst((b as Sprite).x, (b as Sprite).y, 0xff5d8f, 5);
+      b.destroy();
+    });
     this.physics.add.collider(this.enemyShots, this.solids, (b) => b.destroy());
     this.physics.add.overlap(this.bullets, this.enemies, (b, e) => {
       b.destroy();
@@ -141,10 +165,13 @@ export class LevelScene extends Phaser.Scene {
     });
     this.physics.add.overlap(this.player, this.pickups, (_p, item) => this.pickup(item as Phaser.Physics.Arcade.Sprite));
 
-    this.cameras.main.startFollow(this.player, true, 0.12, 0.12, -120, 0);
-    this.cameras.main.setDeadzone(120, 200);
+    this.cameras.main.setZoom(ZOOM);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12, -90, 40);
+    this.cameras.main.setDeadzone(80, 140);
+    this.uiCam = this.cameras.add(0, 0, W, H);
+    this.uiCam.setName('ui');
 
-    this.controls = new Controls(this);
+    this.controls = new Controls(this, carUnlocked());
     this.makeHud();
 
     this.input.keyboard?.on('keydown-ESC', () => this.pause());
@@ -158,11 +185,19 @@ export class LevelScene extends Phaser.Scene {
         markSeen(introKey);
         this.physics.resume();
         this.paused = false;
+        this.controls.clearTaps();
         this.showControlsHint();
       });
     } else {
       this.showControlsHint();
     }
+    this.syncView(0);
+  }
+
+  /** Robot is tall and narrow; the car is long and low. */
+  private setPlayerBody(car: boolean) {
+    const [w, h] = car ? [84, 34] : [34, 76];
+    this.player.body.setSize(w, h).setOffset(ROBOT_CX - w / 2, ROBOT_H - h);
   }
 
   // ---- World ------------------------------------------------------------
@@ -231,10 +266,13 @@ export class LevelScene extends Phaser.Scene {
 
   private addPickup(x: number, y: number, key: string): Phaser.Physics.Arcade.Sprite {
     const p = this.pickups.create(x, y, key) as Phaser.Physics.Arcade.Sprite;
-    p.setData('kind', key.startsWith('beacon') ? 'beacon' : key);
+    const kind = key.startsWith('beacon') ? 'beacon' : key;
+    p.setData('kind', kind);
+    p.setVisible(false);
     if (key === 'scrap') {
       this.tweens.add({ targets: p, y: y - 6, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
+    this.view.track(p, kind as TrackKind);
     return p;
   }
 
@@ -243,26 +281,29 @@ export class LevelScene extends Phaser.Scene {
     const key = kind === 'rustbot' ? 'rustbot0' : kind === 'boss' ? 'crusher' : kind;
     const e = this.enemies.create(x, floorY, key) as Sprite;
     e.setOrigin(0.5, 1);
+    e.setVisible(false);
     const data: EnemyData = {
       kind, hp: HP[kind], maxHp: HP[kind], dir: -1, nextFire: 0, baseY: floorY - 20,
       state: 'rest', stateUntil: 0, wasAirborne: false, hitsSinceDrop: 0,
     };
     e.setData('e', data);
     if (kind === 'rustbot') {
-      e.body.setSize(48, 44).setOffset(6, 8);
-      e.play('rustbot-walk');
+      // Frame is 60×52; the 3D model is bigger, so the body reaches above the frame.
+      e.body.setSize(64, 62).setOffset(-2, -10);
     } else if (kind === 'turret') {
       e.body.setAllowGravity(false).setImmovable(true);
+      e.body.setSize(56, 62).setOffset(-2, -10);
       e.setFlipX(false);
     } else if (kind === 'drone') {
       e.body.setAllowGravity(false);
+      e.body.setSize(62, 44).setOffset(-3, -4);
       e.y = floorY - 10;
       data.baseY = e.y;
     } else {
       e.body.setSize(100, 140).setOffset(20, 10);
-      e.setDepth(5);
       this.boss = e;
     }
+    this.view.track(e, kind);
   }
 
   private isSolid(col: number, row: number): boolean {
@@ -275,14 +316,15 @@ export class LevelScene extends Phaser.Scene {
 
   private makeHud() {
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(600);
-    this.add.text(28, 10, 'ARMOR', { fontFamily: FONT, fontSize: '20px', color: '#9ad1ff' }).setScrollFactor(0).setDepth(600);
+    this.add.text(28, 10, 'ARMOR', { fontFamily: FONT, fontSize: '20px', color: '#9ad1ff' })
+      .setStroke('#000000', 4).setScrollFactor(0).setDepth(600);
     this.armorText = this.add
       .text(206, 52, '', { fontFamily: FONT, fontSize: '20px', color: '#ffffff' })
       .setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(601);
     this.add.image(430, 52, 'scrap').setScale(1.3).setScrollFactor(0).setDepth(600);
     this.scrapText = this.add
       .text(456, 52, '', { fontFamily: FONT, fontSize: '30px', color: '#ffd166' })
-      .setOrigin(0, 0.5).setScrollFactor(0).setDepth(600);
+      .setStroke('#000000', 5).setOrigin(0, 0.5).setScrollFactor(0).setDepth(600);
     const pauseBtn = button(this, W - 60, 50, 80, 64, 'II', () => this.pause(), { size: 30, fill: 0x3d4458 });
     pauseBtn.setScrollFactor(0, 0, true).setDepth(600);
     const title = text(this, W / 2, 110, this.def.title, 44, '#ffd166').setScrollFactor(0).setDepth(600);
@@ -310,10 +352,17 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private showControlsHint() {
-    if (this.def.id !== 'junkyard' || this.checkpointCol >= 0) return;
-    const msg = this.controls.touch
-      ? 'Use the buttons:  ◀ ▶ to move,  JUMP,  FIRE'
-      : '← → to move    SPACE to jump    F to fire';
+    if (this.checkpointCol >= 0) return;
+    let msg = '';
+    if (this.def.id === 'junkyard') {
+      msg = this.controls.touch
+        ? 'Use the buttons:  ◀ ▶ to move,  JUMP,  FIRE'
+        : '← → to move    SPACE to jump    F to fire';
+    } else if (carUnlocked() && !hasSeen('car-hint')) {
+      markSeen('car-hint');
+      msg = this.controls.touch ? 'Tap CAR to transform!' : 'Press C to transform into a car!';
+    }
+    if (!msg) return;
     const t = text(this, W / 2, 180, msg, 30, '#ffffff').setScrollFactor(0).setDepth(600);
     t.setStroke('#000000', 6);
     this.tweens.add({ targets: t, alpha: 0, delay: 5000, duration: 1000, onComplete: () => t.destroy() });
@@ -322,17 +371,47 @@ export class LevelScene extends Phaser.Scene {
   // ---- Main loop --------------------------------------------------------
 
   update(time: number) {
-    this.bgFar.tilePositionX = this.cameras.main.scrollX * 0.1;
-    this.bgNear.tilePositionX = this.cameras.main.scrollX * 0.35;
-    if (this.over || this.paused) return;
-
-    this.controls.update();
-    this.updatePlayer(time);
-    this.updateEnemies(time);
-
-    if (this.player.y > H + 120) {
-      this.fell();
+    this.sortCameras();
+    if (!this.over && !this.paused) {
+      this.controls.update();
+      this.updatePlayer(time);
+      this.updateEnemies(time);
+      if (this.player.y > H + 120) this.fell();
     }
+    this.syncView(time);
+  }
+
+  /**
+   * Things pinned to the screen (HUD, menus, touch buttons) go to the
+   * unzoomed UI camera; everything in the world goes to the zoomed one.
+   */
+  private sortCameras() {
+    const main = this.cameras.main;
+    for (const obj of this.children.list) {
+      const o = obj as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.ScrollFactor;
+      const ui = o.scrollFactorX === 0;
+      o.cameraFilter = ui ? main.id : this.uiCam.id;
+    }
+  }
+
+  /** Copy the game state over to the 3D layer. */
+  private syncView(time: number) {
+    const cam = this.cameras.main;
+    const shake = cam.shakeEffect as unknown as { _offsetX: number; _offsetY: number; isRunning: boolean };
+    const sx = shake.isRunning ? shake._offsetX : 0;
+    const sy = shake.isRunning ? shake._offsetY : 0;
+    this.view.setCamera(cam.scrollX - sx, cam.scrollY - sy, cam.zoom);
+
+    const r = this.view.player;
+    const body = this.player.body;
+    this.view.placePlayer(this.player.x, this.player.y);
+    this.view.playerPx = { x: this.player.x, y: this.player.y };
+    r.facing = this.facing;
+    r.speed = this.paused || this.over ? 0 : Math.abs(body.velocity.x);
+    r.grounded = body.blocked.down || this.over;
+    r.vy = body.velocity.y;
+    const blink = time < this.invulnUntil && !this.over && Math.floor(time / 80) % 2 === 1;
+    r.holder.visible = !blink;
   }
 
   private updatePlayer(time: number) {
@@ -344,19 +423,15 @@ export class LevelScene extends Phaser.Scene {
       this.usedDoubleJump = false;
     }
 
+    if (this.controls.carPressed && carUnlocked() && time >= this.nextTransform) this.toggleCar(time);
+
+    const speed = this.car ? CAR_SPEED : RUN_SPEED;
     let vx = 0;
-    if (c.left) vx -= RUN_SPEED;
-    if (c.right) vx += RUN_SPEED;
+    if (c.left) vx -= speed;
+    if (c.right) vx += speed;
     this.player.setVelocityX(vx);
     if (vx !== 0) this.facing = vx > 0 ? 1 : -1;
     this.player.setFlipX(this.facing < 0);
-
-    if (vx !== 0 && onGround) {
-      if (!this.player.anims.isPlaying) this.player.play('robot-walk');
-    } else {
-      this.player.anims.stop();
-      this.player.setTexture('robot0');
-    }
 
     if (this.controls.jumpPressed) this.jumpQueuedAt = time;
     const jv = JUMP_VELOCITY[save().gear.boots];
@@ -370,7 +445,7 @@ export class LevelScene extends Phaser.Scene {
         this.usedDoubleJump = true;
         this.player.setVelocityY(-jv * 0.85);
         this.jumpQueuedAt = -1000;
-        sparks(this, this.player.x, this.player.y, 0x4cc9f0, 10);
+        this.view.burst(this.player.x, this.player.y, 0x4cc9f0, 16);
       }
     }
     // Let go of jump early for a short hop.
@@ -382,21 +457,28 @@ export class LevelScene extends Phaser.Scene {
       this.shoot();
       this.nextShot = time + BLASTER_COOLDOWN[save().gear.blaster];
     }
+  }
 
-    if (time < this.invulnUntil) {
-      this.player.setAlpha(Math.floor(time / 80) % 2 ? 0.35 : 1);
-    } else {
-      this.player.setAlpha(1);
-    }
+  private toggleCar(time: number) {
+    this.car = !this.car;
+    this.nextTransform = time + 650;
+    this.view.player.setVehicle(this.car);
+    this.setPlayerBody(this.car);
+    // Changing to the taller robot shape: lift a little so feet don't sink into the floor.
+    if (!this.car) this.player.y -= 2;
+    this.view.burst(this.player.x, this.player.y - 30, 0x4cf0ff, 12);
   }
 
   private shoot() {
     const mark = save().gear.blaster;
-    const scale = BLASTER_SCALE[mark];
-    const tip = ROBOT_W - ROBOT_CX - 30 + mark * 7;
-    const b = this.bullets.create(this.player.x + this.facing * tip, this.player.y - 48, 'bullet') as Phaser.Physics.Arcade.Sprite;
-    b.setScale(scale).setFlipX(this.facing < 0);
+    const x = this.player.x + this.facing * MUZZLE_X[mark];
+    const y = this.player.y - (this.car ? 22 : MUZZLE_Y);
+    const b = this.bullets.create(x, y, 'bullet') as Phaser.Physics.Arcade.Sprite;
+    b.setVisible(false);
+    (b.body as Phaser.Physics.Arcade.Body).setSize(22 + mark * 6, 24 + mark * 4);
     b.setVelocityX(this.facing * 760);
+    this.view.track(b, 'shot');
+    this.view.player.fire();
     this.time.delayedCall(800, () => b.destroy());
   }
 
@@ -408,7 +490,7 @@ export class LevelScene extends Phaser.Scene {
       switch (d.kind) {
         case 'rustbot': {
           // Turn around at walls and ledges.
-          const aheadCol = Math.floor((e.x + d.dir * 30) / TILE);
+          const aheadCol = Math.floor((e.x + d.dir * 34) / TILE);
           const feetRow = Math.floor((e.y + 4) / TILE);
           const bodyRow = Math.floor((e.y - 20) / TILE);
           if (e.body.blocked.down && (!this.isSolid(aheadCol, feetRow) || this.isSolid(aheadCol, bodyRow))) {
@@ -422,7 +504,7 @@ export class LevelScene extends Phaser.Scene {
           e.setFlipX(dx > 0);
           if (Math.abs(dx) < 640 && Math.abs(this.player.y - e.y) < 320 && time > d.nextFire) {
             d.nextFire = time + 2100;
-            this.enemyShot(e.x + (dx > 0 ? 20 : -20), e.y - 26, this.player.x, this.player.y - 40, 330, DAMAGE.turret, 'enemy');
+            this.enemyShot(e.x + (dx > 0 ? 40 : -40), e.y - 34, this.player.x, this.player.y - 40, 330, DAMAGE.turret, 'enemy');
           }
           break;
         }
@@ -461,12 +543,10 @@ export class LevelScene extends Phaser.Scene {
         if (time > d.stateUntil && grounded) {
           d.state = 'windup';
           d.stateUntil = time + 650;
-          e.setTexture('crusher-angry');
           e.setVelocityX(0);
         }
         break;
       case 'windup':
-        e.x += Math.sin(time / 20) * 1.5;
         if (time > d.stateUntil) {
           d.state = 'air';
           d.wasAirborne = false;
@@ -477,9 +557,9 @@ export class LevelScene extends Phaser.Scene {
         if (!grounded) d.wasAirborne = true;
         if (d.wasAirborne && grounded) {
           e.setVelocityX(0);
-          e.setTexture('crusher');
           this.cameras.main.shake(260, 0.012);
-          sparks(this, e.x, e.y, 0xf77f00, 20);
+          this.view.burst(e.x - 60, e.y - 10, 0xf77f00, 18, true);
+          this.view.burst(e.x + 60, e.y - 10, 0xf77f00, 18, true);
           for (const dir of [-1, 1]) {
             const s = this.enemyShot(e.x + dir * 60, e.y - 15, 0, 0, 0, 100, 'boss', 'shock');
             s.setVelocityX(dir * 340);
@@ -504,11 +584,13 @@ export class LevelScene extends Phaser.Scene {
   private enemyShot(x: number, y: number, tx: number, ty: number, speed: number, dmg: number, src: Hurt, key = 'ebullet') {
     const b = this.enemyShots.create(x, y, key) as Phaser.Physics.Arcade.Sprite;
     b.setData('dmg', dmg).setData('src', src);
+    b.setVisible(false);
     if (speed > 0) {
       const a = Phaser.Math.Angle.Between(x, y, tx, ty);
       b.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
       this.time.delayedCall(4000, () => b.destroy());
     }
+    this.view.track(b as unknown as Phaser.GameObjects.Sprite, key === 'shock' ? 'shock' : 'eshot');
     return b;
   }
 
@@ -517,6 +599,13 @@ export class LevelScene extends Phaser.Scene {
   private touchEnemy(e: Sprite) {
     const d = e.getData('e') as EnemyData;
     const pb = this.player.body;
+    // In car mode, ramming smashes smaller enemies.
+    if (this.car && d.kind !== 'boss' && Math.abs(pb.velocity.x) > 200) {
+      this.damageEnemy(e, RAM_DAMAGE);
+      this.player.setVelocity(-Math.sign(pb.velocity.x) * 250, -300);
+      this.invulnUntil = this.time.now + 400;
+      return;
+    }
     const stomping = pb.velocity.y > 50 && pb.bottom <= e.body.top + 22;
     if (stomping && d.kind !== 'turret') {
       this.player.setVelocityY(-520);
@@ -533,9 +622,8 @@ export class LevelScene extends Phaser.Scene {
     const d = e.getData('e') as EnemyData;
     if (d.hp <= 0) return;
     d.hp -= dmg;
-    e.setTintFill(0xffffff);
-    this.time.delayedCall(70, () => e.active && e.clearTint());
-    sparks(this, e.x, e.y - e.height / 2, 0xffd166, 6);
+    e.setData('hitAt', performance.now());
+    this.view.burst(e.x, e.y - e.body.height / 2, 0xffd166, 8);
     if (d.kind === 'boss') {
       d.hitsSinceDrop += dmg;
       if (d.hitsSinceDrop >= 8 && d.hp > 0) {
@@ -549,7 +637,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private killEnemy(e: Sprite, d: EnemyData) {
-    sparks(this, e.x, e.y - e.height / 2, 0xf77f00, d.kind === 'boss' ? 60 : 18);
+    this.view.explode(e, d.kind === 'boss');
     if (d.kind === 'boss') {
       this.cameras.main.shake(600, 0.02);
       const x = e.x;
@@ -558,9 +646,7 @@ export class LevelScene extends Phaser.Scene {
       this.bossBar?.destroy();
       this.bossLabel?.destroy();
       for (let i = 0; i < 8; i++) this.addPickup(x - 160 + i * 45, GROUND_ROW * TILE - 70, 'scrap');
-      const flag = this.addPickup(x + 220, GROUND_ROW * TILE - 60, 'flag');
-      flag.setAlpha(0);
-      this.tweens.add({ targets: flag, alpha: 1, duration: 600 });
+      this.addPickup(x + 220, GROUND_ROW * TILE - 60, 'flag');
       toast(this, x, GROUND_ROW * TILE - 250, 'CRUSHER DOWN!', '#06d6a0', 56);
       return;
     }
@@ -575,7 +661,9 @@ export class LevelScene extends Phaser.Scene {
     this.armor -= amount;
     this.invulnUntil = this.time.now + 1100;
     this.cameras.main.shake(140, 0.006);
-    toast(this, this.player.x, this.player.y - 100, `−${amount}`, '#ef476f', 30);
+    this.view.player.hit();
+    this.view.burst(this.player.x, this.player.y - 50, 0xff5d5d, 10);
+    toast(this, this.player.x, this.player.y - 110, `−${amount}`, '#ef476f', 30);
     this.drawHud();
     if (this.armor <= 0) this.retreat(src);
     return true;
@@ -597,11 +685,12 @@ export class LevelScene extends Phaser.Scene {
       save().scrap += 1;
       this.runScrap += 1;
       persist();
-      sparks(this, item.x, item.y, 0xffd166, 6);
+      this.view.burst(item.x, item.y, 0xffd166, 8);
       item.destroy();
       this.drawHud();
     } else if (kind === 'oil') {
       this.armor = Math.min(this.maxArmor, this.armor + 150);
+      this.view.burst(item.x, item.y, 0x06d6a0, 14);
       toast(this, item.x, item.y - 40, '+150 armor', '#06d6a0', 30);
       item.destroy();
       this.drawHud();
@@ -611,6 +700,7 @@ export class LevelScene extends Phaser.Scene {
         this.checkpointCol = col;
         item.setTexture('beacon-on');
         this.respawn = { x: item.x, y: (GROUND_ROW) * TILE };
+        this.view.burst(item.x, item.y - 30, 0x06d6a0, 16);
         toast(this, item.x, item.y - 60, 'Checkpoint!', '#06d6a0', 32);
       }
     } else if (kind === 'flag') {
@@ -623,13 +713,11 @@ export class LevelScene extends Phaser.Scene {
   private freeze() {
     this.over = true;
     this.physics.pause();
-    this.player.anims.stop();
   }
 
   private retreat(src: Hurt) {
     this.freeze();
-    sparks(this, this.player.x, this.player.y - 40, 0xef476f, 30);
-    this.player.setTint(0x555555);
+    this.view.burst(this.player.x, this.player.y - 40, 0xef476f, 30, true);
     const tip = this.def.tips[src] ?? this.def.tips.enemy ?? 'Let\'s patch up and try again!';
 
     const box = panel(this, W / 2, H / 2 - 40, 760, 420).setScrollFactor(0).setDepth(700);
@@ -659,7 +747,7 @@ export class LevelScene extends Phaser.Scene {
     const firstClear = !s.levelsDone.includes(this.def.id);
     if (firstClear) s.levelsDone.push(this.def.id);
     persist();
-    sparks(this, this.player.x, this.player.y - 60, 0x06d6a0, 40);
+    this.view.burst(this.player.x, this.player.y - 60, 0x06d6a0, 40, true);
 
     const show = () => {
       panel(this, W / 2, H / 2 - 20, 680, 360).setScrollFactor(0).setDepth(700);
@@ -695,6 +783,7 @@ export class LevelScene extends Phaser.Scene {
       items.forEach((o) => o.destroy());
       this.paused = false;
       this.physics.resume();
+      this.controls.clearTaps();
     };
     items.push(button(this, W / 2, H / 2 - 10, 300, 80, 'Keep playing', resume, { fill: 0x2a9d8f, edge: 0x9ff0e3 })
       .setScrollFactor(0, 0, true).setDepth(703));

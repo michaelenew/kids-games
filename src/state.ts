@@ -18,6 +18,8 @@ export interface SaveData {
   /** Story beats already shown, so they only play once. */
   seen: string[];
   voice: boolean;
+  /** 'best' adapts to the device; 'fast' turns off glow and shadows for older iPads. */
+  graphics?: 'best' | 'fast';
   skills: Record<string, SkillStat>;
 }
 

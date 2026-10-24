@@ -7,6 +7,8 @@ import { EngineeringScene } from './scenes/Engineering';
 import { GarageScene } from './scenes/Garage';
 import { LevelScene } from './scenes/Level';
 import { TitleScene } from './scenes/Title';
+import { InstallScene } from './scenes/Install';
+import { getStage, hasStage } from './three/stage';
 import { H, W } from './ui/widgets';
 
 // Add ?canvas to the URL to skip WebGL (useful on older devices and in headless testing).
@@ -17,7 +19,8 @@ const game = new Phaser.Game({
   parent: 'game',
   width: W,
   height: H,
-  backgroundColor: '#0b0f1a',
+  // Transparent so the 3D layer underneath shows through.
+  transparent: true,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -27,11 +30,17 @@ const game = new Phaser.Game({
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 1500 }, debug: false },
   },
-  scene: [BootScene, TitleScene, GarageScene, LevelScene, EngineeringScene, ArmorBench, BlasterBench, BootsBench],
+  scene: [BootScene, TitleScene, GarageScene, LevelScene, EngineeringScene, ArmorBench, BlasterBench, BootsBench, InstallScene],
+});
+
+// Draw the 3D layer once per game step, after the game logic has run.
+game.events.on('poststep', (_time: number, delta: number) => {
+  if (hasStage()) getStage().frame(delta / 1000);
 });
 
 // Handy for poking at the game from the browser console while developing.
 (window as unknown as { game: Phaser.Game }).game = game;
+Object.defineProperty(window, 'stage', { get: () => (hasStage() ? getStage() : null) });
 
 // iPad Safari only allows speech after the first tap. Speak a silent line on
 // that first tap so Sprocket's voice works for the rest of the session.

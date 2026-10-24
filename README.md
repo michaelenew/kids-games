@@ -1,11 +1,14 @@
 # Mecha Forge
 
-A robot action game for a kid going into 3rd grade. You blast rust-bots, collect scrap, and, if you want to, build upgrades in the **Engineering Zone**. Each upgrade is a short hands-on math job. The math never blocks play; it makes the harder levels easier.
+A 3D robot action game for a kid going into 3rd grade. You blast rust-bots, collect scrap, transform into a car, and, if you want to, build upgrades in the **Engineering Zone**. Each upgrade is a short hands-on math job, and each one visibly changes the robot. The math never blocks play; it makes the harder levels easier.
 
 See [GAME_DESIGN.md](GAME_DESIGN.md) for the full plan and the syllabus mapping.
 
 ## What's in the prototype
 
+- **A 3D robot that gets visibly cooler.** Metallic paint, chrome pistons, glowing visor and core, truck-style chest windows, wheels and exhaust stacks. Every upgrade adds real 3D parts: shoulder armor, then a chest emblem and knee spikes, then gold horns and wings. The blaster goes from a stubby cannon to a long barrel, then twin barrels with glowing coils, then a spinning gatling gun plus a shoulder missile pod. The boots go from pistons to glowing armored boots to jet thrusters.
+- **It transforms into a car** (unlocked after the first mission): press C, or tap CAR on the iPad. The car is faster and rams small enemies.
+- **The install moment:** finishing a bench job shows the new part flying onto the spinning robot, then the robot shows it off.
 - **3 levels:** The Junkyard, Scrap Canyon, and Crusher's Gate (boss fight). Each one is beatable with starter gear, and each gets harder than the last.
 - **Engineering Zone:** three benches, each with Mark I → II → III upgrades.
 
@@ -23,8 +26,8 @@ See [GAME_DESIGN.md](GAME_DESIGN.md) for the full plan and the syllabus mapping.
 
 ## Controls
 
-- **iPad:** on-screen ◀ ▶, JUMP and FIRE buttons. Multi-touch works, so he can hold ▶ and tap JUMP. Play it sideways.
-- **Laptop:** ← → or A/D to move, Space/↑/W to jump, F/J/X to fire, Esc to pause.
+- **iPad:** on-screen ◀ ▶, JUMP, FIRE and CAR buttons. Multi-touch works, so he can hold ▶ and tap JUMP. Play it sideways. In the garage, drag across the robot to spin it.
+- **Laptop:** ← → or A/D to move, Space/↑/W to jump, F/J/X to fire, C or Shift to transform, Esc to pause.
 
 You can jump on rust-bots' heads to squash them.
 
@@ -45,7 +48,11 @@ To make a static copy you can put on any web host:
 npm run build      # outputs to dist/
 ```
 
-If the game feels slow on an older device, add `?canvas` to the address to use a simpler drawing mode.
+## Graphics and speed
+
+The 3D layer adjusts itself: it starts at medium quality and drops to a cheaper look (no glow, no shadows) if frames get slow. If an older iPad still struggles, go to Garage → ⚙ → **Graphics: FAST**.
+
+For testing, `?quality=high`, `?quality=med` or `?quality=low` forces a quality level, and `?canvas` draws the 2D layer without WebGL.
 
 ## Development
 
@@ -59,11 +66,14 @@ Code layout:
 ```
 src/
   skills/      pure math: problem generators and checks (unit tested)
-  scenes/      Title, Garage, Level, Engineering, and one scene per bench
+  scenes/      Title, Garage, Level, Engineering, Install, and one scene per bench
+  three/       the 3D layer: robot model and animation, enemies, world, garage showcase
   levels.ts    level maps, built with small helper calls
   state.ts     save data, gear stats, skill tracking
-  art.ts       all art, drawn in code (no image files)
+  art.ts       2D art for menus and benches, drawn in code (no image files)
   ui/          buttons, dialog, speech, touch/keyboard controls
 ```
+
+How the two layers fit together: the game logic (movement, collisions, menus) runs in Phaser on a transparent canvas. Underneath it, a Three.js canvas draws the 3D world. Each game object is invisible in Phaser and has a 3D model that follows it every frame (`src/three/world.ts`). One 3D unit equals one 48px tile, so the two line up exactly.
 
 Adding a level means adding a builder function to `levels.ts`. Making a bench harder or easier means changing the matching generator in `src/skills/`.

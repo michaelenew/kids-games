@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { FONT, makeRobotTextures } from '../art';
+import { FONT } from '../art';
+import { getStage } from '../three/stage';
 import { BUILD_COST, GEAR_INFO, type GearId, persist, recordSkill, save } from '../state';
 import { H, W, button, panel, sparks, speak, stopSpeaking, text, toast } from '../ui/widgets';
 
@@ -56,6 +57,7 @@ export abstract class BenchScene extends Phaser.Scene {
   }
 
   create() {
+    getStage(this.game.canvas).clear();
     this.cameras.main.setBackgroundColor(0x1a1423);
     const g = this.add.graphics();
     g.fillStyle(0x221a2e, 1).fillRect(0, 0, W, H);
@@ -153,34 +155,22 @@ export abstract class BenchScene extends Phaser.Scene {
     this.clearLayer();
     const s = save();
     const before = { color: s.color, ...s.gear };
-    if (this.practice) {
-      s.scrap += PRACTICE_REWARD;
-    } else {
+    if (!this.practice) {
       s.scrap -= BUILD_COST[this.mark];
       s.gear[this.gear] = this.mark;
+      persist();
+      this.scene.start('Install', { gear: this.gear, mark: this.mark, before });
+      return;
     }
-    persist();
 
+    s.scrap += PRACTICE_REWARD;
+    persist();
     this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.7).setInteractive();
     panel(this, W / 2, H / 2, 900, 560, 0x16213e, 0x06d6a0);
-    if (this.practice) {
-      text(this, W / 2, 180, 'Practice complete!', 50, '#06d6a0');
-      this.add.image(W / 2 - 40, 320, 'scrap').setScale(3);
-      text(this, W / 2 + 60, 320, `+${PRACTICE_REWARD}`, 60, '#ffd166');
-      this.say('Nice work! Here is some bonus scrap.');
-    } else {
-      text(this, W / 2, 160, `${GEAR_INFO[this.gear].title.toUpperCase()} MARK ${ROMAN[this.mark]} INSTALLED!`, 46, '#06d6a0');
-      makeRobotTextures(this, before, 'before', 2);
-      makeRobotTextures(this, { color: s.color, ...s.gear }, 'after', 2);
-      this.add.image(W / 2 - 220, 330, 'before0').setAlpha(0.6);
-      text(this, W / 2, 330, '➜', 80, '#ffd166');
-      const after = this.add.image(W / 2 + 220, 330, 'after0');
-      this.tweens.add({ targets: after, scale: 1.1, duration: 400, yoyo: true, repeat: 2 });
-      sparks(this, W / 2 + 220, 330, 0x06d6a0, 40);
-      const perk = GEAR_INFO[this.gear].perks[this.mark];
-      text(this, W / 2, 470, perk, 34, '#ffffff');
-      this.say(`It works! ${perk}! Let's go try it out.`);
-    }
+    text(this, W / 2, 180, 'Practice complete!', 50, '#06d6a0');
+    this.add.image(W / 2 - 40, 320, 'scrap').setScale(3);
+    text(this, W / 2 + 60, 320, `+${PRACTICE_REWARD}`, 60, '#ffd166');
+    this.say('Nice work! Here is some bonus scrap.');
     button(this, W / 2 - 170, 590, 300, 80, 'Engineering Zone', () => this.scene.start('Engineering'), { fill: 0xf77f00, edge: 0xffd166, size: 26 });
     button(this, W / 2 + 170, 590, 300, 80, 'Go play!', () => this.scene.start('Garage'), { fill: 0x2a9d8f, edge: 0x9ff0e3 });
   }

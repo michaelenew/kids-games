@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
-import { COLORS, FONT, makeRobotTextures } from '../art';
+import { COLORS, FONT } from '../art';
 import { LEVELS } from '../levels';
 import {
   ARMOR, BLASTER_DAMAGE, BUILD_COST, GEAR_INFO, type GearId,
   hasSeen, markSeen, persist, resetSave, save,
 } from '../state';
+import { Showcase } from '../three/showcase';
+import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, scrapBadge, text } from '../ui/widgets';
+import { carUnlocked } from './Level';
 
 const SKILL_LABELS: Record<string, string> = {
   'armor-1': 'Build 3-digit numbers from hundreds, tens, ones',
@@ -32,21 +35,42 @@ export class GarageScene extends Phaser.Scene {
 
   create() {
     const s = save();
-    this.cameras.main.setBackgroundColor(COLORS.bg);
-    this.add.tileSprite(0, 0, W, H, 'bg-far').setOrigin(0).setAlpha(0.6);
+    const show = new Showcase(getStage(this.game.canvas), [
+      { look: { color: s.color, ...s.gear }, x: 300, y: 590, height: 400, spin: 0.35, yaw: 0.7 },
+    ]);
+    const robot = show.robots[0];
 
-    // Robot on its stand.
-    makeRobotTextures(this, { color: s.color, ...s.gear }, 'big', 3);
-    this.add.ellipse(300, 600, 360, 60, 0x4cc9f0, 0.25);
-    const robot = this.add.image(300, 360, 'big0');
-    this.tweens.add({ targets: robot, y: 350, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    text(this, 300, 70, s.name, 52, '#ffd166').setStroke('#000000', 6);
+    // Drag across the robot to spin it.
+    const zone = this.add.zone(300, 360, 520, 520).setInteractive();
+    let lastX = 0;
+    zone.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      lastX = p.x;
+      show.held[0] = true;
+    });
+    zone.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (!p.isDown || robot.spin === null) return;
+      robot.spin += (p.x - lastX) * 0.012;
+      lastX = p.x;
+    });
+    const release = () => (show.held[0] = false);
+    zone.on('pointerup', release);
+    zone.on('pointerout', release);
+
+    text(this, 300, 70, s.name, 52, '#ffd166').setStroke('#000000', 8);
     const stats = [
       `Armor ${ARMOR[s.gear.armor]}`,
       `Blaster power ${BLASTER_DAMAGE[s.gear.blaster]}`,
       `Jump ${['normal', 'super', 'mega', 'mega + double'][s.gear.boots]}`,
     ];
-    text(this, 300, 650, stats.join('   ·   '), 22, '#9ad1ff');
+    text(this, 300, 120, stats.join('   ·   '), 20, '#9ad1ff').setStroke('#000000', 5);
+
+    if (carUnlocked()) {
+      const tf = button(this, 300, 660, 260, 70, 'TRANSFORM ⇄', () => {
+        robot.setVehicle(!robot.isVehicle);
+        tf.label.setText(robot.isVehicle ? 'ROBOT MODE ⇄' : 'TRANSFORM ⇄');
+        show.sparkle(0);
+      }, { fill: 0x7b2cbf, edge: 0xd0a7ff, size: 28 });
+    }
 
     scrapBadge(this, W - 180, 50, s.scrap);
     button(this, 60, 50, 80, 64, '⚙', () => this.settings(), { size: 34, fill: 0x3d4458 });
@@ -85,6 +109,7 @@ export class GarageScene extends Phaser.Scene {
         { who: 'sprocket', text: `Welcome home, ${s.name}! This is our garage.` },
         { who: 'sprocket', text: 'Look at all that scrap you found! In the Engineering Zone, we can turn scrap into upgrades.' },
         { who: 'sprocket', text: 'Thicker armor, a bigger blaster, jump boots... Only if you want to. The next missions get tougher, though!' },
+        { who: 'sprocket', text: 'Oh! And I fixed your transformation gears. You can turn into a car now! Try the TRANSFORM button.' },
       ], () => markSeen('garage-intro'));
     }
   }
@@ -94,20 +119,28 @@ export class GarageScene extends Phaser.Scene {
     const items: Phaser.GameObjects.GameObject[] = [];
     const close = () => items.forEach((o) => o.destroy());
     items.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive().setDepth(50));
-    items.push(panel(this, W / 2, H / 2, 620, 480).setDepth(51));
-    items.push(text(this, W / 2, H / 2 - 190, 'Settings', 44, '#ffd166').setDepth(52));
-    const voice = button(this, W / 2, H / 2 - 90, 420, 76, `Voice: ${s.voice ? 'ON' : 'OFF'}`, () => {
+    items.push(panel(this, W / 2, H / 2, 620, 580).setDepth(51));
+    items.push(text(this, W / 2, H / 2 - 230, 'Settings', 44, '#ffd166').setDepth(52));
+    const gfxLabel = () => `Graphics: ${s.graphics === 'fast' ? 'FAST' : 'BEST'}`;
+    const gfx = button(this, W / 2, H / 2 - 150, 420, 76, gfxLabel(), () => {
+      s.graphics = s.graphics === 'fast' ? 'best' : 'fast';
+      persist();
+      getStage(this.game.canvas).setGraphics(s.graphics);
+      gfx.label.setText(gfxLabel());
+    }, { fill: 0x3d4458 });
+    items.push(gfx.setDepth(52));
+    const voice = button(this, W / 2, H / 2 - 60, 420, 76, `Voice: ${s.voice ? 'ON' : 'OFF'}`, () => {
       s.voice = !s.voice;
       persist();
       voice.label.setText(`Voice: ${s.voice ? 'ON' : 'OFF'}`);
     }, { fill: 0x3d4458 });
     items.push(voice.setDepth(52));
-    items.push(button(this, W / 2, H / 2 + 10, 420, 76, 'Grown-ups: progress', () => {
+    items.push(button(this, W / 2, H / 2 + 30, 420, 76, 'Grown-ups: progress', () => {
       close();
       this.parentView();
     }, { fill: 0x3d4458 }).setDepth(52));
     let armed = false;
-    const reset = button(this, W / 2, H / 2 + 110, 420, 76, 'Start over', () => {
+    const reset = button(this, W / 2, H / 2 + 120, 420, 76, 'Start over', () => {
       if (!armed) {
         armed = true;
         reset.label.setText('Tap again to erase everything');
@@ -117,7 +150,7 @@ export class GarageScene extends Phaser.Scene {
       this.scene.start('Title');
     }, { fill: 0x8d1b2e, size: 26 });
     items.push(reset.setDepth(52));
-    items.push(button(this, W / 2 + 260, H / 2 - 200, 64, 64, '✕', close, { fill: 0x3d4458 }).setDepth(53));
+    items.push(button(this, W / 2 + 260, H / 2 - 240, 64, 64, '✕', close, { fill: 0x3d4458 }).setDepth(53));
   }
 
   private parentView() {

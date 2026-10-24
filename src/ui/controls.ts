@@ -7,6 +7,7 @@ export interface ControlState {
   right: boolean;
   jump: boolean;
   fire: boolean;
+  car: boolean;
 }
 
 interface Pad {
@@ -29,15 +30,25 @@ export class Controls {
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
   private pads: Pad[] = [];
   readonly touch: boolean;
-  state: ControlState = { left: false, right: false, jump: false, fire: false };
+  state: ControlState = { left: false, right: false, jump: false, fire: false, car: false };
   private prevJump = false;
+  private prevCar = false;
   jumpPressed = false;
+  carPressed = false;
+  /** Key presses caught by event since the last update, so a quick tap is never lost. */
+  private tapJump = false;
+  private tapCar = false;
 
-  constructor(private scene: Phaser.Scene) {
+  constructor(private scene: Phaser.Scene, showCar = false) {
     this.touch = isTouchDevice(scene);
     const kb = scene.input.keyboard;
     if (kb) {
-      this.keys = kb.addKeys('LEFT,RIGHT,UP,A,D,W,SPACE,F,J,X,K,Z') as Record<string, Phaser.Input.Keyboard.Key>;
+      this.keys = kb.addKeys('LEFT,RIGHT,UP,A,D,W,SPACE,F,J,X,K,Z,C,SHIFT') as Record<string, Phaser.Input.Keyboard.Key>;
+      kb.on('keydown', (e: KeyboardEvent) => {
+        if (e.repeat) return;
+        if ([' ', 'ArrowUp', 'w', 'W', 'z', 'Z'].includes(e.key)) this.tapJump = true;
+        if (['c', 'C', 'Shift'].includes(e.key)) this.tapCar = true;
+      });
     }
     if (this.touch) {
       scene.input.addPointer(3);
@@ -45,7 +56,14 @@ export class Controls {
       this.makePad('right', 260, H - 100, 66, '▶');
       this.makePad('fire', W - 270, H - 95, 70, 'FIRE');
       this.makePad('jump', W - 110, H - 160, 78, 'JUMP');
+      if (showCar) this.makePad('car', W - 250, H - 255, 52, 'CAR');
     }
+  }
+
+  /** Forget key presses made while the game was paused (e.g. Space to close a dialog). */
+  clearTaps() {
+    this.tapJump = false;
+    this.tapCar = false;
   }
 
   private makePad(id: keyof ControlState, x: number, y: number, r: number, label: string) {
@@ -64,6 +82,7 @@ export class Controls {
       right: down('RIGHT') || down('D'),
       jump: down('SPACE') || down('UP') || down('W') || down('Z'),
       fire: down('F') || down('J') || down('X') || down('K'),
+      car: down('C') || down('SHIFT'),
     };
     if (this.pads.length) {
       const pressed = new Set<keyof ControlState>();
@@ -80,8 +99,12 @@ export class Controls {
         pad.g.setFillStyle(0xffffff, on ? 0.4 : 0.16);
       }
     }
-    this.jumpPressed = s.jump && !this.prevJump;
+    this.jumpPressed = this.tapJump || (s.jump && !this.prevJump);
     this.prevJump = s.jump;
+    this.carPressed = this.tapCar || (s.car && !this.prevCar);
+    this.prevCar = s.car;
+    this.tapJump = false;
+    this.tapCar = false;
     this.state = s;
   }
 }

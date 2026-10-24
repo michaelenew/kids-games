@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONT, ROBOT_CX, ROBOT_H, ROBOT_W, TILE, makeRobotTextures } from '../art';
+import { type Tuning, onLevelCleared, onLevelStart, tuning } from '../assist';
 import { GROUND_ROW, LEVELS, ROWS, type LevelDef } from '../levels';
 import {
   ARMOR, BLASTER_COOLDOWN, BLASTER_DAMAGE, JUMP_VELOCITY,
@@ -13,7 +14,6 @@ import { H, W, button, dialog, panel, speak, text, toast } from '../ui/widgets';
 const GRAVITY = 1500;
 const RUN_SPEED = 290;
 const CAR_SPEED = 470;
-const COYOTE_MS = 110;
 const JUMP_BUFFER_MS = 130;
 /** Where shots leave the cannon, relative to the robot's feet, per blaster mark (px). */
 const MUZZLE_X = [34, 46, 48, 50];
@@ -42,6 +42,14 @@ const DAMAGE: Record<EnemyKind, number> = { rustbot: 50, turret: 50, drone: 40, 
 const HP: Record<EnemyKind, number> = { rustbot: 2, turret: 3, drone: 1, boss: 30 };
 const RAM_DAMAGE = 3;
 
+/** Breakable boxes: which blaster mark cracks them, how tough they are, how much scrap is inside. */
+const BOXES: Record<string, { kind: 'wood' | 'steel' | 'titan' | 'energy'; need: number; hp: number; scrap: number }> = {
+  w: { kind: 'wood', need: 0, hp: 2, scrap: 1 },
+  s: { kind: 'steel', need: 1, hp: 4, scrap: 2 },
+  x: { kind: 'titan', need: 2, hp: 6, scrap: 3 },
+  e: { kind: 'energy', need: 3, hp: 8, scrap: 4 },
+};
+
 /** The car unlocks once the first mission is done. */
 export function carUnlocked(): boolean {
   return save().levelsDone.includes('junkyard');
@@ -55,6 +63,7 @@ export class LevelScene extends Phaser.Scene {
   private view!: WorldView;
   private solids!: Phaser.Physics.Arcade.StaticGroup;
   private spikes!: Phaser.Physics.Arcade.StaticGroup;
+  private boxes!: Phaser.Physics.Arcade.StaticGroup;
   private pickups!: Phaser.Physics.Arcade.Group;
   private enemies!: Phaser.Physics.Arcade.Group;
   private bullets!: Phaser.Physics.Arcade.Group;
@@ -83,6 +92,11 @@ export class LevelScene extends Phaser.Scene {
   private car = false;
   private nextTransform = 0;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
+  /** Hidden help for this attempt (see assist.ts). */
+  private tune!: Tuning;
+  private merciesLeft = 0;
+  private lastSafe = { x: 0, y: 0 };
+  private lastClank = 0;
 
   constructor() {
     super('Level');
@@ -108,6 +122,8 @@ export class LevelScene extends Phaser.Scene {
     makeRobotTextures(this, { color: s.color, ...s.gear });
     this.maxArmor = ARMOR[s.gear.armor];
     this.armor = this.maxArmor;
+    this.tune = tuning(onLevelStart(this.def.id));
+    this.merciesLeft = this.tune.mercies;
 
     const map = this.def.map;
     const cols = map[0].length;
@@ -124,6 +140,7 @@ export class LevelScene extends Phaser.Scene {
 
     this.solids = this.physics.add.staticGroup();
     this.spikes = this.physics.add.staticGroup();
+    this.boxes = this.physics.add.staticGroup();
     this.pickups = this.physics.add.group({ allowGravity: false, immovable: true });
     this.enemies = this.physics.add.group();
     this.bullets = this.physics.add.group({ allowGravity: false });
@@ -132,6 +149,7 @@ export class LevelScene extends Phaser.Scene {
     this.buildWorld(map);
     this.solids.setVisible(false);
     this.spikes.setVisible(false);
+    this.boxes.setVisible(false);
 
     // Player.
     const start = this.respawn;
@@ -140,8 +158,21 @@ export class LevelScene extends Phaser.Scene {
     this.setPlayerBody(false);
     this.player.setCollideWorldBounds(true);
     this.player.setVisible(false);
+    this.lastSafe = { x: start.x, y: start.y };
 
     this.physics.add.collider(this.player, this.solids);
+    this.physics.add.collider(this.player, this.boxes, (_p, b) => {
+      // The car smashes straight through wooden crates.
+      const box = b as Phaser.Physics.Arcade.Sprite;
+      if (this.car && box.getData('box').kind === 'wood') this.breakBox(box);
+    });
+    this.physics.add.collider(this.enemies, this.boxes, undefined, (e) => (e as Sprite).getData('e').kind !== 'drone');
+    this.physics.add.collider(this.bullets, this.boxes, (b, box) => {
+      const bullet = b as Phaser.Physics.Arcade.Sprite;
+      this.hitBox(box as Phaser.Physics.Arcade.Sprite, bullet.x, bullet.y);
+      bullet.destroy();
+    });
+    this.physics.add.collider(this.enemyShots, this.boxes, (b) => b.destroy());
     this.physics.add.collider(this.enemies, this.solids, undefined, (e) => (e as Sprite).getData('e').kind !== 'drone');
     this.physics.add.collider(this.bullets, this.solids, (b) => {
       this.view.burst((b as Sprite).x, (b as Sprite).y, 0xff5d8f, 5);
@@ -226,6 +257,12 @@ export class LevelScene extends Phaser.Scene {
             this.solids.create(x, y, 'crate');
             this.solid[r][c] = true;
             break;
+          case 'w':
+          case 's':
+          case 'x':
+          case 'e':
+            this.addBox(ch, c, r, x, y);
+            break;
           case '^': {
             const sp = this.spikes.create(x, y, 'spike') as Phaser.Physics.Arcade.Sprite;
             (sp.body as Phaser.Physics.Arcade.StaticBody).setSize(40, 22).setOffset(4, 26);
@@ -264,12 +301,88 @@ export class LevelScene extends Phaser.Scene {
     this.solids.refresh();
   }
 
-  private addPickup(x: number, y: number, key: string): Phaser.Physics.Arcade.Sprite {
+  private addBox(ch: string, col: number, row: number, x: number, y: number) {
+    const spec = BOXES[ch];
+    const b = this.boxes.create(x, y, 'crate') as Phaser.Physics.Arcade.Sprite;
+    b.setData('box', spec).setData('hp', spec.hp).setData('maxHp', spec.hp).setData('cell', [col, row]);
+    this.solid[row][col] = true;
+    this.view.track(b as unknown as Phaser.GameObjects.Sprite, `box-${spec.kind}` as TrackKind);
+  }
+
+  /** A shot hit a box: crack it if the blaster is strong enough, otherwise clank. */
+  private hitBox(box: Phaser.Physics.Arcade.Sprite, hx: number, hy: number) {
+    if (!box.active) return;
+    const spec = box.getData('box') as (typeof BOXES)[string];
+    const mark = save().gear.blaster;
+    box.setData('hitAt', performance.now());
+    if (mark < spec.need) {
+      this.view.burst(hx, hy, 0xdfe6ee, 6);
+      if (this.time.now - this.lastClank > 2500) {
+        this.lastClank = this.time.now;
+        toast(this, box.x, box.y - 50, 'TOO TOUGH!', '#ffd166', 26);
+        this.time.delayedCall(450, () => toast(this, box.x, box.y - 50, 'Needs a stronger blaster', '#9ad1ff', 20));
+      }
+      return;
+    }
+    const hp = (box.getData('hp') as number) - BLASTER_DAMAGE[mark];
+    box.setData('hp', hp);
+    this.view.burst(hx, hy, spec.kind === 'energy' ? 0xd68bff : 0xffd166, 8);
+    if (hp <= 0) this.breakBox(box);
+  }
+
+  /** Smash! A heavy-feeling break: a tiny freeze, a shake, debris and scrap. */
+  private breakBox(box: Phaser.Physics.Arcade.Sprite) {
+    if (!box.active) return;
+    const spec = box.getData('box') as (typeof BOXES)[string];
+    const [col, row] = box.getData('cell') as [number, number];
+    this.solid[row][col] = false;
+    this.view.explode(box as unknown as Phaser.GameObjects.Sprite, spec.kind !== 'wood');
+    this.cameras.main.shake(spec.kind === 'wood' ? 110 : 180, spec.kind === 'wood' ? 0.006 : 0.011);
+    if (!this.over && !this.paused) {
+      this.physics.pause();
+      this.time.delayedCall(spec.kind === 'wood' ? 45 : 75, () => {
+        if (!this.over && !this.paused) this.physics.resume();
+      });
+    }
+    for (let i = 0; i < spec.scrap; i++) {
+      const s = this.addPickup(box.x + (i - (spec.scrap - 1) / 2) * 22, box.y, 'scrap', false);
+      this.tweens.add({ targets: s, y: box.y - 34 - (i % 2) * 10, duration: 380, ease: 'Back.easeOut' });
+    }
+    box.destroy();
+    this.dropBoxAbove(col, row);
+  }
+
+  /** A box sitting on a smashed box falls into its place (and so on up the stack). */
+  private dropBoxAbove(col: number, row: number) {
+    const above = this.boxes.getChildren().find((o) => {
+      const cell = (o as Phaser.Physics.Arcade.Sprite).getData('cell') as [number, number];
+      return o.active && cell[0] === col && cell[1] === row - 1;
+    }) as Phaser.Physics.Arcade.Sprite | undefined;
+    if (!above) return;
+    this.solid[row - 1][col] = false;
+    this.solid[row][col] = true;
+    above.setData('cell', [col, row]);
+    this.tweens.add({
+      targets: above,
+      y: above.y + TILE,
+      duration: 160,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        if (!above.active) return;
+        (above.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+        this.view.burst(above.x, above.y + TILE / 2, 0xcfd8e3, 6);
+        this.cameras.main.shake(60, 0.004);
+        this.dropBoxAbove(col, row - 1);
+      },
+    });
+  }
+
+  private addPickup(x: number, y: number, key: string, bob = true): Phaser.Physics.Arcade.Sprite {
     const p = this.pickups.create(x, y, key) as Phaser.Physics.Arcade.Sprite;
     const kind = key.startsWith('beacon') ? 'beacon' : key;
     p.setData('kind', kind);
     p.setVisible(false);
-    if (key === 'scrap') {
+    if (key === 'scrap' && bob) {
       this.tweens.add({ targets: p, y: y - 6, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
     this.view.track(p, kind as TrackKind);
@@ -282,8 +395,9 @@ export class LevelScene extends Phaser.Scene {
     const e = this.enemies.create(x, floorY, key) as Sprite;
     e.setOrigin(0.5, 1);
     e.setVisible(false);
+    const hp = Math.max(1, Math.round(HP[kind] * this.tune.enemyHp));
     const data: EnemyData = {
-      kind, hp: HP[kind], maxHp: HP[kind], dir: -1, nextFire: 0, baseY: floorY - 20,
+      kind, hp, maxHp: hp, dir: -1, nextFire: 0, baseY: floorY - 20,
       state: 'rest', stateUntil: 0, wasAirborne: false, hitsSinceDrop: 0,
     };
     e.setData('e', data);
@@ -421,6 +535,11 @@ export class LevelScene extends Phaser.Scene {
     if (onGround) {
       this.lastGrounded = time;
       this.usedDoubleJump = false;
+      // Safe = solid ground under both edges of the robot.
+      const row = Math.floor((body.bottom + 4) / TILE);
+      if (this.isSolid(Math.floor((body.left + 2) / TILE), row) && this.isSolid(Math.floor((body.right - 2) / TILE), row)) {
+        this.lastSafe = { x: this.player.x, y: this.player.y };
+      }
     }
 
     if (this.controls.carPressed && carUnlocked() && time >= this.nextTransform) this.toggleCar(time);
@@ -435,7 +554,7 @@ export class LevelScene extends Phaser.Scene {
 
     if (this.controls.jumpPressed) this.jumpQueuedAt = time;
     const jv = JUMP_VELOCITY[save().gear.boots];
-    const canGroundJump = time - this.lastGrounded < COYOTE_MS;
+    const canGroundJump = time - this.lastGrounded < this.tune.coyoteMs;
     if (time - this.jumpQueuedAt < JUMP_BUFFER_MS) {
       if (canGroundJump) {
         this.player.setVelocityY(-jv);
@@ -503,7 +622,7 @@ export class LevelScene extends Phaser.Scene {
         case 'turret': {
           e.setFlipX(dx > 0);
           if (Math.abs(dx) < 640 && Math.abs(this.player.y - e.y) < 320 && time > d.nextFire) {
-            d.nextFire = time + 2100;
+            d.nextFire = time + 2100 * this.tune.fireDelay;
             this.enemyShot(e.x + (dx > 0 ? 40 : -40), e.y - 34, this.player.x, this.player.y - 40, 330, DAMAGE.turret, 'enemy');
           }
           break;
@@ -528,21 +647,22 @@ export class LevelScene extends Phaser.Scene {
       d.state = 'rest';
       d.stateUntil = time + 900;
     }
+    const pace = this.tune.bossPace;
     const grounded = e.body.blocked.down;
     switch (d.state) {
       case 'rest':
         e.setVelocityX(0);
         if (time > d.stateUntil) {
           d.state = 'walk';
-          d.stateUntil = time + Phaser.Math.Between(1400, 2200);
+          d.stateUntil = time + Phaser.Math.Between(1400, 2200) / pace;
         }
         break;
       case 'walk':
-        e.setVelocityX(Math.sign(dx) * 120);
+        e.setVelocityX(Math.sign(dx) * 120 * pace);
         e.setFlipX(dx > 0);
         if (time > d.stateUntil && grounded) {
           d.state = 'windup';
-          d.stateUntil = time + 650;
+          d.stateUntil = time + 650 / pace;
           e.setVelocityX(0);
         }
         break;
@@ -562,11 +682,11 @@ export class LevelScene extends Phaser.Scene {
           this.view.burst(e.x + 60, e.y - 10, 0xf77f00, 18, true);
           for (const dir of [-1, 1]) {
             const s = this.enemyShot(e.x + dir * 60, e.y - 15, 0, 0, 0, 100, 'boss', 'shock');
-            s.setVelocityX(dir * 340);
+            s.setVelocityX(dir * 340 * pace);
             this.time.delayedCall(2600, () => s.destroy());
           }
           d.state = 'rest';
-          d.stateUntil = time + 1100;
+          d.stateUntil = time + 1100 / pace;
         }
         break;
     }
@@ -626,7 +746,7 @@ export class LevelScene extends Phaser.Scene {
     this.view.burst(e.x, e.y - e.body.height / 2, 0xffd166, 8);
     if (d.kind === 'boss') {
       d.hitsSinceDrop += dmg;
-      if (d.hitsSinceDrop >= 8 && d.hp > 0) {
+      if (d.hitsSinceDrop >= this.tune.bossDropEvery && d.hp > 0) {
         d.hitsSinceDrop = 0;
         const can = this.addPickup(e.x - Math.sign(this.player.x - e.x) * 120, e.y - 300, 'oil');
         this.tweens.add({ targets: can, y: (GROUND_ROW * TILE) - 18, duration: 700, ease: 'Bounce.easeOut' });
@@ -656,10 +776,18 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /** Returns true if damage was applied. */
-  private hurt(amount: number, src: Hurt): boolean {
+  private hurt(raw: number, src: Hurt): boolean {
     if (this.over || this.time.now < this.invulnUntil) return false;
+    const amount = Math.max(10, Math.round((raw * this.tune.damageTaken) / 10) * 10);
     this.armor -= amount;
-    this.invulnUntil = this.time.now + 1100;
+    this.invulnUntil = this.time.now + this.tune.invulnMs;
+    if (this.armor <= 0 && this.merciesLeft > 0) {
+      // Hang on by a thread, and a repair can happens to drop nearby.
+      this.merciesLeft--;
+      this.armor = 1;
+      this.invulnUntil = this.time.now + 2000;
+      this.time.delayedCall(700, () => this.luckyDrop());
+    }
     this.cameras.main.shake(140, 0.006);
     this.view.player.hit();
     this.view.burst(this.player.x, this.player.y - 50, 0xff5d5d, 10);
@@ -669,11 +797,20 @@ export class LevelScene extends Phaser.Scene {
     return true;
   }
 
+  /** A repair can drops from the sky just ahead of the robot. */
+  private luckyDrop() {
+    if (this.over) return;
+    const x = Phaser.Math.Clamp(this.player.x + this.facing * 90, 30, this.physics.world.bounds.width - 30);
+    const can = this.addPickup(x, this.player.y - 260, 'oil');
+    this.tweens.add({ targets: can, y: this.player.y - 18, duration: 650, ease: 'Bounce.easeOut' });
+  }
+
   private fell() {
     this.invulnUntil = 0;
     this.hurt(80, 'fall');
     if (!this.over) {
-      this.player.setPosition(this.respawn.x, this.respawn.y - 10);
+      const back = this.tune.safeRespawn ? this.lastSafe : this.respawn;
+      this.player.setPosition(back.x, back.y - 10);
       this.player.setVelocity(0, 0);
       this.invulnUntil = this.time.now + 1500;
     }
@@ -747,6 +884,7 @@ export class LevelScene extends Phaser.Scene {
     const firstClear = !s.levelsDone.includes(this.def.id);
     if (firstClear) s.levelsDone.push(this.def.id);
     persist();
+    onLevelCleared(this.def.id);
     this.view.burst(this.player.x, this.player.y - 60, 0x06d6a0, 40, true);
 
     const show = () => {

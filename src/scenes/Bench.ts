@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT } from '../art';
+import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
 import { BUILD_COST, GEAR_INFO, type GearId, persist, recordSkill, save } from '../state';
 import { H, W, button, panel, sparks, speak, stopSpeaking, text, toast } from '../ui/widgets';
@@ -159,6 +160,7 @@ export abstract class BenchScene extends Phaser.Scene {
       s.scrap -= BUILD_COST[this.mark];
       s.gear[this.gear] = this.mark;
       persist();
+      onUpgradeBuilt();
       this.scene.start('Install', { gear: this.gear, mark: this.mark, before });
       return;
     }

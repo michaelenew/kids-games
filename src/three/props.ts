@@ -20,6 +20,8 @@ export interface ModelState {
   /** Aim direction in radians (turrets). */
   aim?: number;
   vx?: number;
+  /** Health left, 0..1 (boxes). */
+  hp?: number;
 }
 
 export interface Model {
@@ -312,6 +314,127 @@ export function finishFlag(): Model {
         pos.setZ(i, Math.sin(x * 5 - s.t * 6) * 0.1 * x);
       }
       pos.needsUpdate = true;
+    },
+  };
+}
+
+// ---- Breakable boxes -----------------------------------------------------
+
+export type BoxKind = 'wood' | 'steel' | 'titan' | 'energy';
+
+let hazardTex: THREE.Texture | null = null;
+function hazardTexture(): THREE.Texture {
+  if (hazardTex) return hazardTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 16;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#1a1a1a';
+  g.fillRect(0, 0, 64, 16);
+  g.fillStyle = '#ffc940';
+  for (let x = -16; x < 64; x += 16) {
+    g.beginPath();
+    g.moveTo(x, 16);
+    g.lineTo(x + 8, 0);
+    g.lineTo(x + 16, 0);
+    g.lineTo(x + 8, 16);
+    g.fill();
+  }
+  hazardTex = new THREE.CanvasTexture(c);
+  hazardTex.colorSpace = THREE.SRGBColorSpace;
+  hazardTex.wrapS = THREE.RepeatWrapping;
+  hazardTex.repeat.set(2, 1);
+  return hazardTex;
+}
+
+const WOOD = new THREE.MeshStandardMaterial({ color: 0xa8743f, metalness: 0, roughness: 0.85 });
+const WOOD_DARK = new THREE.MeshStandardMaterial({ color: 0x6b4423, metalness: 0, roughness: 0.9 });
+const BRONZE = new THREE.MeshStandardMaterial({ color: 0x6a5641, metalness: 0.9, roughness: 0.35 });
+const VOID = new THREE.MeshStandardMaterial({ color: 0x140b24, metalness: 0.8, roughness: 0.2 });
+
+/** A brace across one face (front or back), as two diagonal bars. */
+function crossBrace(parent: THREE.Object3D, mat: THREE.Material, z: number, s = 0.96) {
+  for (const a of [Math.PI / 4, -Math.PI / 4]) mesh(parent, rboxGeo(s * 1.25, 0.11, 0.04, 0.02), mat, 0, 0, z, { rz: a });
+}
+
+export function box(kind: BoxKind): Model {
+  const root = new THREE.Group();
+  const body = group(root);
+  const S = 0.96;
+  const front = S / 2 + 0.01;
+  const flashing: THREE.MeshStandardMaterial[] = [];
+  let pulse: THREE.Object3D | null = null;
+  let debris: number[] = [];
+
+  if (kind === 'wood') {
+    const wood = WOOD.clone();
+    wood.userData.disposable = true;
+    flashing.push(wood);
+    mesh(body, rboxGeo(S, S, S, 0.03), wood, 0, 0, 0);
+    for (const y of [-0.36, 0.36]) mesh(body, rboxGeo(S + 0.02, 0.12, S + 0.02, 0.02), WOOD_DARK, 0, y, 0);
+    for (const x of [-0.42, 0.42]) mesh(body, rboxGeo(0.1, S + 0.02, S + 0.02, 0.02), WOOD_DARK, x, 0, 0);
+    crossBrace(body, WOOD_DARK, front);
+    debris = [0xa8743f, 0x6b4423, 0xd9a066];
+  } else if (kind === 'steel') {
+    const steel = (METAL.steel as THREE.MeshStandardMaterial).clone();
+    steel.userData.disposable = true;
+    flashing.push(steel);
+    mesh(body, rboxGeo(S, S, S, 0.05), steel, 0, 0, 0);
+    mesh(body, rboxGeo(S + 0.02, 0.12, S + 0.02, 0.02), paint(0x2f6fdf), 0, 0.3, 0);
+    crossBrace(body, METAL.gunmetal, front);
+    for (const [x, y] of [[-0.38, -0.38], [0.38, -0.38], [-0.38, 0.38], [0.38, 0.38]]) {
+      mesh(body, cylGeo(0.04, 0.04, 0.03, 8), METAL.chrome, x, y, front + 0.01, { rx: Math.PI / 2 });
+    }
+    debris = [0xa3afbf, 0x3b414d, 0x2f6fdf];
+  } else if (kind === 'titan') {
+    const bronze = BRONZE.clone();
+    bronze.userData.disposable = true;
+    flashing.push(bronze);
+    mesh(body, rboxGeo(S, S, S, 0.08), bronze, 0, 0, 0);
+    const band = new THREE.MeshStandardMaterial({ map: hazardTexture(), metalness: 0.3, roughness: 0.6 });
+    band.userData.disposable = true;
+    mesh(body, new THREE.BoxGeometry(S + 0.03, 0.2, S + 0.03), band, 0, 0, 0);
+    for (const [x, y] of [[-0.34, -0.32], [0.34, -0.32], [-0.34, 0.32], [0.34, 0.32]]) {
+      mesh(body, cylGeo(0.075, 0.075, 0.06, 6), METAL.chrome, x, y, front + 0.02, { rx: Math.PI / 2 });
+    }
+    mesh(body, rboxGeo(S + 0.04, 0.06, S + 0.04, 0.02), METAL.dark, 0, 0.46, 0);
+    mesh(body, rboxGeo(S + 0.04, 0.06, S + 0.04, 0.02), METAL.dark, 0, -0.46, 0);
+    debris = [0x6a5641, 0xffc940, 0x1a1a1a];
+  } else {
+    const core = VOID.clone();
+    core.userData.disposable = true;
+    flashing.push(core);
+    mesh(body, rboxGeo(S, S, S, 0.04), core, 0, 0, 0);
+    const edge = glow(0xb14dff, 2.6);
+    const e = 0.06;
+    const h = S / 2;
+    // Glowing frame along the front and back edges, plus the four side edges.
+    for (const z of [-h, h]) {
+      mesh(body, rboxGeo(S, e, e, 0.01), edge, 0, h, z, { shadow: false });
+      mesh(body, rboxGeo(S, e, e, 0.01), edge, 0, -h, z, { shadow: false });
+      mesh(body, rboxGeo(e, S, e, 0.01), edge, h, 0, z, { shadow: false });
+      mesh(body, rboxGeo(e, S, e, 0.01), edge, -h, 0, z, { shadow: false });
+    }
+    for (const [x, y] of [[h, h], [h, -h], [-h, h], [-h, -h]]) mesh(body, rboxGeo(e, e, S, 0.01), edge, x, y, 0, { shadow: false });
+    const rune = mesh(body, cylGeo(0.18, 0.18, 0.02, 6), glow(0xd68bff, 2.8), 0, 0, front + 0.01, { rx: Math.PI / 2, shadow: false });
+    pulse = rune;
+    const halo = glowSprite(0xb14dff, 1.6, 0.6);
+    body.add(halo);
+    debris = [0xb14dff, 0x140b24, 0xd68bff];
+  }
+
+  return {
+    root,
+    debris,
+    animate(s) {
+      // Dented and shaky as it takes damage; a jolt on every hit.
+      const hp = s.hp ?? 1;
+      const jolt = s.sinceHit < 0.12 ? (1 - s.sinceHit / 0.12) : 0;
+      body.position.x = Math.sin(s.t * 80) * 0.04 * jolt;
+      body.rotation.z = (1 - hp) * 0.06 * Math.sin(s.t * 3 + 1);
+      body.scale.setScalar(1 - (1 - hp) * 0.05 - jolt * 0.04);
+      for (const m of flashing) m.emissive.setScalar(s.sinceHit < 0.07 ? 0.8 : 0);
+      if (pulse) pulse.scale.setScalar(1 + Math.sin(s.t * 4) * 0.15);
     },
   };
 }

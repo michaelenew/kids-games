@@ -6,6 +6,8 @@ import type { Line } from './ui/widgets';
  *   #  crate block      ^  spikes        o  scrap        h  oil can (repairs armor)
  *   k  checkpoint       r  rust-bot      t  turret       d  drone
  *   P  player start     F  finish flag   B  boss (level ends when it is beaten)
+ * Breakable boxes (each needs a stronger blaster):
+ *   w  wood (any)   s  steel (Mark I)   x  titanium (Mark II)   e  energy (Mark III)
  */
 export const ROWS = 15;
 export const GROUND_ROW = 12;
@@ -58,6 +60,25 @@ class Builder {
     for (let c = from; c <= to; c++) this.put(c, row, '^');
     return this;
   }
+  /** A stack of breakable boxes standing on the ground. */
+  boxes(col: number, kind: string, h = 1, w = 1) {
+    return this.fill(col, GROUND_ROW - h, w, h, kind);
+  }
+  private fill(col: number, row: number, w: number, h: number, ch: string) {
+    for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) this.put(col + x, row + y, ch);
+    return this;
+  }
+  /**
+   * A 2-tile-high box vault with loot inside: walls on both ends and a roof.
+   * Low enough to jump over, so it never blocks the way.
+   */
+  vault(col: number, width: number, kind: string, loot = 'o') {
+    const row = GROUND_ROW - 1;
+    this.fill(col, row - 1, width, 1, kind);
+    this.put(col, row, kind).put(col + width - 1, row, kind);
+    for (let c = col + 1; c < col + width - 1; c++) this.put(c, row, loot);
+    return this;
+  }
   on(col: number, ch: string, height = 0) {
     return this.put(col, GROUND_ROW - 1 - height, ch);
   }
@@ -78,17 +99,22 @@ function junkyard(): string[] {
   b.on(33, 'r');
   // Optional high stash: step up the crates for a pile of scrap.
   b.pillar(29, 2).crates(31, 8, 4, 1).scrap(31, 7, 4);
+  // A wood wall: jump it, or blast through it.
+  b.boxes(37, 'w', 2);
   b.spikes(40, 41);
   b.on(45, 'r');
   b.arc(50, 5);
   b.on(56, 'k');
   b.on(60, 'h');
-  b.on(64, 'r').on(70, 'r');
+  b.on(64, 'r').boxes(66, 'w').boxes(67, 'w').on(70, 'r');
   b.pillar(74, 1).pillar(75, 2).scrap(75, 9, 2);
   b.on(80, 'r');
+  b.boxes(84, 'w');
   b.on(88, 't', 0);
   b.scrap(92, 10, 4);
   b.on(96, 'r');
+  // Steel vault: the first blaster upgrade cracks it open.
+  b.vault(99, 4, 's');
   b.on(106, 'F');
   return b.done();
 }
@@ -100,6 +126,7 @@ function canyon(): string[] {
   b.on(10, 'r').scrap(8, 10, 3);
   b.arc(18, 4);
   b.pillar(26, 2).on(26, 't', 2);
+  b.boxes(30, 'w');
   b.on(32, 'd', 3);
   b.on(36, 'r');
   b.arc(40, 4);
@@ -108,7 +135,8 @@ function canyon(): string[] {
   // A tall wall. Super boots clear it in one jump; otherwise use the step crate.
   b.pillar(59, 1).pillar(60, 3, 2);
   b.scrap(60, 7, 2);
-  b.on(65, 'r').on(68, 'd', 4).on(71, 'r');
+  b.boxes(64, 's', 2);
+  b.on(65, 'r').on(68, 'd', 4).boxes(69, 'w').on(71, 'r');
   b.arc(74, 4);
   b.on(80, 'h');
   b.spikes(84, 86);
@@ -118,8 +146,11 @@ function canyon(): string[] {
   // Sky stash for mega boots: a high ledge with lots of scrap.
   b.crates(106, 6, 5, 1).scrap(106, 5, 5);
   b.pillar(104, 2);
+  b.vault(107, 4, 's');
   b.spikes(112, 113);
   b.on(118, 't').on(122, 'r').on(126, 'd', 3);
+  // Titanium vault: needs the Mark II blaster.
+  b.vault(129, 4, 'x');
   b.on(134, 'F');
   return b.done();
 }
@@ -129,14 +160,17 @@ function gate(): string[] {
   b.ground(0, 14).ground(18, 30).ground(34, 99);
   b.on(3, 'P');
   b.on(9, 'd', 3).scrap(6, 10, 3);
+  // An energy vault full of scrap, right at the start: only the Mark III blaster opens it.
+  b.vault(10, 4, 'e');
   b.arc(14, 4);
   b.on(22, 'r').on(26, 't');
   b.arc(30, 4);
   b.spikes(38, 39);
-  b.on(42, 'd', 3).on(46, 'r');
+  b.on(42, 'd', 3).boxes(44, 's').on(46, 'r');
   b.on(50, 'h');
   b.on(54, 'k');
-  b.on(56, 'h');
+  // Titanium locker with a repair can before the boss.
+  b.vault(55, 3, 'x', 'h');
   // Boss arena.
   b.pillar(60, 1).pillar(97, 6);
   b.on(84, 'B');

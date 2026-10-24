@@ -10,6 +10,8 @@ See [GAME_DESIGN.md](GAME_DESIGN.md) for the full plan and the syllabus mapping.
 - **It transforms into a car** (unlocked after the first mission): press C, or tap CAR on the iPad. The car is faster and rams small enemies.
 - **The install moment:** finishing a bench job shows the new part flying onto the spinning robot, then the robot shows it off.
 - **3 levels:** The Junkyard, Scrap Canyon, and Crusher's Gate (boss fight). Each one is beatable with starter gear, and each gets harder than the last.
+- **Breakable boxes** in four materials: wood (any blaster), steel (Blaster Mark I), titanium (Mark II) and energy blocks (Mark III). Smashing one gives a short freeze-frame, a shake, debris and scrap. Too-tough boxes clank and say so. Boxes guard scrap vaults and shortcuts, and each later level has tougher boxes; there's always a way around, so the math stays optional.
+- **Quiet extra help after upgrades** (the kid never sees it). Building any upgrade turns on hidden help for every level not yet beaten, and each new try raises it. Enemies hit softer, the boss has less health and slows down, falls put him back on the ledge, and a "lucky" repair can drops when he's nearly out. By the third try after upgrading, the level is almost impossible to lose. Beating a level resets its help. You can see the current setting under Garage → ⚙ → Grown-ups. The numbers live in `src/assist.ts`.
 - **Engineering Zone:** three benches, each with Mark I → II → III upgrades.
 
 | Bench | Upgrade it gives | Math skill (from the summer packet) |

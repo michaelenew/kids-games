@@ -20,6 +20,8 @@ export interface SaveData {
   voice: boolean;
   /** 'best' adapts to the device; 'fast' turns off glow and shadows for older iPads. */
   graphics?: 'best' | 'fast';
+  /** Hidden per-level help after upgrades (see assist.ts). */
+  assist?: Record<string, { tier: number; armed: boolean; started: boolean }>;
   skills: Record<string, SkillStat>;
 }
 
@@ -115,7 +117,7 @@ export const GEAR_INFO: Record<GearId, { title: string; skill: string; perks: st
   blaster: {
     title: 'Blaster',
     skill: 'Measuring',
-    perks: ['Damage 1', 'Damage 2, bigger shots', 'Damage 3, huge shots', 'Damage 4, rapid fire'],
+    perks: ['Damage 1, breaks wood', 'Damage 2, breaks steel boxes', 'Damage 3, breaks titanium', 'Damage 4, rapid fire, breaks energy blocks'],
   },
   boots: {
     title: 'Jump Boots',

@@ -9,6 +9,7 @@ import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, scrapBadge, text } from '../ui/widgets';
 import { carUnlocked } from './Level';
+import { currentTier } from '../assist';
 
 const SKILL_LABELS: Record<string, string> = {
   'armor-1': 'Build 3-digit numbers from hundreds, tens, ones',
@@ -163,6 +164,11 @@ export class GarageScene extends Phaser.Scene {
       .map((g) => `${GEAR_INFO[g].title}: Mark ${s.gear[g]} of 3`)
       .join('     ');
     items.push(text(this, W / 2, 115, gears, 22, '#9ad1ff').setDepth(52));
+    // The hidden help each unbeaten level is set to (never shown to the kid).
+    const help = LEVELS.filter((l) => !s.levelsDone.includes(l.id))
+      .map((l) => `${l.title.replace(/^\d+\.\s*/, '')}: ${currentTier(l.id)}/3`)
+      .join('   ');
+    items.push(text(this, W / 2, 574, help ? `Quiet extra help after upgrades: ${help}` : 'All missions beaten!', 18, '#8d99ae').setDepth(52));
     Object.entries(SKILL_LABELS).forEach(([key, label], i) => {
       const st = s.skills[key];
       const y = 165 + i * 46;

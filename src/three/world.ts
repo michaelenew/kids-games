@@ -4,8 +4,8 @@ import type { RobotLook } from '../art';
 import { addCity, addJunk, addSkyBits, skyTexture } from './backdrop';
 import { METAL, glow, glowSprite, rboxGeo } from './kit';
 import {
-  beacon, crusher, drone, enemyShot, finishFlag, oilCan, playerShot, rustbot, scrap, shockwave, turret,
-  type Model,
+  beacon, box, crusher, drone, enemyShot, finishFlag, oilCan, playerShot, rustbot, scrap, shockwave, turret,
+  type BoxKind, type Model,
 } from './props';
 import { Robot, ROBOT_HEIGHT } from './robot';
 import { type Stage, UNIT, px2w, py2w } from './stage';
@@ -13,7 +13,8 @@ import { type Stage, UNIT, px2w, py2w } from './stage';
 export type TrackKind =
   | 'rustbot' | 'turret' | 'drone' | 'boss'
   | 'shot' | 'eshot' | 'shock'
-  | 'scrap' | 'oil' | 'beacon' | 'flag';
+  | 'scrap' | 'oil' | 'beacon' | 'flag'
+  | 'box-wood' | 'box-steel' | 'box-titan' | 'box-energy';
 
 type GameSprite = Phaser.GameObjects.Sprite;
 
@@ -23,6 +24,8 @@ interface Tracked {
   model: Model;
   /** Where the model's origin sits relative to the sprite's position, in px. */
   dy: number;
+  /** Depth: characters stand in front of blocks; boxes sit in the block row. */
+  z: number;
 }
 
 const TILE_DEPTH = 3.2;
@@ -199,20 +202,18 @@ export class WorldView {
     dirtMat.userData.disposable = true;
     place(new THREE.InstancedMesh(tileGeo, dirtMat, Math.max(1, dirt.length)), dirt);
 
-    // Crates: steel boxes with cross braces.
+    // Unbreakable blocks: heavy riveted girders. (Breakable boxes have X braces.)
     if (crates.length) {
-      const box = new THREE.InstancedMesh(new THREE.BoxGeometry(0.96, 0.96, 0.96), METAL.steel, crates.length);
-      const braceA = new THREE.InstancedMesh(rboxGeo(1.2, 0.1, 0.04, 0.02), METAL.gunmetal, crates.length);
-      const braceB = new THREE.InstancedMesh(rboxGeo(1.2, 0.1, 0.04, 0.02), METAL.gunmetal, crates.length);
-      const q = new THREE.Quaternion();
+      const block = new THREE.InstancedMesh(new THREE.BoxGeometry(0.98, 0.98, 0.98), METAL.dark, crates.length);
+      const frame = new THREE.InstancedMesh(new THREE.BoxGeometry(0.86, 0.86, 1.0), METAL.gunmetal, crates.length);
+      const rivets = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.7, 1.02), METAL.dark, crates.length);
       crates.forEach(([c, r], i) => {
-        box.setMatrixAt(i, m.makeTranslation(c + 0.5, -(r + 0.5), 0));
-        q.setFromEuler(new THREE.Euler(0, 0, Math.PI / 4));
-        braceA.setMatrixAt(i, m.compose(new THREE.Vector3(c + 0.5, -(r + 0.5), 0.49), q, new THREE.Vector3(1, 1, 1)));
-        q.setFromEuler(new THREE.Euler(0, 0, -Math.PI / 4));
-        braceB.setMatrixAt(i, m.compose(new THREE.Vector3(c + 0.5, -(r + 0.5), 0.49), q, new THREE.Vector3(1, 1, 1)));
+        const t = m.makeTranslation(c + 0.5, -(r + 0.5), 0);
+        block.setMatrixAt(i, t);
+        frame.setMatrixAt(i, t);
+        rivets.setMatrixAt(i, t);
       });
-      for (const inst of [box, braceA, braceB]) {
+      for (const inst of [block, frame, rivets]) {
         inst.castShadow = true;
         inst.receiveShadow = true;
         this.root.add(inst);
@@ -274,18 +275,19 @@ export class WorldView {
       case 'oil': model = oilCan(); break;
       case 'beacon': model = beacon(); break;
       case 'flag': model = finishFlag(); dy = 0; break;
+      default: model = box(kind.slice(4) as BoxKind); break;
     }
     model.root.traverse((o) => {
       if ((o as THREE.Mesh).isMesh && o.castShadow === undefined) o.castShadow = true;
     });
     this.root.add(model.root);
-    const t: Tracked = { obj, kind, model, dy };
+    const t: Tracked = { obj, kind, model, dy, z: kind.startsWith('box-') ? 0 : ACTOR_Z };
     this.tracked.push(t);
     this.place(t);
   }
 
   private place(t: Tracked) {
-    t.model.root.position.set(px2w(t.obj.x), py2w(t.obj.y + t.dy), ACTOR_Z);
+    t.model.root.position.set(px2w(t.obj.x), py2w(t.obj.y + t.dy), t.z);
   }
 
   placePlayer(px: number, py: number) {
@@ -356,6 +358,7 @@ export class WorldView {
         state: t.kind === 'beacon' ? (obj.texture.key === 'beacon-on' ? 'on' : 'off') : e?.state,
         aim,
         vx: body?.velocity.x ?? 0,
+        hp: obj.getData('maxHp') ? (obj.getData('hp') as number) / (obj.getData('maxHp') as number) : undefined,
       });
     }
     this.tracked = this.tracked.filter((t) => t.obj.scene && t.obj.active);

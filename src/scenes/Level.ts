@@ -283,9 +283,12 @@ export class LevelScene extends Phaser.Scene {
             }
             break;
           }
-          case 'F':
-            this.addPickup(x, floorY - 60, 'flag');
+          case 'F': {
+            const flag = this.addPickup(x, floorY - 60, 'flag');
+            // A tall touch zone, so jumping high over the flag still counts.
+            (flag.body as Phaser.Physics.Arcade.Body).setSize(70, 640).setOffset(-7, 120 - 640);
             break;
+          }
           case 'P':
             if (!checkpointSet) this.respawn = { x, y: floorY };
             break;
@@ -766,7 +769,8 @@ export class LevelScene extends Phaser.Scene {
       this.bossBar?.destroy();
       this.bossLabel?.destroy();
       for (let i = 0; i < 8; i++) this.addPickup(x - 160 + i * 45, GROUND_ROW * TILE - 70, 'scrap');
-      this.addPickup(x + 220, GROUND_ROW * TILE - 60, 'flag');
+      const flag = this.addPickup(x + 220, GROUND_ROW * TILE - 60, 'flag');
+      (flag.body as Phaser.Physics.Arcade.Body).setSize(70, 640).setOffset(-7, 120 - 640);
       toast(this, x, GROUND_ROW * TILE - 250, 'CRUSHER DOWN!', '#06d6a0', 56);
       return;
     }

@@ -47,10 +47,14 @@ export class TitleScene extends Phaser.Scene {
       const y = 370 + Math.floor(i / 3) * 80;
       button(this, x, y, 160, 64, n, () => this.setName(n), { size: 28, fill: 0x3d4458 });
     });
-    button(this, 1060, 450, 160, 64, 'Type ✎', () => {
-      const typed = window.prompt('Name your robot:', save().name)?.trim();
-      if (typed) this.setName(typed.slice(0, 12).toUpperCase());
-    }, { size: 28, fill: 0x3d4458 });
+    // Typing pop-ups are blocked when the game is embedded in another page.
+    const embedded = window.self !== window.top;
+    if (!embedded) {
+      button(this, 1060, 450, 160, 64, 'Type ✎', () => {
+        const typed = window.prompt('Name your robot:', save().name)?.trim();
+        if (typed) this.setName(typed.slice(0, 12).toUpperCase());
+      }, { size: 28, fill: 0x3d4458 });
+    }
 
     text(this, 880, 530, 'Color', 32, '#9ad1ff');
     ROBOT_COLORS.forEach((c, i) => {

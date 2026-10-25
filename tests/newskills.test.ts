@@ -121,3 +121,25 @@ describe('concept cards', () => {
     expect(teen.steps.join(' ')).toContain('teen');
   });
 });
+
+import { RAMP, rampProblem } from '../src/skills/steps';
+
+describe('count-up ramp', () => {
+  it('jumps through thousands', () => {
+    expect(countUp(1383, 2600).map((s) => s.gap)).toEqual([7, 10, 600, 600]);
+    expect(countUp(1383, 3600).map((s) => s.gap)).toEqual([7, 10, 600, 1000, 600]);
+    expect(countUp(812, 1350).map((s) => s.gap)).toEqual([8, 80, 100, 300, 50]);
+  });
+  it('makes problems of the right size', () => {
+    let seed = 7;
+    const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    for (const st of RAMP) {
+      for (let i = 0; i < 100; i++) {
+        const p = rampProblem(r, st.digits);
+        expect(p.to).toBeGreaterThan(p.from);
+        expect(String(p.from).length).toBe(st.digits);
+        expect(countUp(p.from, p.to).reduce((s, x) => s + x.gap, 0)).toBe(p.to - p.from);
+      }
+    }
+  });
+});

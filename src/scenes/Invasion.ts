@@ -406,8 +406,12 @@ export class InvasionScene extends Phaser.Scene {
       text(this, W / 2, H / 2 + 10, `+${this.scrap} scrap`, 36, '#ffd166').setDepth(61);
       const next = this.nextScene();
       const after = () => {
-        const b = button(this, W / 2, H / 2 + 120, 320, 84, 'Mission report ▶', () =>
-          this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data } }), {
+        // The mission report (graphs and adding) starts in Egypt.
+        const report = this.mission.env === 'desert';
+        const b = button(this, W / 2, H / 2 + 120, 320, 84, report ? 'Mission report ▶' : next.label, () => {
+          if (report) this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data } });
+          else this.scene.start(next.key, next.data);
+        }, {
           fill: 0x2a9d8f, edge: 0x9ff0e3, size: 32,
         }).setDepth(62);
         this.tweens.add({ targets: b, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });

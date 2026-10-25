@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
-import { DAYS, missionControlQuestions, type TimeQuestion } from '../skills/time';
-import { recordSkill } from '../state';
+import { DAYS, addMinutes, clockText, missionControlQuestion, type TimeQuestion } from '../skills/time';
+import { bumpGuide, guideCount, recordSkill } from '../state';
 import { MISSION_IDS, missionById } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
@@ -45,8 +45,9 @@ export class ControlScene extends Phaser.Scene {
     this.add.image(90, 650, 'volt').setScale(0.9);
     this.shieldText = text(this, W - 170, 40, 'SHIELD +0', 28, '#06d6a0');
     this.layer = this.add.container(0, 0);
-    const idx = Math.max(0, MISSION_IDS.indexOf(this.missionId));
-    this.questions = missionControlQuestions(Math.random, idx);
+    // One question per mission, so it's quick; it gets harder through Egypt.
+    const idx = Math.max(0, MISSION_IDS.indexOf(this.missionId) - MISSION_IDS.indexOf('egy-drop'));
+    this.questions = [missionControlQuestion(Math.random, idx)];
     this.ask();
   }
 
@@ -57,38 +58,138 @@ export class ControlScene extends Phaser.Scene {
       this.launch();
       return;
     }
-    this.layer.add(text(this, 640, 120, `Question ${this.index + 1} of ${this.questions.length}`, 20, '#9ad1ff'));
     if (q.kind === 'day') this.drawWeek();
     else if (q.clock) this.drawClock(300, 380, 190, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
-    this.layer.add(text(this, 900, 200, q.prompt, 30, '#ffffff', { wordWrap: { width: 600 } }));
+    // The first couple of times for each kind, walk him through it step by step.
+    const guided = guideCount(`time-${q.kind}`) < 2;
+    const steps = guided ? this.guideSteps(q) : [];
+    const prompt = text(this, 900, 190, '', 28, '#ffffff', { wordWrap: { width: 620 } });
+    this.layer.add(prompt);
+    let buttons: Phaser.GameObjects.GameObject[] = [];
     let misses = 0;
-    q.choices.forEach((c, i) => {
-      const b = button(this, 900, 360 + i * 100, 380, 84, c, () => {
-        if (c === q.answer) {
-          recordSkill('time', misses === 0);
-          sfx.success();
-          sparks(this, 900, 360 + i * 100, 0x06d6a0, 24);
-          this.shield += SHIELD_PER_ANSWER;
-          this.shieldText.setText(`SHIELD +${this.shield}`);
-          this.tweens.add({ targets: this.shieldText, scale: 1.3, duration: 150, yoyo: true });
-          toast(this, 900, 300, `Right! Shield +${SHIELD_PER_ANSWER}`, '#06d6a0', 34);
-          this.index++;
-          this.time.delayedCall(1100, () => this.ask());
-          return;
+    const show = (i: number) => {
+      buttons.forEach((b) => b.destroy());
+      buttons = [];
+      const step = steps[i];
+      const isFinal = !step;
+      prompt.setText(isFinal ? q.prompt : step.prompt);
+      const choices = isFinal ? q.choices : step.choices;
+      const answer = isFinal ? q.answer : step.answer;
+      choices.forEach((c, k) => {
+        const b = button(this, 900, 360 + k * 100, 380, 84, c, () => {
+          if (c === answer) {
+            sfx.success();
+            if (!isFinal) {
+              toast(this, 900, 300, step.praise ?? 'Yes!', '#06d6a0', 30);
+              this.time.delayedCall(700, () => show(i + 1));
+              return;
+            }
+            recordSkill('time', misses === 0);
+            if (guided) bumpGuide(`time-${q.kind}`);
+            sparks(this, 900, 360 + k * 100, 0x06d6a0, 24);
+            this.shield += SHIELD_PER_ANSWER;
+            this.shieldText.setText(`SHIELD +${this.shield}`);
+            this.tweens.add({ targets: this.shieldText, scale: 1.3, duration: 150, yoyo: true });
+            toast(this, 900, 300, `Right! Shield +${SHIELD_PER_ANSWER}`, '#06d6a0', 34);
+            this.index++;
+            this.time.delayedCall(1100, () => this.ask());
+            return;
+          }
+          misses++;
+          sfx.buzz();
+          this.tweens.add({ targets: b, x: b.x + 8, duration: 50, yoyo: true, repeat: 3 });
+          if (isFinal && !guided && misses >= 2) {
+            toast(this, 900, 300, `It's ${q.answer}.`, '#ffd166', 34);
+            this.index++;
+            this.time.delayedCall(1800, () => this.ask());
+          } else {
+            toast(this, 900, 300, q.kind === 'read' ? 'Look again: the short hand is the hour.' : 'Not quite. Count it out!', '#ff9f9f', 26);
+          }
+        }, { fill: 0x1f6feb, size: 34 });
+        this.layer.add(b);
+        buttons.push(b);
+      });
+    };
+    show(0);
+  }
+
+  /** Small steps that lead up to the answer, for the walk-through. */
+  private guideSteps(q: TimeQuestion): { prompt: string; answer: string; choices: string[]; praise?: string }[] {
+    const mix = (answer: string, wrong: string[]) =>
+      [...new Set([answer, ...wrong])].slice(0, 3).sort(() => Math.random() - 0.5);
+    const out: { prompt: string; answer: string; choices: string[]; praise?: string }[] = [];
+    const t = q.clock!;
+    if (q.kind === 'read') {
+      out.push({
+        prompt: `The SHORT black hand shows the hour. It points at the ${t.h} (or just past it). What hour is it?`,
+        answer: `${t.h}`,
+        choices: mix(`${t.h}`, [`${(t.h % 12) + 1}`, `${((t.h + 10) % 12) + 1}`]),
+        praise: `Yes, ${t.h} o'clock and a bit!`,
+      });
+      if (t.m > 0) {
+        out.push({
+          prompt: `The LONG red hand shows the minutes. Each number on the clock is 5 minutes. Count by 5s from the 12 to where it points: 5, 10, 15... How many minutes?`,
+          answer: `${t.m}`,
+          choices: mix(`${t.m}`, [`${Math.max(1, Math.round(t.m / 5))}`, `${(t.m + 5) % 60 || 5}`, `${t.m + 10}`]),
+          praise: `Yes, ${t.m} minutes!`,
+        });
+      }
+    } else if (q.kind === 'until' && q.clock2) {
+      const land = q.clock2;
+      const total = q.minutes!;
+      if (land.h !== t.h && t.m !== 0) {
+        const toTop = 60 - t.m;
+        const top = addMinutes(t.h, t.m, toTop);
+        out.push({
+          prompt: `First count from ${clockText(t.h, t.m)} up to ${clockText(top.h, 0)}. Count by 5s. How many minutes is that?`,
+          answer: `${toTop}`,
+          choices: mix(`${toTop}`, [`${toTop + 5}`, `${t.m}`, `${toTop - 5}`]),
+        });
+        if (land.m > 0) {
+          out.push({
+            prompt: `Now from ${clockText(top.h, 0)} to ${clockText(land.h, land.m)}. How many more minutes?`,
+            answer: `${land.m}`,
+            choices: mix(`${land.m}`, [`${land.m + 5}`, `${60 - land.m}`, `${land.m + 10}`]),
+          });
+          out.push({
+            prompt: `Add them up: ${toTop} + ${land.m} = ?`,
+            answer: `${total}`,
+            choices: mix(`${total}`, [`${total + 10}`, `${total - 5}`, `${total + 5}`]),
+            praise: `Yes, ${total} minutes!`,
+          });
         }
-        misses++;
-        sfx.buzz();
-        this.tweens.add({ targets: b, x: b.x + 8, duration: 50, yoyo: true, repeat: 3 });
-        if (misses >= 2) {
-          toast(this, 900, 300, `It's ${q.answer}.`, '#ffd166', 34);
-          this.index++;
-          this.time.delayedCall(1800, () => this.ask());
-        } else {
-          toast(this, 900, 300, q.kind === 'read' ? 'Look again: the short hand is the hour.' : 'Not quite. Count it out!', '#ff9f9f', 26);
-        }
-      }, { fill: 0x1f6feb, size: 34 });
-      this.layer.add(b);
-    });
+      } else {
+        // Inside one hour: count by 5s from one time to the other.
+        const seq: number[] = [];
+        for (let k = 5; k <= total; k += 5) seq.push(k);
+        out.push({
+          prompt: `The long hand moves from ${t.m} minutes to ${land.m} minutes. Count by 5s as it goes: ${seq.join(', ')}. How many minutes is that?`,
+          answer: `${total}`,
+          choices: mix(`${total}`, [`${total + 5}`, `${seq.length}`, `${total - 5}`]),
+          praise: `Yes, ${total} minutes!`,
+        });
+      }
+    } else if (q.kind === 'ends' && q.clock2) {
+      const dur = q.minutes!;
+      if (t.m + dur >= 60) {
+        const toTop = 60 - t.m;
+        const top = addMinutes(t.h, t.m, toTop);
+        const rest = dur - toTop;
+        out.push({
+          prompt: `${toTop} minutes gets us from ${clockText(t.h, t.m)} to ${clockText(top.h, 0)}. The trip is ${dur} minutes. ${dur} take away ${toTop} leaves how many more minutes?`,
+          answer: `${rest}`,
+          choices: mix(`${rest}`, [`${rest + 10}`, `${rest + 5}`, `${dur}`]),
+          praise: `Yes! So it's ${clockText(top.h, 0)} plus ${rest} more minutes.`,
+        });
+      } else {
+        out.push({
+          prompt: `It's ${t.m} minutes past ${t.h} now. Add the ${dur} minutes: ${t.m} + ${dur} = ?`,
+          answer: `${t.m + dur}`,
+          choices: mix(`${t.m + dur}`, [`${t.m + dur + 10}`, `${t.m + dur - 5}`, `${dur}`]),
+        });
+      }
+    }
+    return out;
   }
 
   /** An analog clock with hour numbers and minute ticks. */

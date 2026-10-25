@@ -15,8 +15,10 @@ export interface TimeQuestion {
   prompt: string;
   /** Clock to draw (h, m), if any. */
   clock?: { h: number; m: number };
-  /** Second clock (the "aliens land at" time), drawn small. */
+  /** The second time: when they land, or when the trip ends. */
   clock2?: { h: number; m: number };
+  /** The minutes between the two times. */
+  minutes?: number;
   answer: string;
   choices: string[];
 }
@@ -76,6 +78,7 @@ export function makeUntil(rng: Rng, step: 5 | 1): TimeQuestion {
     prompt: `It's ${clockText(now.h, now.m)} now. The alien fleet lands at ${clockText(land.h, land.m)}. How many minutes do we have?`,
     clock: now,
     clock2: land,
+    minutes: gap,
     answer,
     choices: shuffle(rng, withChoices(answer, shuffle(rng, wrong))),
   };
@@ -94,6 +97,8 @@ export function makeEnds(rng: Rng, step: 5 | 1): TimeQuestion {
     kind: 'ends',
     prompt: `We leave at ${clockText(start.h, start.m)}. ${thing} ${dur} minutes. What time will it be when it's done?`,
     clock: start,
+    clock2: end,
+    minutes: dur,
     answer,
     choices: shuffle(rng, withChoices(answer, shuffle(rng, wrong))),
   };
@@ -114,20 +119,17 @@ export function makeDay(rng: Rng): TimeQuestion {
 }
 
 /**
- * The two mission-control questions before a mission, getting harder as the
- * campaign goes on (index 0 is the first mission).
+ * The mission-control question before an Egypt mission (index 0 is the first
+ * Egypt mission): read the clock, then minutes until, then when a trip ends.
  */
-export function missionControlQuestions(rng: Rng, missionIndex: number): TimeQuestion[] {
-  const fine = missionIndex >= 2;
-  const step: 5 | 1 = fine ? 1 : 5;
-  switch (missionIndex % 4) {
+export function missionControlQuestion(rng: Rng, egyptIndex: number): TimeQuestion {
+  const fine = egyptIndex >= 3;
+  switch (egyptIndex % 3) {
     case 0:
-      return [makeReadClock(rng, step), makeDay(rng)];
+      return makeReadClock(rng, fine ? 1 : 5);
     case 1:
-      return [makeReadClock(rng, step), makeUntil(rng, missionIndex >= 4 ? 1 : 5)];
-    case 2:
-      return [makeReadClock(rng, step), makeEnds(rng, missionIndex >= 5 ? 1 : 5)];
+      return makeUntil(rng, 5);
     default:
-      return [makeUntil(rng, step), makeDay(rng)];
+      return makeEnds(rng, 5);
   }
 }

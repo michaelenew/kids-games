@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
 import { COINS, type Coin, coinsTotal, makePriceProblem, moneyText, type PriceProblem } from '../skills/money';
-import { GEAR_INFO, type GearId, recordSkill } from '../state';
+import { GEAR_INFO, type GearId, bumpGuide, guideCount, recordSkill } from '../state';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
 
@@ -33,6 +33,12 @@ export class TraderScene extends Phaser.Scene {
   private counter!: Phaser.GameObjects.Container;
   private totalText!: Phaser.GameObjects.Text;
   private misses = 0;
+  /** Coin images in the jar, by coin. */
+  private jar = new Map<string, Phaser.GameObjects.Image>();
+  /** Walk-through line (first visits). */
+  private guideText!: Phaser.GameObjects.Text;
+  private guided = false;
+  private pulse: Phaser.Tweens.Tween | null = null;
   private busy = false;
 
   constructor() {
@@ -43,6 +49,8 @@ export class TraderScene extends Phaser.Scene {
     this.job = data;
     this.paid = [];
     this.misses = 0;
+    this.jar = new Map();
+    this.pulse = null;
     this.busy = false;
   }
 
@@ -84,12 +92,19 @@ export class TraderScene extends Phaser.Scene {
     coins.forEach((c, i) => {
       const x = 640 + (i - (coins.length - 1) / 2) * 170;
       const img = this.add.image(x, 570, `coin-${c.id}`).setInteractive({ useHandCursor: true });
+      this.jar.set(c.id, img);
       img.on('pointerup', () => this.addCoin(c, img));
       text(this, x, 640, c.name, 22, '#ffffff');
       if (this.job.mark === 1) text(this, x, 670, moneyText(c.cents), 20, '#ffd166');
     });
     const pay = button(this, 1130, 470, 200, 70, 'PAY', () => this.pay(), { fill: 0xf77f00, edge: 0xffd166, size: 34 });
     void pay;
+    // First two visits: a guide that suggests the biggest coin that still fits.
+    const visits = guideCount('money');
+    this.guided = visits < 2;
+    if (visits < 4) this.problem.showTotal = true;
+    this.guideText = text(this, 640, 400, visits >= 2 && visits < 4 ? 'Tip: start with the biggest coin that fits, then add smaller ones.' : '', 22, '#ffffff', { wordWrap: { width: 900 } })
+      .setStroke('#000000', 5).setDepth(5);
     this.refresh();
     dialog(this, [{ who: 'sprocket', text: `Every upgrade needs a power core. This one costs ${moneyText(this.problem.price)}. The trader never makes change, so pay the exact amount!` }], () => {});
   }
@@ -163,6 +178,29 @@ export class TraderScene extends Phaser.Scene {
       this.counter.add(img);
     });
     this.totalText.setText(this.problem.showTotal ? `Total: ${moneyText(coinsTotal(this.paid))}` : 'Total: ? (count it!)');
+    if (this.guided) this.guide();
+  }
+
+  /** Walk-through: say how much is still needed and pulse the coin to add next. */
+  private guide() {
+    this.pulse?.stop();
+    for (const img of this.jar.values()) img.setScale(1);
+    const have = coinsTotal(this.paid);
+    const need = this.problem.price - have;
+    if (need < 0) {
+      this.guideText.setText(`That's ${moneyText(have)}, too much! Tap a coin on the counter to take it back.`);
+      return;
+    }
+    if (need === 0) {
+      this.guideText.setText(`${moneyText(have)} exactly! Press PAY.`);
+      return;
+    }
+    const best = [...this.problem.coins].sort((a, b) => b.cents - a.cents).find((c) => c.cents <= need);
+    if (!best) return;
+    const lead = have ? `We have ${moneyText(have)}. We still need ${moneyText(need)}.` : `We need ${moneyText(need)}.`;
+    this.guideText.setText(`${lead} The biggest coin that fits is a ${best.name.toLowerCase()} (${moneyText(best.cents)}). Tap it!`);
+    const img = this.jar.get(best.id);
+    if (img) this.pulse = this.tweens.add({ targets: img, scale: 1.2, duration: 350, yoyo: true, repeat: -1 });
   }
 
   private pay() {
@@ -175,6 +213,7 @@ export class TraderScene extends Phaser.Scene {
     if (total === this.problem.price) {
       this.busy = true;
       recordSkill('money', this.misses === 0);
+      bumpGuide('money');
       sfx.success();
       sparks(this, 1040, 230, 0xffd166, 30);
       toast(this, 640, 330, `Exactly ${moneyText(total)}! The core is yours!`, '#06d6a0', 36);

@@ -33,6 +33,8 @@ export type ArmorState = Partial<Record<Region, Plate>>;
 export const FRAME_HP = 600;
 /** A single mission can't knock more than this off one plate, so repairs stay under 1,000. */
 export const MAX_PLATE_DAMAGE = 999;
+/** Plates that can need repair after one mission. */
+export const MAX_REPAIRS = 2;
 
 /**
  * Plate values for a new mark. Mark I is big round hundreds (easy to build).
@@ -128,11 +130,19 @@ export class MissionArmor {
    */
   commit(s: SaveData, rng: Rng = Math.random) {
     const a = s.armor ?? {};
+    // At most two plates need repairs after a mission, so the math between
+    // missions stays short: the two most damaged keep their damage.
+    const worst = REGIONS.filter((r) => a[r] && this.plates[r])
+      .map((r) => ({ r, lost: a[r]!.max - this.plates[r]!.hp }))
+      .filter((x) => x.lost > 0)
+      .sort((x, y) => y.lost - x.lost)
+      .slice(0, MAX_REPAIRS)
+      .map((x) => x.r);
     for (const r of REGIONS) {
       const p = a[r];
       const m = this.plates[r];
       if (!p || !m) continue;
-      let missing = Math.max(0, p.max - m.hp);
+      let missing = worst.includes(r) ? Math.max(0, p.max - m.hp) : 0;
       if (missing === 0) {
         p.hp = p.max;
         continue;

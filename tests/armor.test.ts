@@ -92,6 +92,16 @@ describe('mission armor', () => {
     expect(seen.size).toBeGreaterThan(20);
   });
 
+  it('leaves at most two plates to repair', () => {
+    const s = freshSave();
+    s.armor = full();
+    const a = new MissionArmor(s.armor);
+    const r = rng(11);
+    for (let k = 0; k < 40; k++) a.damage(30, r);
+    a.commit(s, r);
+    expect(repairsNeeded(s.armor).length).toBeLessThanOrEqual(2);
+  });
+
   it('spreads hits over all the plates', () => {
     const a = new MissionArmor(full());
     const r = rng(5);

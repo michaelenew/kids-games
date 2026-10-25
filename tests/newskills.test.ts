@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { COINS, coinsTotal, makePriceProblem, moneyText } from '../src/skills/money';
 import { biggestHits, hitBars, makeGraphQuestion } from '../src/skills/recap';
-import { addMinutes, clockText, makeDay, makeEnds, makeReadClock, makeUntil, missionControlQuestions } from '../src/skills/time';
+import { addMinutes, clockText, makeDay, makeEnds, makeReadClock, makeUntil, missionControlQuestion } from '../src/skills/time';
 
 function rng(seed: number) {
   return () => {
@@ -30,8 +30,11 @@ describe('time', () => {
     const r = rng(4);
     for (let i = 0; i < 100; i++) expect(makeReadClock(r, 5).clock!.m % 5).toBe(0);
   });
-  it('mission control gives two questions', () => {
-    for (let m = 0; m < 8; m++) expect(missionControlQuestions(rng(m + 1), m)).toHaveLength(2);
+  it('mission control questions have answers', () => {
+    for (let m = 0; m < 6; m++) {
+      const q = missionControlQuestion(rng(m + 1), m);
+      expect(q.choices).toContain(q.answer);
+    }
   });
 });
 
@@ -71,5 +74,29 @@ describe('recap', () => {
   });
   it('picks the three biggest hits', () => {
     expect(biggestHits([{ amount: 40 }, { amount: 87 }, { amount: 12 }, { amount: 66 }])).toEqual([87, 66, 40]);
+  });
+});
+
+import { addColumns, countUp } from '../src/skills/steps';
+
+describe('walk-through steps', () => {
+  it('adds in columns with carrying', () => {
+    const c = addColumns(28, 37);
+    expect(c[0]).toMatchObject({ digits: [8, 7], sum: 15, write: 5, carryOut: 1 });
+    expect(c[1]).toMatchObject({ digits: [2, 3], carryIn: 1, sum: 6, write: 6, carryOut: 0 });
+    expect(c[2]).toMatchObject({ sum: 0 });
+    const d = addColumns(85, 47);
+    expect(d.map((x) => x.write).reverse().join('')).toBe('132');
+  });
+  it('counts up in friendly jumps', () => {
+    expect(countUp(383, 600)).toEqual([{ from: 383, to: 390, gap: 7 }, { from: 390, to: 400, gap: 10 }, { from: 400, to: 600, gap: 200 }]);
+    expect(countUp(250, 600).map((s) => s.gap)).toEqual([50, 300]);
+    expect(countUp(412, 740).map((s) => s.gap)).toEqual([8, 80, 200, 40]);
+    for (let from = 1; from < 999; from += 7) {
+      for (const to of [600, 740, 999, 1350]) {
+        if (from >= to) continue;
+        expect(countUp(from, to).reduce((s, x) => s + x.gap, 0)).toBe(to - from);
+      }
+    }
   });
 });

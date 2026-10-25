@@ -24,7 +24,8 @@ const SKILL_LABELS: Record<string, string> = {
   'boots-1': 'Two numbers that make a sum (within 20)',
   'boots-2': 'Add/subtract chains (9 − 4 + 3)',
   'boots-3': 'Fast facts within 20 (timed)',
-  repair: 'Repairs: 3-digit subtraction (full plate minus what is left)',
+  repair: 'Repairs (early): build an exact amount from hundreds, tens, ones',
+  subtract: 'Repairs (Egypt on): 3-digit subtraction by counting up',
   time: 'Mission control: telling time, minutes until, days of the week',
   money: 'Junk trader: pay exact amounts with coins (up to $2)',
   addition: 'Mission report: add the biggest hits (2-digit, three at a time)',
@@ -116,7 +117,7 @@ export class GarageScene extends Phaser.Scene {
       const y = 134 + col.n++ * 64;
       const name = `${i + 1}. ${m.title.replace(/^Invasion \d+: /, '')}`;
       // Beaten missions can't be replayed, so the only way forward is the next one.
-      const b = button(this, col.x, y, 280, 56, '', () => go('Control', { missionId: m.id }, m.id), {
+      const b = button(this, col.x, y, 280, 56, '', () => go(m.env === 'desert' ? 'Control' : 'Invasion', { missionId: m.id }, m.id), {
         fill: m.env === 'desert' ? 0xb5651d : 0x7b2cbf, edge: m.env === 'desert' ? 0xffc98a : 0xd0a7ff, disabled: !unlocked || done,
       });
       b.label.setText(done ? `${name} ✓` : unlocked ? name : '🔒').setY(unlocked && !done ? -9 : 0).setFontSize(19);

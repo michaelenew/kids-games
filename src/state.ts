@@ -28,6 +28,8 @@ export interface SaveData {
   assist?: Record<string, { tier: number; armed: boolean; started: boolean; fails?: number }>;
   /** Upgrades built so far, and how many there were when each mission was first beaten. */
   upgradeCount?: number;
+  /** How many times each walk-through kind has been done (help fades as these grow). */
+  guide?: Record<string, number>;
   clearedAt?: Record<string, number>;
   skills: Record<string, SkillStat>;
 }
@@ -134,3 +136,25 @@ export const GEAR_INFO: Record<GearId, { title: string; skill: string; perks: st
     perks: ['Normal jump', 'Super jump', 'Mega jump', 'Mega jump + DOUBLE JUMP'],
   },
 };
+
+// ---- Pacing ----------------------------------------------------------------
+
+/**
+ * The extra skills (time, money, the mission report, subtraction repairs)
+ * start in Egypt, so the first missions stay simple.
+ */
+export function egyptUnlocked(s: SaveData = save()): boolean {
+  return s.levelsDone.includes('inv-queen');
+}
+
+/** How many times he has done a kind of problem with a walk-through. */
+export function guideCount(kind: string, s: SaveData = save()): number {
+  return s.guide?.[kind] ?? 0;
+}
+
+export function bumpGuide(kind: string, s: SaveData = save()): void {
+  s.guide ??= {};
+  s.guide[kind] = (s.guide[kind] ?? 0) + 1;
+  persist();
+}
+

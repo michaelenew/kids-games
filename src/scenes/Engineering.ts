@@ -3,7 +3,7 @@ import { COLORS, FONT } from '../art';
 import { REGIONS, lookFromSave } from '../armor';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
-import { BUILD_COST, GEAR_INFO, type GearId, hasSeen, markSeen, save } from '../state';
+import { BUILD_COST, GEAR_INFO, type GearId, hasSeen, markSeen, save, egyptUnlocked } from '../state';
 import { W, button, dialog, scrapBadge, text } from '../ui/widgets';
 
 const ROMAN = ['', 'I', 'II', 'III'];
@@ -87,7 +87,8 @@ export class EngineeringScene extends Phaser.Scene {
       const then = gear === 'armor'
         ? { key: 'ArmorForge', data: { mode: 'build', mark: next } }
         : { key: BENCH_SCENE[gear], data: { gear, mark: next, practice: false } };
-      this.scene.start('Trader', { gear, mark: next, then });
+      if (egyptUnlocked()) this.scene.start('Trader', { gear, mark: next, then });
+      else this.scene.start(then.key, then.data);
     }, {
       fill: 0x2a9d8f, edge: 0x9ff0e3, disabled: !afford, size: 26,
     });

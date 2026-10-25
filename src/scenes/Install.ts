@@ -4,7 +4,7 @@ import { lookFromSave } from '../armor';
 import { GEAR_INFO, type GearId, save } from '../state';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
-import { H, W, button, speak, text } from '../ui/widgets';
+import { H, W, button, text } from '../ui/widgets';
 
 const ROMAN = ['', 'I', 'II', 'III'];
 
@@ -81,7 +81,6 @@ export class InstallScene extends Phaser.Scene {
       show.held[0] = false;
       const perk = GEAR_INFO[gear].perks[mark];
       text(this, W / 2, 140, perk, 34, '#ffffff').setStroke('#000000', 6);
-      speak(`It works! ${perk}! Let's go try it out.`);
       button(this, W / 2 - 330, 660, 300, 80, 'Engineering Zone', () => this.scene.start('Engineering'), {
         fill: 0xf77f00, edge: 0xffd166, size: 26,
       });

@@ -324,7 +324,8 @@ export class Robot {
 
   /**
    * Armor plates, keyed `plate:<region>:<mark>`. Mark 1 is the colored plate
-   * itself; marks 2 and 3 add steel spikes, then gold trim and wings.
+   * itself; Mark 2 adds heavy layered plates and big steel spikes; Mark 3 adds
+   * gold-framed titan armor, a power core, a shield, horns and wings.
    */
   private buildPlates() {
     const M = METAL;
@@ -341,15 +342,59 @@ export class Robot {
     mesh(c1, rboxGeo(0.54, 0.2, 0.07, 0.03), PL.chest, 0, 0.15, 0.17);
     mesh(c1, cylGeo(0.11, 0.11, 0.03, 8), M.steel, 0, 0.36, 0.262, { rx: Math.PI / 2 });
     mesh(c1, cylGeo(0.07, 0.07, 0.035, 8), A, 0, 0.36, 0.27, { rx: Math.PI / 2, shadow: false });
-    // Chest Mark II: steel collar spikes and a reinforced belly.
+    // Chest Mark II: a heavy battle breastplate. Thick angled chest plates over
+    // the windows, a segmented armored belly, and big steel spikes on the collar.
     const c2 = this.part('plate:chest:2', this.joints.waist, 0, 0, 0);
-    mesh(c2, rboxGeo(0.56, 0.06, 0.08, 0.02), M.steel, 0, 0.06, 0.18);
-    for (const sx of [-1, 1]) mesh(c2, coneGeo(0.05, 0.2, 6), M.chrome, sx * 0.4, 0.92, 0.02);
-    // Chest Mark III: gold crest and wings.
+    for (const sx of [-1, 1]) {
+      const pec = group(c2, sx * 0.25, 0.6, 0.3);
+      pec.rotation.set(-0.12, sx * 0.22, sx * 0.12);
+      mesh(pec, rboxGeo(0.46, 0.3, 0.09, 0.03), PL.chest, 0, 0, 0);
+      mesh(pec, rboxGeo(0.48, 0.04, 0.1, 0.01), M.steel, 0, -0.16, 0.005);
+      mesh(pec, rboxGeo(0.04, 0.3, 0.1, 0.01), M.steel, sx * 0.23, 0, 0.005);
+      for (const [bx, by] of [[-0.17, 0.1], [0.17, 0.1], [-0.17, -0.1], [0.17, -0.1]]) {
+        mesh(pec, sphereGeo(0.018, 8), M.chrome, bx, by, 0.05);
+      }
+      // Glowing vents under each plate.
+      mesh(c2, rboxGeo(0.2, 0.025, 0.02, 0.005), A, sx * 0.24, 0.42, 0.32, { shadow: false });
+      // Three big collar spikes per side, swept outward.
+      for (let k = 0; k < 3; k++) {
+        mesh(c2, coneGeo(0.07, 0.36 - k * 0.06, 6), M.chrome, sx * (0.3 + k * 0.08), 0.9 - k * 0.02, 0.05 - k * 0.1, { rz: sx * -(0.25 + k * 0.2) });
+      }
+    }
+    // Segmented belly armor.
+    for (let k = 0; k < 3; k++) {
+      mesh(c2, rboxGeo(0.56 - k * 0.06, 0.09, 0.08, 0.02), PL.chest, 0, 0.3 - k * 0.1, 0.2 - k * 0.01);
+      mesh(c2, rboxGeo(0.58 - k * 0.06, 0.015, 0.085, 0.005), M.steel, 0, 0.255 - k * 0.1, 0.2 - k * 0.01);
+    }
+    // Chest Mark III: the titan plate. A gold-framed power core in the middle of
+    // the chest, gold trim on every plate, a tall armored collar, crest and wings.
+    const c3 = this.part('plate:chest:3', this.joints.waist, 0, 0, 0);
+    mesh(c3, cylGeo(0.2, 0.2, 0.06, 6), M.gold, 0, 0.5, 0.37, { rx: Math.PI / 2 });
+    mesh(c3, cylGeo(0.14, 0.14, 0.07, 6), M.dark, 0, 0.5, 0.38, { rx: Math.PI / 2 });
+    mesh(c3, cylGeo(0.1, 0.1, 0.075, 16), A, 0, 0.5, 0.385, { rx: Math.PI / 2, shadow: false });
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      mesh(c3, rboxGeo(0.03, 0.12, 0.03, 0.01), M.gold, Math.cos(a) * 0.26, 0.5 + Math.sin(a) * 0.26, 0.36, { rz: a + Math.PI / 2 });
+    }
+    for (const sx of [-1, 1]) {
+      const pec = group(c3, sx * 0.25, 0.6, 0.3);
+      pec.rotation.set(-0.12, sx * 0.22, sx * 0.12);
+      mesh(pec, rboxGeo(0.5, 0.035, 0.11, 0.01), M.gold, 0, 0.155, 0.01);
+      mesh(pec, rboxGeo(0.035, 0.32, 0.11, 0.01), M.gold, -sx * 0.245, 0, 0.01);
+      // Tall collar guard either side of the head.
+      const gorget = group(c3, sx * 0.3, 0.98, 0.02);
+      gorget.rotation.z = sx * -0.2;
+      mesh(gorget, rboxGeo(0.12, 0.3, 0.4, 0.03), PL.chest, 0, 0, 0);
+      mesh(gorget, rboxGeo(0.13, 0.04, 0.41, 0.01), M.gold, 0, 0.15, 0);
+      mesh(gorget, rboxGeo(0.02, 0.2, 0.02, 0.005), A, sx * 0.065, 0, 0.15, { shadow: false });
+      // Energy lines down the belly.
+      mesh(c3, rboxGeo(0.02, 0.26, 0.02, 0.005), A, sx * 0.2, 0.2, 0.25, { shadow: false });
+    }
     const crest = this.part('plate:chest:3', this.joints.head, 0, 0.32, 0.02);
     mesh(crest, rboxGeo(0.05, 0.16, 0.2, 0.02), M.gold, 0, 0.06, 0, { rx: -0.3 });
     for (const sx of [-1, 1]) mesh(crest, rboxGeo(0.04, 0.2, 0.06, 0.015), M.gold, sx * 0.14, 0.02, 0.06, { rz: sx * -0.55 });
     const wings = this.part('plate:chest:3', this.joints.waist, 0, 0.62, -0.28);
+    wings.scale.setScalar(1.35);
     for (const sx of [-1, 1]) {
       const w = group(wings, sx * 0.22, 0, 0);
       w.rotation.set(-0.3, sx * 0.35, sx * -0.95);
@@ -376,13 +421,36 @@ export class Robot {
         const guard = this.part(`plate:${arm}:1`, this.joints.elR, 0, -0.16, 0);
         mesh(guard, rboxGeo(0.31, 0.2, 0.31, 0.04), PL[arm], 0, 0, 0);
       }
-      // Arm Mark II: steel blade fins on the pauldron.
+      // Arm Mark II: a second, bigger pauldron layer with a row of big spikes,
+      // and a heavy armored bracer with a steel blade on the forearm.
       const p2 = this.part(`plate:${arm}:2`, this.joints[`sh${side}`], sx * 0.08, 0.15, 0);
-      for (const z of [-0.12, 0.12]) mesh(p2, coneGeo(0.045, 0.22, 6), M.chrome, sx * 0.12, 0.1, z, { rz: sx * -0.5 });
-      // Arm Mark III: gold trim and a gold horn.
+      mesh(p2, rboxGeo(0.5, 0.1, 0.56, 0.035), PL[arm], sx * 0.02, 0.08, 0, { rz: sx * -0.3 });
+      mesh(p2, rboxGeo(0.51, 0.025, 0.57, 0.01), M.steel, sx * 0.02, 0.03, 0, { rz: sx * -0.3 });
+      mesh(p2, rboxGeo(0.09, 0.22, 0.58, 0.02), PL[arm], sx * 0.25, -0.08, 0);
+      for (const z of [-0.18, 0, 0.18]) mesh(p2, coneGeo(0.07, z === 0 ? 0.42 : 0.32, 6), M.chrome, sx * 0.12, 0.2, z, { rz: sx * -0.45 });
+      const brace2 = this.part(`plate:${arm}:2`, side === 'L' ? this.joints.elL : this.joints.elR, 0, -0.2, 0);
+      mesh(brace2, rboxGeo(0.36, 0.34, 0.36, 0.04), PL[arm], 0, 0, 0);
+      mesh(brace2, rboxGeo(0.37, 0.03, 0.37, 0.01), M.steel, 0, 0.16, 0);
+      mesh(brace2, rboxGeo(0.37, 0.03, 0.37, 0.01), M.steel, 0, -0.16, 0);
+      mesh(brace2, rboxGeo(0.04, 0.5, 0.16, 0.01), M.chrome, sx * 0.2, -0.05, 0, { rz: sx * 0.1 });
+      // Arm Mark III: gold-rimmed pauldron with glowing lines and a swept gold
+      // horn, and a gold gauntlet with a glowing energy shield on the forearm.
       const p3 = this.part(`plate:${arm}:3`, this.joints[`sh${side}`], sx * 0.08, 0.15, 0);
-      mesh(p3, rboxGeo(0.42, 0.03, 0.06, 0.01), M.gold, 0, 0.0, 0.23, { rz: sx * -0.3 });
-      mesh(p3, coneGeo(0.06, 0.24, 6), M.gold, sx * 0.14, 0.14, 0, { rz: sx * -0.7 });
+      mesh(p3, rboxGeo(0.53, 0.035, 0.6, 0.01), M.gold, sx * 0.02, 0.135, 0, { rz: sx * -0.3 });
+      mesh(p3, rboxGeo(0.03, 0.03, 0.5, 0.01), A, sx * 0.1, 0.16, 0, { rz: sx * -0.3, shadow: false });
+      mesh(p3, rboxGeo(0.1, 0.035, 0.6, 0.01), M.gold, sx * 0.25, 0.03, 0);
+      const horn = group(p3, sx * 0.16, 0.25, -0.05);
+      horn.rotation.set(-0.35, 0, sx * -0.6);
+      mesh(horn, coneGeo(0.09, 0.55, 8), M.gold, 0, 0.27, 0);
+      const brace3 = this.part(`plate:${arm}:3`, side === 'L' ? this.joints.elL : this.joints.elR, 0, -0.2, 0);
+      for (const y of [-0.12, 0.12]) mesh(brace3, rboxGeo(0.39, 0.05, 0.39, 0.01), M.gold, 0, y, 0);
+      if (side === 'L') {
+        // Energy shield: a gold hex frame with a glowing face.
+        const sh = group(brace3, sx * 0.24, -0.02, 0.05);
+        sh.rotation.set(0, sx * Math.PI / 2, Math.PI / 6);
+        mesh(sh, cylGeo(0.3, 0.3, 0.04, 6), M.gold, 0, 0, 0, { rx: Math.PI / 2 });
+        mesh(sh, cylGeo(0.25, 0.25, 0.05, 6), A, 0, 0, 0, { rx: Math.PI / 2, shadow: false });
+      }
 
       // Leg Mark I: thigh plate, knee cap and a shin guard with a glow strip.
       const th = this.part(`plate:${leg}:1`, this.joints[`hip${side}`], 0, -0.22, 0.14);
@@ -392,13 +460,20 @@ export class Robot {
       const sg = this.part(`plate:${leg}:1`, this.joints[`kn${side}`], 0, -0.27, 0.21);
       mesh(sg, rboxGeo(0.3, 0.32, 0.05, 0.03), PL[leg], 0, 0, 0);
       mesh(sg, rboxGeo(0.04, 0.24, 0.02, 0.01), A, 0, 0, 0.03, { shadow: false });
-      // Leg Mark II: knee spike and steel shin edges.
+      // Leg Mark II: a big knee spike, armored thigh overlay and steel shin edges.
       const k2 = this.part(`plate:${leg}:2`, this.joints[`kn${side}`], 0, 0.02, 0.18);
-      mesh(k2, coneGeo(0.045, 0.16, 8), M.chrome, 0, 0.02, 0.09, { rx: Math.PI / 2 });
-      for (const ex of [-0.15, 0.15]) mesh(k2, rboxGeo(0.03, 0.32, 0.06, 0.01), M.steel, ex, -0.29, 0.03);
-      // Leg Mark III: gold calf fins.
+      mesh(k2, coneGeo(0.08, 0.3, 8), M.chrome, 0, 0.02, 0.12, { rx: Math.PI / 2 });
+      for (const ex of [-0.16, 0.16]) mesh(k2, rboxGeo(0.04, 0.34, 0.08, 0.01), M.steel, ex, -0.29, 0.03);
+      const t2 = this.part(`plate:${leg}:2`, this.joints[`hip${side}`], 0, -0.22, 0.19);
+      mesh(t2, rboxGeo(0.33, 0.24, 0.06, 0.03), PL[leg], 0, 0.04, 0, { rx: -0.1 });
+      mesh(t2, rboxGeo(0.34, 0.03, 0.065, 0.01), M.steel, 0, -0.08, 0, { rx: -0.1 });
+      // Leg Mark III: gold knee crest, glowing shin lines and big gold calf fins.
       const l3 = this.part(`plate:${leg}:3`, this.joints[`kn${side}`], sx * 0.18, -0.2, -0.05);
-      mesh(l3, rboxGeo(0.04, 0.36, 0.2, 0.01), M.gold, 0, 0, 0, { rx: 0.2 });
+      mesh(l3, rboxGeo(0.05, 0.5, 0.3, 0.01), M.gold, 0, 0, 0, { rx: 0.25 });
+      const kc3 = this.part(`plate:${leg}:3`, this.joints[`kn${side}`], 0, 0.06, 0.24);
+      mesh(kc3, rboxGeo(0.28, 0.06, 0.05, 0.01), M.gold, 0, 0, 0);
+      mesh(kc3, coneGeo(0.05, 0.18, 6), M.gold, 0, 0.1, 0);
+      for (const ex of [-0.08, 0.08]) mesh(kc3, rboxGeo(0.02, 0.28, 0.02, 0.005), A, ex, -0.32, 0.0, { shadow: false });
     }
   }
 

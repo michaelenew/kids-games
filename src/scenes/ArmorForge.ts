@@ -5,9 +5,10 @@ import { REGIONS, REGION_NAMES, type Region, armorMark, lookFromSave, plateTarge
 import { music, sfx } from '../audio';
 import { type PlaceCounts, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
 import { BUILD_COST, persist, recordSkill, save } from '../state';
+import { type PatchPiece, PlatePatch } from '../three/patch';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
-import { H, W, button, dialog, panel, sparks, speak, text, toast } from '../ui/widgets';
+import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
 
 /**
  * The armor forge. Two jobs:
@@ -33,6 +34,11 @@ const HOLE = 0x0b0d14;
 /** Width and height of each piece, px. */
 const PIECE_SIZE: [number, number][] = [[61, 61], [50, 50], [10, 50], [10, 10]];
 const ROMAN = ['', 'I', 'II', 'III'];
+
+/** Rough size of each plate on the robot (robot units), for fitting the repair view. */
+const PLATE_SIZE: Record<Region, [number, number]> = {
+  chest: [0.9, 0.7], armL: [0.4, 0.55], armR: [0.4, 0.55], legL: [0.4, 0.6], legR: [0.4, 0.6],
+};
 
 /** Where things sit on screen. */
 const TRAY_TOP = 330;
@@ -60,9 +66,9 @@ export class ArmorForge extends Phaser.Scene {
   private trayPieces: Phaser.GameObjects.Image[][] = [[], [], [], []];
   private countTexts: Phaser.GameObjects.Text[] = [];
   private readout!: Phaser.GameObjects.Text;
-  private holes: { place: number; x: number; y: number; img?: Phaser.GameObjects.Image }[] = [];
-  private holeGfx!: Phaser.GameObjects.Graphics;
-  private holeFlash = 0;
+  private patch: PlatePatch | null = null;
+  private camHome: THREE.Vector3 | null = null;
+  private camTarget: THREE.Vector3 | null = null;
   private busy = false;
   private pips: Phaser.GameObjects.Arc[] = [];
   /** Pieces used up by a finished job, cleared when the next one starts. */
@@ -82,6 +88,9 @@ export class ArmorForge extends Phaser.Scene {
     this.trayPieces = [[], [], [], []];
     this.pips = [];
     this.spent = [];
+    this.patch = null;
+    this.camHome = null;
+    this.camTarget = null;
   }
 
   create() {
@@ -93,14 +102,15 @@ export class ArmorForge extends Phaser.Scene {
     this.show = new Showcase(getStage(this.game.canvas), [
       { look: lookFromSave(s), x: 285, y: 650, height: 480, spin: 0, yaw: 0.35 },
     ]);
-    this.robot.spin = 0.35;
+    // Repairs zoom in on the front of the robot, so face the camera.
+    this.robot.spin = this.mode === 'repair' ? 0 : 0.35;
 
     // Drag across the robot to turn it.
     const zone = this.add.zone(285, 400, 480, 560).setInteractive();
     let lastX = 0;
     zone.on('pointerdown', (p: Phaser.Input.Pointer) => (lastX = p.x));
     zone.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (!p.isDown || this.robot.spin === null) return;
+      if (!p.isDown || this.robot.spin === null || this.mode === 'repair') return;
       this.robot.spin += (p.x - lastX) * 0.012;
       lastX = p.x;
     });
@@ -133,7 +143,6 @@ export class ArmorForge extends Phaser.Scene {
     });
 
     this.layer = this.add.container(0, 0);
-    this.holeGfx = this.add.graphics().setDepth(5);
 
     if (this.mode === 'build' && this.mark === 1 && !s.seen.includes('forge-intro')) {
       s.seen.push('forge-intro');
@@ -223,8 +232,8 @@ export class ArmorForge extends Phaser.Scene {
     for (const list of this.trayPieces) list.forEach((img) => img.destroy());
     this.spent.forEach((img) => img.destroy());
     this.spent = [];
-    this.holeGfx.clear();
-    this.holes = [];
+    this.patch?.group.removeFromParent();
+    this.patch = null;
     this.trayPieces = [[], [], [], []];
     this.countTexts = [];
     this.counts = [0, 0, 0, 0];
@@ -247,17 +256,18 @@ export class ArmorForge extends Phaser.Scene {
       const spec = text(this, cx, 225, j.spec, small ? 34 : 86, '#ffffff', { wordWrap: { width: RIGHT - LEFT - 40 } }).setStroke('#0b1a33', 6);
       const label = text(this, cx, 288, 'armor points', 18, '#9ad1ff');
       this.layer.add([card, title, spec, label]);
-      speak(`${REGION_NAMES[j.region]}. Build ${j.spec}.`);
     } else {
       this.drawPlateWithHoles();
-      speak(`Fill the holes in the ${REGION_NAMES[j.region].toLowerCase()}.`);
     }
 
     this.buildTray();
     this.refresh();
   }
 
-  /** Repair: the plate drawn with filled blocks and empty holes, by place value. */
+  /**
+   * Repair: zoom in on the damaged plate on the robot. The plate is shown as
+   * blocks (hundreds, tens, ones) with empty sockets where points are missing.
+   */
   private drawPlateWithHoles() {
     const s = save();
     const j = this.job;
@@ -266,37 +276,50 @@ export class ArmorForge extends Phaser.Scene {
     const miss = toCounts(j.target);
     // Repairs never need thousands; fold them into hundreds for drawing.
     have[1] += have[0] * 10;
-    have[0] = 0;
     const cx = (LEFT + RIGHT) / 2;
     const card = this.add.graphics();
-    card.fillStyle(0x24283b, 0.96).fillRoundedRect(LEFT, 112, RIGHT - LEFT, 200, 16);
-    card.lineStyle(3, 0xff9f1c, 0.9).strokeRoundedRect(LEFT, 112, RIGHT - LEFT, 200, 16);
-    const title = text(this, cx, 134, `${REGION_NAMES[j.region].toUpperCase()}: fill every hole!`, 22, '#ffd166');
-    this.layer.add([card, title]);
+    card.fillStyle(0x24283b, 0.96).fillRoundedRect(LEFT, 112, RIGHT - LEFT, 190, 16);
+    card.lineStyle(3, 0xff9f1c, 0.9).strokeRoundedRect(LEFT, 112, RIGHT - LEFT, 190, 16);
+    const title = text(this, cx, 145, `REPAIR: ${REGION_NAMES[j.region].toUpperCase()}`, 26, '#ffd166');
+    const need = text(this, cx, 210, `${j.target} missing`, 64, '#ffffff').setStroke('#000000', 6);
+    const sub = text(this, cx, 272, 'Fill every hole in the plate!', 22, '#ff9f9f');
+    this.layer.add([card, title, need, sub]);
 
-    // Lay out filled blocks then holes for each place.
-    const color = [0, s.color, 0x4cc9f0, 0xffd166];
-    let x = LEFT + 24;
-    const rowY = 182;
-    const add = (place: number, filled: boolean, px: number, py: number) => {
-      const img = this.add.image(px, py, this.pieceKey(place, filled ? color[place] : HOLE)).setOrigin(0, 0);
-      if (!filled) this.holes.push({ place, x: px + img.width / 2, y: py + img.height / 2 });
-      this.layer.add(img);
-      return img;
-    };
-    // Hundreds may not all fit in one row on big plates: shrink if needed.
-    const hundreds = have[1] + miss[1];
-    const hStep = hundreds > 11 ? Math.floor((RIGHT - LEFT - 48) / hundreds) : 54;
-    for (let i = 0; i < hundreds; i++) {
-      add(1, i < have[1], x + i * hStep, rowY - 25);
+    // The plate on the robot, with its holes.
+    const sc = this.robot.holder.scale.x;
+    const [pw, ph] = PLATE_SIZE[j.region];
+    this.patch?.group.removeFromParent();
+    this.patch = new PlatePatch([have[1], have[2], have[3]], [miss[1], miss[2], miss[3]], s.color, pw * sc, ph * sc);
+    getStage().content.add(this.patch.group);
+    this.placePatch();
+    this.zoomTo(this.patch);
+  }
+
+  /** Keep the patch on the plate as the robot breathes. */
+  private placePatch() {
+    if (!this.patch) return;
+    const at = this.robot.regionWorld(this.job.region);
+    // Far enough forward to sit in front of the blaster and arm parts.
+    this.patch.group.position.set(at.x, at.y, at.z + 0.4 * this.robot.holder.scale.x);
+  }
+
+  /** Move the 3D camera so the patch fills the left side of the screen. */
+  private zoomTo(patch: PlatePatch | null) {
+    const cam = getStage().camera;
+    this.camHome ??= cam.position.clone();
+    if (!patch) {
+      this.camTarget = this.camHome.clone();
+      return;
     }
-    x = LEFT + 24;
-    const row2 = rowY + 38;
-    for (let i = 0; i < have[2] + miss[2]; i++) add(2, i < have[2], x + i * 14, row2);
-    x += (have[2] + miss[2]) * 14 + 20;
-    for (let i = 0; i < have[3] + miss[3]; i++) add(3, i < have[3], x + (i % 5) * 13, row2 + Math.floor(i / 5) * 13 + 8);
-    const need = text(this, RIGHT - 110, row2 + 26, `${j.target} missing`, 26, '#ff9f9f').setStroke('#000000', 5);
-    this.layer.add(need);
+    patch.group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(patch.group);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const tan = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    // Big enough to see, small enough to fit the left half.
+    const d = Math.max((size.y * H) / (380 * 2 * tan), (size.x * H) / (440 * 2 * tan));
+    const halfW = d * tan * cam.aspect;
+    this.camTarget = new THREE.Vector3(center.x + ((640 - 290) / 640) * halfW, center.y - 0.06 * d * tan, center.z + d);
   }
 
   private columnX(i: number) {
@@ -467,7 +490,6 @@ export class ArmorForge extends Phaser.Scene {
           : `That's ${formatNumber(built)}. Not enough! Add some more.`;
         this.time.delayedCall(700, () => {
           toast(this, (LEFT + RIGHT) / 2, 318, msg, '#ff9f9f', 30);
-          speak(msg);
           if (j.misses >= 2) this.hintColumns();
         });
       }
@@ -516,53 +538,66 @@ export class ArmorForge extends Phaser.Scene {
 
   private checkRepair() {
     const j = this.job;
+    const patch = this.patch!;
     const want = toCounts(j.target);
     const right = this.places.every((p) => this.counts[p] === want[p]);
+    const cam = getStage().camera;
     sfx.whoosh();
-    // Pieces go to matching holes in order; extras go just past the plate.
-    const fills: Phaser.GameObjects.Image[] = [];
+    // Each piece flies into a matching hole on the robot; extras fly at the plate and bounce off.
+    const filled: { img: Phaser.GameObjects.Image; hole: PatchPiece }[] = [];
     const extras: Phaser.GameObjects.Image[] = [];
     let delay = 0;
     for (const place of this.places) {
-      const holes = this.holes.filter((h) => h.place === place);
+      const holes = patch.holes(place as 1 | 2 | 3);
       this.trayPieces[place].forEach((img, i) => {
         img.setDepth(30);
-        const h = holes[i];
-        const to = h ? { x: h.x, y: h.y } : { x: RIGHT - 60 - Phaser.Math.Between(0, 80), y: 160 + Phaser.Math.Between(0, 100) };
-        (h ? fills : extras).push(img);
-        this.tweens.add({ targets: img, x: to.x, y: to.y, scale: 1, angle: 0, delay, duration: 420, ease: 'Cubic.easeOut' });
-        delay += 40;
+        const hole = holes[i];
+        let to: { x: number; y: number; size: number };
+        if (hole) {
+          to = patch.screenOf(hole, cam, W, H);
+          filled.push({ img, hole });
+        } else {
+          // Off the edge of the plate.
+          const any = patch.pieces[0] ? patch.screenOf(patch.pieces[0], cam, W, H) : { x: 300, y: 300, size: 40 };
+          to = { x: any.x + Phaser.Math.Between(-60, 200), y: any.y - Phaser.Math.Between(40, 120), size: PIECE_SIZE[place][0] };
+          extras.push(img);
+        }
+        this.tweens.add({
+          targets: img, x: to.x, y: to.y, scale: to.size / PIECE_SIZE[place][0], angle: 0, delay, duration: 420, ease: 'Cubic.easeIn',
+          onComplete: () => {
+            if (!hole) return;
+            img.setVisible(false);
+            patch.fill(hole);
+            sfx.clang(0.2 + (3 - place) * 0.12);
+          },
+        });
+        delay += 45;
       });
     }
-    this.time.delayedCall(delay + 300, () => sfx.clang(0.6));
-    this.time.delayedCall(delay + 480, () => {
+    this.time.delayedCall(delay + 520, () => {
       if (right) {
         recordSkill('repair', j.misses === 0);
-        fills.forEach((img) => this.tweens.add({ targets: img, scale: 1.25, duration: 120, yoyo: true }));
-        sparks(this, (LEFT + RIGHT) / 2, 210, 0x06d6a0, 30);
         sfx.success();
-        this.spent.push(...fills, ...extras);
+        sfx.clang(1.1);
+        this.cameras.main.shake(180, 0.008);
+        const mid = patch.screenOf(patch.pieces[Math.floor(patch.pieces.length / 2)], cam, W, H);
+        sparks(this, mid.x, mid.y, 0x4cf0ff, 34);
+        sparks(this, mid.x, mid.y, 0xffd166, 20);
+        toast(this, mid.x, mid.y - 60, `+${j.target} REPAIRED`, '#06d6a0', 40);
+        this.spent.push(...filled.map((f) => f.img), ...extras);
         this.trayPieces = [[], [], [], []];
         const s = save();
         const plate = s.armor![j.region]!;
         plate.hp = plate.max;
         persist();
-        // The plate on the robot heals with a clang.
-        this.time.delayedCall(300, () => {
-          this.robot.setDamage(j.region, 0);
-          this.robot.powerUp();
-          sfx.clang(1);
-          this.cameras.main.shake(160, 0.008);
-          const at = this.regionScreen(j.region);
-          sparks(this, at.x, at.y, 0x4cf0ff, 26);
-          toast(this, at.x, at.y - 40, `+${j.target} REPAIRED`, '#06d6a0', 36);
-          this.time.delayedCall(1300, () => this.nextJob());
-        });
+        this.robot.setDamage(j.region, 0);
+        this.robot.powerUp();
+        this.time.delayedCall(1400, () => this.nextJob());
         return;
       }
       j.misses++;
-      // Extra pieces flash red; empty holes flash red.
-      this.holeFlash = 1.6;
+      // Empty holes flash red, extra pieces flash red, then everything pops back out.
+      patch.flash(1.2);
       const notes: string[] = [];
       for (const place of this.places) {
         const d = this.counts[place] - want[place];
@@ -571,27 +606,32 @@ export class ArmorForge extends Phaser.Scene {
         if (d < 0) notes.push(`not enough ${name}`);
       }
       const msg = notes.length ? `Oops, ${notes.join(' and ')}!` : 'Try again!';
-      const allPieces = this.allPieces();
-      this.bounceBack(allPieces.filter((p) => extras.includes(p.img)).concat(allPieces.filter((p) => fills.includes(p.img))),
-        extras.length ? 'Too many!' : 'Too few!');
       toast(this, (LEFT + RIGHT) / 2, 318, msg, '#ff9f9f', 30);
-      speak(msg);
-      if (j.misses >= 2) this.hintColumns();
+      sfx.buzz();
+      const tooFew = this.places.some((p) => this.counts[p] < want[p]);
+      const label = extras.length && tooFew ? 'Some don\'t fit!' : extras.length ? 'Too many!' : 'Too few!';
+      this.time.delayedCall(900, () => {
+        for (const f of filled) {
+          patch.unfill(f.hole);
+          f.img.setVisible(true);
+        }
+        this.bounceBack(this.allPieces(), label);
+        if (j.misses >= 2) this.hintColumns();
+      });
     });
   }
 
   update(_t: number, deltaMs: number) {
-    if (!this.holeGfx) return;
-    const g = this.holeGfx;
-    g.clear();
-    if (this.mode !== 'repair' || !this.holes.length) return;
-    this.holeFlash = Math.max(0, this.holeFlash - deltaMs / 1000);
-    const pulse = 0.45 + Math.sin(this.time.now / 220) * 0.25;
-    const red = this.holeFlash > 0 && Math.floor(this.time.now / 120) % 2 === 0;
-    for (const h of this.holes) {
-      const [w, hh] = h.place === 1 ? [50, 50] : h.place === 2 ? [10, 50] : [10, 10];
-      g.lineStyle(red ? 3 : 2, red ? 0xff3b3b : 0xff9f1c, red ? 1 : pulse);
-      g.strokeRect(h.x - w / 2, h.y - hh / 2, w, hh);
+    const dt = deltaMs / 1000;
+    if (this.patch) {
+      this.placePatch();
+      this.patch.update(dt);
+      // Re-aim every frame: the robot's pose settles after the first frames.
+      this.zoomTo(this.patch);
+    }
+    if (this.camTarget) {
+      const cam = getStage().camera;
+      cam.position.lerp(this.camTarget, Math.min(1, dt * 4));
     }
   }
 
@@ -611,8 +651,9 @@ export class ArmorForge extends Phaser.Scene {
     this.layer?.removeAll(true);
     this.spent.forEach((img) => img.destroy());
     this.spent = [];
-    this.holeGfx?.clear();
-    this.holes = [];
+    this.patch?.group.removeFromParent();
+    this.patch = null;
+    this.zoomTo(null);
     this.pips.forEach((p) => p.setFillStyle(0x06d6a0));
     let title = 'ALL PATCHED UP!';
     if (this.mode === 'build' && this.jobs.length) {

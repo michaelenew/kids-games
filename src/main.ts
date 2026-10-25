@@ -45,19 +45,9 @@ game.events.on('poststep', (_time: number, delta: number) => {
 (window as unknown as { game: Phaser.Game }).game = game;
 Object.defineProperty(window, 'stage', { get: () => (hasStage() ? getStage() : null) });
 
-// iPad Safari only allows speech after the first tap. Speak a silent line on
-// that first tap so Sprocket's voice works for the rest of the session.
-window.addEventListener(
-  'pointerup',
-  () => {
-    unlockAudio();
-    try {
-      const u = new SpeechSynthesisUtterance(' ');
-      u.volume = 0;
-      window.speechSynthesis?.speak(u);
-    } catch {
-      // No speech support: the game is fully playable without it.
-    }
-  },
-  { once: true },
-);
+// Progress is saved in this browser's local storage (see state.ts). Ask the
+// browser to keep it rather than clear it when space runs low.
+navigator.storage?.persist?.().catch(() => {});
+
+// iPad Safari only allows sound after the first tap.
+window.addEventListener('pointerup', () => unlockAudio(), { once: true });

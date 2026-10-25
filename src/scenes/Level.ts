@@ -10,7 +10,7 @@ import {
 import { getStage } from '../three/stage';
 import { type TrackKind, WorldView } from '../three/world';
 import { Controls } from '../ui/controls';
-import { H, W, button, dialog, panel, speak, text, toast } from '../ui/widgets';
+import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
 const GRAVITY = 1500;
 const RUN_SPEED = 290;
@@ -275,7 +275,7 @@ export class LevelScene extends Phaser.Scene {
             this.addPickup(x, y, 'scrap');
             break;
           case 'h':
-            this.addPickup(x, floorY - 18, 'oil');
+            // No healing in levels: damage is fixed in the repair bay afterwards.
             break;
           case 'k': {
             const beacon = this.addPickup(x, floorY - 36, c === this.checkpointCol ? 'beacon-on' : 'beacon-off');
@@ -750,15 +750,7 @@ export class LevelScene extends Phaser.Scene {
     d.hp -= dmg;
     e.setData('hitAt', performance.now());
     this.view.burst(e.x, e.y - e.body.height / 2, 0xffd166, 8);
-    if (d.kind === 'boss') {
-      d.hitsSinceDrop += dmg;
-      if (d.hitsSinceDrop >= this.tune.bossDropEvery && d.hp > 0) {
-        d.hitsSinceDrop = 0;
-        const can = this.addPickup(e.x - Math.sign(this.player.x - e.x) * 120, e.y - 300, 'oil');
-        this.tweens.add({ targets: can, y: (GROUND_ROW * TILE) - 18, duration: 700, ease: 'Bounce.easeOut' });
-      }
-      this.drawHud();
-    }
+    if (d.kind === 'boss') this.drawHud();
     if (d.hp <= 0) this.killEnemy(e, d);
   }
 
@@ -785,18 +777,17 @@ export class LevelScene extends Phaser.Scene {
   /** Returns true if damage was applied. */
   private hurt(raw: number, src: Hurt): boolean {
     if (this.over || this.time.now < this.invulnUntil) return false;
-    // Armor points run about three times the old scale, so hits do too.
-    const amount = Math.max(10, Math.round((raw * 3 * this.tune.damageTaken) / 10) * 10);
+    // Armor points run about three times the old scale, so hits do too; then the level's own multiplier.
+    const amount = Math.max(10, Math.round((raw * 3 * this.def.dmg * this.tune.damageTaken) / 10) * 10);
     this.marmor.damage(amount);
     this.armor = this.marmor.hp;
     this.invulnUntil = this.time.now + this.tune.invulnMs;
     if (this.armor <= 0 && this.merciesLeft > 0) {
-      // Hang on by a thread, and a repair can happens to drop nearby.
+      // Hang on by a thread, with a long blink to get clear.
       this.merciesLeft--;
       this.marmor.frame = 1;
       this.armor = this.marmor.hp;
-      this.invulnUntil = this.time.now + 2000;
-      this.time.delayedCall(700, () => this.luckyDrop());
+      this.invulnUntil = this.time.now + 3000;
     }
     this.cameras.main.shake(140, 0.006);
     this.view.player.hit();
@@ -805,14 +796,6 @@ export class LevelScene extends Phaser.Scene {
     this.drawHud();
     if (this.armor <= 0) this.retreat(src);
     return true;
-  }
-
-  /** A repair can drops from the sky just ahead of the robot. */
-  private luckyDrop() {
-    if (this.over) return;
-    const x = Phaser.Math.Clamp(this.player.x + this.facing * 90, 30, this.physics.world.bounds.width - 30);
-    const can = this.addPickup(x, this.player.y - 260, 'oil');
-    this.tweens.add({ targets: can, y: this.player.y - 18, duration: 650, ease: 'Bounce.easeOut' });
   }
 
   private fell() {
@@ -880,7 +863,6 @@ export class LevelScene extends Phaser.Scene {
         .text(W / 2 - 220, H / 2 - 140, tip, { fontFamily: FONT, fontSize: '28px', color: COLORS.text, wordWrap: { width: 540 } })
         .setScrollFactor(0).setDepth(701),
     );
-    speak(tip);
     const by = H / 2 + 110;
     const again = button(this, W / 2 - 240, by, 210, 76, 'Try again', () =>
       this.scene.restart({ levelId: this.def.id, checkpointCol: this.checkpointCol }), { fill: 0x2a9d8f, edge: 0x9ff0e3 });

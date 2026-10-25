@@ -3,7 +3,7 @@ import type { Line } from './ui/widgets';
 /**
  * Level maps are grids of characters, 15 rows tall, one cell per 48px tile.
  *   =  ground (dirt is filled in below it automatically)
- *   #  crate block      ^  spikes        o  scrap        h  oil can (repairs armor)
+ *   #  crate block      ^  spikes        o  scrap        h  (unused: there's no healing in levels)
  *   k  checkpoint       r  rust-bot      t  turret       d  drone
  *   P  player start     F  finish flag   B  boss (level ends when it is beaten)
  * Breakable boxes (each needs a stronger blaster):
@@ -20,6 +20,11 @@ export interface LevelDef {
   intro: Line[];
   /** Hint Sprocket gives after a retreat, keyed by what did the damage. */
   tips: Partial<Record<'fall' | 'boss' | 'enemy', string>>;
+  /**
+   * Damage multiplier, tuned so a run that never dodges ends with about
+   * 2,000 damage: he rarely dies with Mark I armor but always has repairs.
+   */
+  dmg: number;
 }
 
 class Builder {
@@ -180,6 +185,7 @@ function gate(): string[] {
 export const LEVELS: LevelDef[] = [
   {
     id: 'junkyard',
+    dmg: 3,
     title: '1. The Junkyard',
     blurb: 'Rust-bots everywhere. Grab scrap!',
     map: junkyard(),
@@ -194,6 +200,7 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 'canyon',
+    dmg: 1.1,
     title: '2. Scrap Canyon',
     blurb: 'Bigger gaps, turrets and drones.',
     map: canyon(),
@@ -208,6 +215,7 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 'gate',
+    dmg: 1.2,
     title: "3. Crusher's Gate",
     blurb: 'BOSS: the Crusher.',
     map: gate(),

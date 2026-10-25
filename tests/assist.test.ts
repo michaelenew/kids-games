@@ -45,7 +45,7 @@ describe('hidden help after upgrades', () => {
       const a = tuning(t - 1);
       const b = tuning(t);
       expect(b.damageTaken).toBeLessThan(a.damageTaken);
-      expect(b.enemyHp).toBeLessThan(a.enemyHp);
+      expect(b.enemyHp).toBeLessThanOrEqual(a.enemyHp);
       expect(b.bossPace).toBeLessThan(a.bossPace);
       expect(b.invulnMs).toBeGreaterThan(a.invulnMs);
     }
@@ -72,7 +72,7 @@ describe('arcade missions wait on an upgrade', () => {
     onUpgradeBuilt(s);
     const easy = missionStart('inv-chase', s);
     expect(easy.hard).toBe(false);
-    expect(easy.tune.damageTaken).toBeLessThan(HARD.damageTaken / 3);
+    expect(easy.tune.damageTaken).toBeLessThan(HARD.damageTaken * 0.7);
   });
 
   it('each new mission asks for another upgrade', () => {

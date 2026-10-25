@@ -145,6 +145,11 @@ export class Stage {
     this.scene.fog = null;
     this.active = false;
     this.clearedOnce = false;
+    // The arcade shooter changes the lens; put it back.
+    this.camera.fov = FOV;
+    this.camera.near = 0.5;
+    this.camera.far = 400;
+    this.camera.updateProjectionMatrix();
     this.setCameraPx(0, 0);
   }
 

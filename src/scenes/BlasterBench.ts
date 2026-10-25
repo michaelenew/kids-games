@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { RULER_INCHES, formatInches, makeBarrelProblem, snapLength, type BarrelProblem } from '../skills/measure';
+import { sfx } from '../audio';
+import { save } from '../state';
 import { button, sparks, text } from '../ui/widgets';
 import { BenchScene } from './Bench';
 
@@ -9,6 +11,39 @@ const PX_PER_Q = PX_PER_INCH / 4;
 const RULER_Y = 390;
 const BARREL_Y = 340;
 const PART_COLORS = [0x8d99ae, 0xc8553d, 0x2a9d8f];
+/** Energy color of each blaster mark (matches the shots in the arcade missions). */
+const ENERGY = [0xff4d8d, 0xff5dc8, 0xc77dff, 0x4cf0ff];
+const BARREL_H = 44;
+
+/**
+ * A blaster barrel: steel tube with cooling fins, a glowing
+ * energy channel and a muzzle at the end. It grows as the cut gets longer.
+ */
+function drawBarrel(g: Phaser.GameObjects.Graphics, x0: number, y: number, len: number, steel: number, energy: number, finStep = PX_PER_INCH / 2) {
+  if (len <= 0) return;
+  const mid = y + BARREL_H / 2;
+  // Tube.
+  g.fillStyle(0x000000, 0.35).fillRoundedRect(x0, y + 6, len, BARREL_H, 10);
+  g.fillStyle(steel, 1).fillRoundedRect(x0, y, len, BARREL_H, 10);
+  g.fillStyle(0xffffff, 0.35).fillRect(x0 + 4, y + 5, len - 8, 6);
+  g.fillStyle(0x000000, 0.3).fillRect(x0 + 4, y + BARREL_H - 12, len - 8, 8);
+  // Energy channel down the middle.
+  g.fillStyle(energy, 0.35).fillRect(x0, mid - 6, len, 12);
+  g.fillStyle(energy, 1).fillRect(x0, mid - 2, len, 4);
+  // Cooling fins.
+  for (let fx = x0 + finStep; fx < x0 + len - 20; fx += finStep) {
+    g.fillStyle(0x2b2f3a, 1).fillRoundedRect(fx - 6, y - 8, 12, BARREL_H + 16, 3);
+    g.fillStyle(0xb8c2cf, 1).fillRect(fx - 4, y - 6, 3, BARREL_H + 12);
+    g.fillStyle(energy, 0.9).fillRect(fx - 1, mid - 3, 2, 6);
+  }
+  // Muzzle with a glowing ring.
+  const mx = x0 + len;
+  g.fillStyle(0x2b2f3a, 1).fillRoundedRect(mx - 16, y - 10, 20, BARREL_H + 20, 5);
+  g.fillStyle(0x8d99ae, 1).fillRect(mx - 13, y - 7, 4, BARREL_H + 14);
+  g.fillStyle(energy, 0.35).fillCircle(mx + 4, mid, 16);
+  g.fillStyle(energy, 1).fillCircle(mx + 4, mid, 7);
+  g.fillStyle(0xffffff, 1).fillCircle(mx + 4, mid, 3);
+}
 
 export class BlasterBench extends BenchScene {
   protected readonly jobSize = 3;
@@ -22,6 +57,8 @@ export class BlasterBench extends BenchScene {
   private socket!: Phaser.GameObjects.Graphics;
   private marker!: Phaser.GameObjects.Graphics;
   private busy = false;
+  private body!: Phaser.GameObjects.Graphics;
+  private glow!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super('BlasterBench');
@@ -43,8 +80,13 @@ export class BlasterBench extends BenchScene {
     this.socket = this.add.graphics();
     this.marker = this.add.graphics();
     this.barrel = this.add.graphics();
+    this.glow = this.add.graphics();
+    this.body = this.add.graphics();
     this.laser = this.add.graphics();
-    this.layer.add([this.socket, this.marker, this.barrel, this.laser]);
+    this.layer.add([this.socket, this.marker, this.barrel, this.glow, this.body, this.laser]);
+    if (!p.choices) this.drawBody();
+    // The energy along the barrel pulses.
+    this.tweens.add({ targets: this.glow, alpha: 0.25, duration: 500, yoyo: true, repeat: -1 });
 
     if (p.choices) this.drawChoices(p.choices);
 
@@ -121,9 +163,10 @@ export class BlasterBench extends BenchScene {
     choices.forEach((len, i) => {
       const y = 215 + i * 52;
       const g = this.add.graphics();
-      g.fillStyle(PART_COLORS[i], 1).fillRoundedRect(X0, y - 16, len * PX_PER_Q, 32, 6);
-      g.fillStyle(0x000000, 0.25).fillRect(X0, y + 8, len * PX_PER_Q, 8);
-      g.fillStyle(0xffffff, 0.3).fillRect(X0 + 6, y - 12, len * PX_PER_Q - 12, 5);
+      // Drawn around y = 0, then squashed a bit so three fit above the ruler.
+      // Fins spaced off the inch marks so they can't be counted like a ruler.
+      drawBarrel(g, X0, -BARREL_H / 2, len * PX_PER_Q, PART_COLORS[i], ENERGY[this.mark], PX_PER_INCH * 0.7);
+      g.setScale(1, 0.62).setY(y);
       const letter = 'ABC'[i];
       const hit = this.add.zone(X0 + (len * PX_PER_Q) / 2 - 40, y, len * PX_PER_Q + 80, 46).setInteractive({ useHandCursor: true });
       hit.on('pointerup', () => this.choose(len, y));
@@ -132,6 +175,32 @@ export class BlasterBench extends BenchScene {
     // Guide line at zero so it's clear all parts start there.
     const zero = this.add.graphics().lineStyle(2, 0xffffff, 0.4).lineBetween(X0, 190, X0, RULER_Y);
     this.layer.add(zero);
+  }
+
+  /** The blaster's grip and power cell, left of the ruler's zero; the barrel screws in at zero. */
+  private drawBody() {
+    const g = this.body;
+    const e = ENERGY[this.mark];
+    const paint = save().color;
+    const y = BARREL_Y;
+    const right = X0 + 2;
+    // Grip and trigger guard.
+    g.fillStyle(0x23262f, 1).fillRoundedRect(right - 120, y + 30, 46, 92, 12);
+    g.fillStyle(0x3a3f4b, 1).fillRect(right - 114, y + 44, 6, 66).fillRect(right - 100, y + 44, 6, 66);
+    g.lineStyle(6, 0x23262f, 1).strokeRoundedRect(right - 76, y + 40, 40, 40, 10);
+    // Receiver, in the robot's armor paint.
+    g.fillStyle(0x000000, 0.35).fillRoundedRect(right - 166, y - 16, 172, BARREL_H + 40, 14);
+    g.fillStyle(paint, 1).fillRoundedRect(right - 170, y - 22, 172, BARREL_H + 40, 14);
+    g.fillStyle(0xffffff, 0.3).fillRect(right - 160, y - 16, 150, 7);
+    g.fillStyle(0x000000, 0.25).fillRect(right - 160, y + BARREL_H + 4, 150, 10);
+    // Power cell window.
+    g.fillStyle(0x0b0d14, 1).fillRoundedRect(right - 150, y + 4, 86, 24, 6);
+    g.fillStyle(e, 1).fillRoundedRect(right - 146, y + 8, 22 + this.mark * 18, 16, 4);
+    // Sight on top.
+    g.fillStyle(0x23262f, 1).fillRect(right - 110, y - 40, 60, 20);
+    g.fillStyle(e, 1).fillCircle(right - 56, y - 30, 6);
+    // Barrel mount at zero.
+    g.fillStyle(0x2b2f3a, 1).fillRoundedRect(right - 14, y - 6, 16, BARREL_H + 12, 4);
   }
 
   private nudge(d: number) {
@@ -143,10 +212,13 @@ export class BlasterBench extends BenchScene {
   private redraw() {
     const x = X0 + this.cut * PX_PER_Q;
     this.barrel.clear();
+    this.glow.clear();
     if (!this.problem.choices) {
-      this.barrel.fillStyle(0x495057, 1).fillRoundedRect(X0, BARREL_Y, this.cut * PX_PER_Q, 44, 8);
-      this.barrel.fillStyle(0xadb5bd, 1).fillRect(X0 + 6, BARREL_Y + 6, this.cut * PX_PER_Q - 12, 8);
-      this.barrel.fillStyle(0xff5d8f, 1).fillRect(x - 10, BARREL_Y + 4, 8, 36);
+      const len = this.cut * PX_PER_Q;
+      const e = ENERGY[this.mark];
+      drawBarrel(this.barrel, X0, BARREL_Y, len, 0x5c677d, e, this.mark === 1 ? PX_PER_INCH / 2 : PX_PER_INCH * 0.7);
+      // Soft energy haze around the barrel (pulses).
+      this.glow.fillStyle(e, 0.18).fillRoundedRect(X0, BARREL_Y - 14, len + 20, BARREL_H + 28, 18);
     }
     this.laser.clear();
     this.laser.lineStyle(4, 0xef476f, 0.9).lineBetween(x, 190, x, 505);
@@ -170,7 +242,8 @@ export class BlasterBench extends BenchScene {
 
     if (this.cut === p.target) {
       this.busy = true;
-      sparks(this, tx, BARREL_Y + 20, 0xff5d8f, 30);
+      sparks(this, tx, BARREL_Y + 20, ENERGY[this.mark], 30);
+      this.testFire(tx);
       this.celebrate(tx, BARREL_Y - 20, 'PERFECT FIT!');
       this.say(`${formatInches(p.target)} inches exactly. It fits!`);
       this.solved();
@@ -188,9 +261,27 @@ export class BlasterBench extends BenchScene {
       : `Too long by ${by}! The socket won't close. You cut it at ${formatInches(this.cut)}.`);
     if (this.misses >= 2) {
       this.showTargetMarker();
-      this.say(`Look for the yellow arrow on the ruler. That's ${formatInches(p.target)} inches.`, false);
+      this.say(`Look for the yellow arrow on the ruler. That's ${formatInches(p.target)} inches.`);
     }
     this.time.delayedCall(1800, () => this.socket.clear());
+  }
+
+  /** The finished blaster powers up and fires a bolt across the bench. */
+  private testFire(muzzleX: number) {
+    const e = ENERGY[this.mark];
+    const mid = BARREL_Y + BARREL_H / 2;
+    this.tweens.killTweensOf(this.glow);
+    this.glow.setAlpha(1);
+    sfx.charge();
+    this.time.delayedCall(350, () => {
+      sfx.laser(this.mark);
+      this.cameras.main.shake(120, 0.006);
+      const flash = this.add.circle(muzzleX + 4, mid, 30, 0xffffff, 0.9);
+      const halo = this.add.circle(muzzleX + 4, mid, 50, e, 0.5);
+      this.tweens.add({ targets: [flash, halo], scale: 2, alpha: 0, duration: 260, onComplete: () => { flash.destroy(); halo.destroy(); } });
+      const bolt = this.add.rectangle(muzzleX + 40, mid, 120, 14 + this.mark * 4, 0xffffff).setStrokeStyle(6, e, 0.9);
+      this.tweens.add({ targets: bolt, x: 1500, duration: 380, ease: 'Cubic.easeIn', onComplete: () => bolt.destroy() });
+    });
   }
 
   private choose(len: number, y: number) {

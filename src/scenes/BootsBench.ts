@@ -66,6 +66,9 @@ export class BootsBench extends BenchScene {
       this.readout,
       text(this, 790, 150, p.kind === 'pair' ? 'ENERGY CELLS: pick 2' : `ENERGY CELLS: up to ${p.maxCells}`, 28, '#9ad1ff'),
     ]);
+    // Old rounds' cards must never linger behind the new ones.
+    this.cardLayer?.destroy();
+    this.slotLayer?.destroy();
     this.cardLayer = this.add.container(0, 0);
     this.slotLayer = this.add.container(0, 0);
     this.layer.add([this.cardLayer, this.slotLayer]);
@@ -103,13 +106,18 @@ export class BootsBench extends BenchScene {
     cells.forEach((v, i) => {
       const x = 560 + (i % per) * 135 + 60;
       const y = 260;
-      const used = this.used[i];
       const g = this.add.graphics();
+      if (this.used[i]) {
+        // Picked: just an empty socket, so it's clear the cell moved to a slot.
+        g.lineStyle(3, 0x5c677d, 0.8).strokeRoundedRect(x - 55, y - 60, 110, 120, 14);
+        this.cardLayer.add(g);
+        return;
+      }
       const color = v >= 0 ? 0x06d6a0 : 0xef476f;
-      g.fillStyle(used ? 0x3d4458 : color, used ? 0.4 : 1).fillRoundedRect(x - 55, y - 60, 110, 120, 14);
-      g.fillStyle(0x1a1423, used ? 0.2 : 0.5).fillRect(x - 15, y - 72, 30, 14);
-      const label = text(this, x, y, this.problem.kind === 'pair' ? `${v}` : signed(v), 48, used ? '#6c757d' : '#ffffff');
-      const zone = this.add.zone(x, y, 120, 130).setInteractive({ useHandCursor: !used });
+      g.fillStyle(color, 1).fillRoundedRect(x - 55, y - 60, 110, 120, 14);
+      g.fillStyle(0x1a1423, 0.5).fillRect(x - 15, y - 72, 30, 14);
+      const label = text(this, x, y, this.problem.kind === 'pair' ? `${v}` : signed(v), 48, '#ffffff');
+      const zone = this.add.zone(x, y, 120, 130).setInteractive({ useHandCursor: true });
       zone.on('pointerup', () => this.pickCell(i));
       this.cardLayer.add([g, label, zone]);
     });
@@ -326,7 +334,7 @@ export class BootsBench extends BenchScene {
         this.startProblem();
       });
     } else {
-      this.say('Not quite. Try again!', false);
+      this.say('Not quite. Try again!');
       this.time.delayedCall(500, () => {
         this.answer = '';
         this.answerText.setText('').setColor('#ffd166');

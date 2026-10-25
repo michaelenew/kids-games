@@ -95,11 +95,13 @@ export class GarageScene extends Phaser.Scene {
       const unlocked = i === 0 || s.levelsDone.includes(MISSIONS[i - 1].id);
       const done = s.levelsDone.includes(m.id);
       const y = 122 + i * 70;
+      // Beaten missions can't be replayed, so the only way forward is the next one.
       const b = button(this, 880, y, 560, 62, '', () => go('Invasion', { missionId: m.id }, m.id), {
-        fill: done ? 0x1d6f5f : 0x7b2cbf, edge: 0xd0a7ff, disabled: !unlocked,
+        fill: 0x7b2cbf, edge: 0xd0a7ff, disabled: !unlocked || done,
       });
-      b.label.setText(unlocked ? `${m.title}${done ? '  ✓' : ''}` : '🔒  Locked').setY(unlocked ? -10 : 0).setFontSize(24);
-      if (unlocked) b.add(this.add.text(0, 17, m.blurb, { fontFamily: FONT, fontSize: '15px', color: '#e6d6ff' }).setOrigin(0.5));
+      b.label.setText(done ? `${m.title}  ✓ BEATEN` : unlocked ? m.title : '🔒  Locked').setY(unlocked && !done ? -10 : 0).setFontSize(24);
+      if (done) b.label.setColor('#7ee2b8');
+      if (unlocked && !done) b.add(this.add.text(0, 17, m.blurb, { fontFamily: FONT, fontSize: '15px', color: '#e6d6ff' }).setOrigin(0.5));
     });
     // The side-scrolling patrols open up after the first invasion.
     text(this, 880, 476, 'PATROLS', 22, '#9ad1ff');
@@ -108,8 +110,8 @@ export class GarageScene extends Phaser.Scene {
       const done = s.levelsDone.includes(lvl.id);
       const x = 880 + (i - 1) * 188;
       const b = button(this, x, 522, 178, 60, unlocked ? `${lvl.title.replace(/^\d+\.\s*/, '')}${done ? ' ✓' : ''}` : '🔒', () =>
-        go('Level', { levelId: lvl.id }, ''), { fill: done ? 0x1d6f5f : 0x1f6feb, disabled: !unlocked, size: 20 });
-      void b;
+        go('Level', { levelId: lvl.id }, ''), { fill: 0x1f6feb, disabled: !unlocked || done, size: 20 });
+      if (done) b.label.setColor('#7ee2b8');
     });
 
     if (needsRepair || noArmor) {
@@ -137,7 +139,7 @@ export class GarageScene extends Phaser.Scene {
       dialog(this, [
         { who: 'sprocket', text: `Welcome home, ${s.name}! This is our garage.` },
         { who: 'sprocket', text: 'Look at all that scrap you found! In the Engineering Zone, we can turn scrap into upgrades.' },
-        { who: 'sprocket', text: 'Thicker armor, a bigger blaster, jump boots... Only if you want to. The next missions get tougher, though!' },
+        { who: 'sprocket', text: 'Thicker armor, a bigger blaster, jump boots... The next missions get tougher, so we will need them!' },
         { who: 'sprocket', text: 'Oh! And I fixed your transformation gears. You can turn into a car now! Try the TRANSFORM button.' },
       ], () => markSeen('garage-intro'));
     }
@@ -148,7 +150,7 @@ export class GarageScene extends Phaser.Scene {
     const items: Phaser.GameObjects.GameObject[] = [];
     const close = () => items.forEach((o) => o.destroy());
     items.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive().setDepth(50));
-    items.push(panel(this, W / 2, H / 2, 620, 660).setDepth(51));
+    items.push(panel(this, W / 2, H / 2, 620, 580).setDepth(51));
     items.push(text(this, W / 2, H / 2 - 230, 'Settings', 44, '#ffd166').setDepth(52));
     const gfxLabel = () => `Graphics: ${s.graphics === 'fast' ? 'FAST' : 'BEST'}`;
     const gfx = button(this, W / 2, H / 2 - 150, 420, 76, gfxLabel(), () => {
@@ -158,25 +160,19 @@ export class GarageScene extends Phaser.Scene {
       gfx.label.setText(gfxLabel());
     }, { fill: 0x3d4458 });
     items.push(gfx.setDepth(52));
-    const voice = button(this, W / 2, H / 2 - 60, 420, 76, `Voice: ${s.voice ? 'ON' : 'OFF'}`, () => {
-      s.voice = !s.voice;
-      persist();
-      voice.label.setText(`Voice: ${s.voice ? 'ON' : 'OFF'}`);
-    }, { fill: 0x3d4458 });
-    items.push(voice.setDepth(52));
-    const sound = button(this, W / 2 + 0, H / 2 + 30, 420, 76, `Sound: ${s.sound === false ? 'OFF' : 'ON'}`, () => {
+    const sound = button(this, W / 2, H / 2 - 60, 420, 76, `Sound: ${s.sound === false ? 'OFF' : 'ON'}`, () => {
       s.sound = s.sound === false;
       persist();
       sound.label.setText(`Sound: ${s.sound === false ? 'OFF' : 'ON'}`);
       music(s.sound === false ? null : 'calm');
     }, { fill: 0x3d4458 });
     items.push(sound.setDepth(52));
-    items.push(button(this, W / 2, H / 2 + 120, 420, 76, 'Grown-ups: progress', () => {
+    items.push(button(this, W / 2, H / 2 + 30, 420, 76, 'Grown-ups: progress', () => {
       close();
       this.parentView();
     }, { fill: 0x3d4458 }).setDepth(52));
     let armed = false;
-    const reset = button(this, W / 2, H / 2 + 210, 420, 76, 'Start over', () => {
+    const reset = button(this, W / 2, H / 2 + 120, 420, 76, 'Start over', () => {
       if (!armed) {
         armed = true;
         reset.label.setText('Tap again to erase everything');

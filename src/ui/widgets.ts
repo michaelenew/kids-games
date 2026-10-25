@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
-import { save } from '../state';
 
 export const W = 1280;
 export const H = 720;
@@ -78,37 +77,10 @@ export function scrapBadge(scene: Phaser.Scene, x: number, y: number, amount: nu
   return { icon, text: t };
 }
 
-// ---- Voice -------------------------------------------------------------
+// ---- Dialog ------------------------------------------------------------
 
 export type Speaker = 'sprocket' | 'volt';
 
-export function speak(line: string, who: Speaker = 'sprocket'): void {
-  if (!save().voice || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  try {
-    window.speechSynthesis.cancel();
-    // Say fractions and symbols the way a kid would hear them.
-    const spoken = line
-      .replace(/(\d)¼/g, '$1 and a quarter').replace(/(\d)½/g, '$1 and a half').replace(/(\d)¾/g, '$1 and three quarters')
-      .replace(/¼/g, 'one quarter').replace(/½/g, 'one half').replace(/¾/g, 'three quarters')
-      .replace(/−/g, ' minus ');
-    const u = new SpeechSynthesisUtterance(spoken);
-    u.pitch = who === 'sprocket' ? 1.5 : 0.6;
-    u.rate = who === 'sprocket' ? 1.05 : 0.95;
-    window.speechSynthesis.speak(u);
-  } catch {
-    // Speech is a bonus; ignore failures.
-  }
-}
-
-export function stopSpeaking(): void {
-  try {
-    window.speechSynthesis?.cancel();
-  } catch {
-    // ignore
-  }
-}
-
-// ---- Dialog ------------------------------------------------------------
 
 export interface Line {
   who: Speaker;
@@ -151,7 +123,6 @@ export function dialog(scene: Phaser.Scene, lines: Line[], onDone: () => void): 
     name.setText(line.who === 'sprocket' ? 'SPROCKET' : 'COMMANDER VOLT (radio)');
     full = line.text;
     body.setText('');
-    speak(line.text, line.who);
     let n = 0;
     typing = scene.time.addEvent({
       delay: 22,
@@ -181,7 +152,6 @@ export function dialog(scene: Phaser.Scene, lines: Line[], onDone: () => void): 
     keys?.SPACE.off('down', onKey);
     keys?.ENTER.off('down', onKey);
     [blocker, box, portrait, name, body, hint].forEach((o) => o.destroy());
-    stopSpeaking();
   };
 
   show();

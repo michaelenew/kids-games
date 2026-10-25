@@ -23,6 +23,8 @@ import type { Stage } from './stage';
 
 const SCREEN_W = 1280;
 const SCREEN_H = 720;
+/** Top of the street surface (see city.ts). */
+const STREET_Y = 0.02;
 const FIRE_COOLDOWN = [0.2, 0.16, 0.13, 0.075];
 const DAMAGE = [1, 2, 3, 4];
 const BOLT_COLOR = [0xff4d8d, 0xff5dc8, 0xc77dff, 0x4cf0ff];
@@ -200,6 +202,8 @@ export class Invasion {
     this.heading.lerp(flat, Math.min(1, dt * 2.5)).normalize();
     if (dt === 0) this.heading.copy(flat);
     this.rig.position.copy(p);
+    // The smooth path can dip below the street after a drop; keep the feet on top of it.
+    if (!this.mission.highway) this.rig.position.y = Math.max(this.rig.position.y, STREET_Y);
     if (this.vehicle === 'ship') this.rig.position.y += Math.sin(this.t * 1.6) * 0.15;
     this.rig.lookAt(p.clone().add(this.heading));
     if (this.vehicle === 'ship') {
@@ -302,7 +306,7 @@ export class Invasion {
         const want = s.speed * Math.min(1, this.stepT / 1.2) * Math.min(1, Math.max(0.15, left / (s.speed * 1.2)));
         this.speed += (want - this.speed) * Math.min(1, dt * 4);
         this.dist = Math.min(target, this.dist + this.speed * dt);
-        this.spawnDue(s.spawns ?? [], 'rig');
+        this.spawnDue(this.spawnsFor(s.spawns ?? []), 'rig');
         if (left <= 0.05) {
           this.speed = 0;
           this.nextStep();
@@ -310,8 +314,9 @@ export class Invasion {
         break;
       }
       case 'wave': {
-        this.spawnDue(s.spawns, 'world');
-        const allSpawned = this.spawned.size >= s.spawns.length;
+        const list = this.spawnsFor(s.spawns);
+        this.spawnDue(list, 'world');
+        const allSpawned = this.spawned.size >= list.length;
         if (allSpawned && this.enemies.length === 0 && this.bolts.length === 0) {
           this.waveClear();
           this.nextStep();
@@ -333,6 +338,31 @@ export class Invasion {
     this.events.cleared();
     this.slowMoLeft = 0.7;
     sfx.success();
+  }
+
+  private extraCache = new Map<Spawn[], Spawn[]>();
+
+  /**
+   * A step's spawn list plus the mission's extra aliens: copies of some of
+   * the spawns, a little later and from the other side.
+   */
+  private spawnsFor(list: Spawn[]): Spawn[] {
+    const extra = this.mission.extra ?? 0;
+    if (!extra) return list;
+    let out = this.extraCache.get(list);
+    if (!out) {
+      const flip: Record<Spawn['from'], Spawn['from']> = {
+        left: 'right', right: 'left', above: 'above', roofL: 'roofR', roofR: 'roofL', behindL: 'behindR', behindR: 'behindL', ahead: 'ahead',
+      };
+      const copies = Math.round(list.length * extra);
+      out = [...list];
+      for (let i = 0; i < copies; i++) {
+        const src = list[i % list.length];
+        out.push({ ...src, at: src.at + 1.1 + Math.floor(i / list.length) * 1.3, from: flip[src.from] });
+      }
+      this.extraCache.set(list, out);
+    }
+    return out;
   }
 
   private spawnDue(list: Spawn[], space: 'world' | 'rig') {
@@ -401,7 +431,7 @@ export class Invasion {
   private spawn(sp: Spawn, space: 'world' | 'rig') {
     const model = sp.kind === 'skimmer' ? skimmer() : sp.kind === 'krawler' ? krawler() : raider();
     const spec = SPEC[sp.kind];
-    const hp = Math.ceil(spec.hp * (sp.elite ? 3 : 1) * this.opts.enemyHp);
+    const hp = Math.ceil(spec.hp * (sp.elite ? 3 : 1) * this.opts.enemyHp * (this.mission.hp ?? 1));
     if (sp.elite) model.root.scale.multiplyScalar(1.3);
     // Choose start and end points in rig space.
     const side = sp.from === 'left' || sp.from === 'roofL' || sp.from === 'behindL' ? 1 : sp.from === 'right' || sp.from === 'roofR' || sp.from === 'behindR' ? -1 : Math.random() < 0.5 ? 1 : -1;
@@ -429,7 +459,7 @@ export class Invasion {
     }
     const e: Enemy = {
       kind: sp.kind, model, hp, maxHp: hp, space, phase, t: 0, phaseT: 0, from, to,
-      fireIn: this.rand(1.5, 2.5) * this.opts.fireDelay, charge: 0, charging: false, sinceHit: 9, seed: Math.random() * 10,
+      fireIn: this.rand(1.2, 2.2) * this.opts.fireDelay * (this.mission.fire ?? 1), charge: 0, charging: false, sinceHit: 9, seed: Math.random() * 10,
       wave: space === 'world' ? this.waveIndex : -1,
     };
     if (space === 'rig') {
@@ -529,12 +559,12 @@ export class Invasion {
       if (b.charge >= 1) {
         b.charging = false;
         b.charge = 0;
-        b.fireIn = (podsLeft ? 3.4 : 2.6) * this.opts.fireDelay;
+        b.fireIn = (podsLeft ? 3.4 : 2.6) * this.opts.fireDelay * (this.mission.fire ?? 1);
         const sources = podsLeft ? m.pods.filter((_, i) => b.podHp[i] > 0) : [m.core, m.core, m.core];
         sources.forEach((s, i) => {
           const from = model3dWorld(s);
           const spread = podsLeft ? 0 : (i - 1) * 2.5;
-          this.fireBolt(from, 9, 140, true, spread);
+          this.fireBolt(from, 9, Math.round(140 * (this.mission.dmg ?? 1)), true, spread);
         });
       }
     }
@@ -676,9 +706,9 @@ export class Invasion {
           if (e.charge >= 1) {
             e.charging = false;
             e.charge = 0;
-            e.fireIn = this.rand(spec.fireEvery[0], spec.fireEvery[1]) * this.opts.fireDelay;
+            e.fireIn = this.rand(spec.fireEvery[0], spec.fireEvery[1]) * this.opts.fireDelay * (this.mission.fire ?? 1);
             const muzzle = model3dWorld(e.model.muzzle);
-            this.fireBolt(muzzle, spec.boltSpeed, Math.round(this.rand(spec.damage[0], spec.damage[1])), e.kind === 'krawler', 0);
+            this.fireBolt(muzzle, spec.boltSpeed, Math.round(this.rand(spec.damage[0], spec.damage[1]) * (this.mission.dmg ?? 1)), e.kind === 'krawler', 0);
           }
         }
       }
@@ -740,18 +770,19 @@ export class Invasion {
     const px = this.pointer.x;
     const py = this.pointer.y;
     let best: ReturnType<Invasion['pickTarget']> = null;
-    const consider = (kind: 'enemy' | 'bolt' | 'pod' | 'core', ref: Enemy | Bolt | null, pod: number, at: THREE.Vector3, r: number, bias: number) => {
+    const consider = (kind: 'enemy' | 'bolt' | 'pod' | 'core', ref: Enemy | Bolt | null, pod: number, at: THREE.Vector3, r: number, bias: number, minRad = 85) => {
       const s = this.project(at);
       if (s.behind) return;
-      const rad = Math.max(85, this.screenRadius(at, r) * 1.25);
+      const rad = Math.max(minRad, this.screenRadius(at, r) * 1.25);
       const d = Math.hypot(s.x - px, s.y - py);
       if (d > rad) return;
       const score = d / rad - bias;
       if (!best || score < best.d) best = { kind, ref, pod, at, d: score };
     };
     for (const e of this.enemies) consider('enemy', e, -1, this.enemyCenter(e), e.model.radius * e.model.root.scale.x, 0);
-    // Incoming shots get priority: shooting them down saves armor.
-    for (const b of this.bolts) consider('bolt', b, -1, b.obj.position, 0.8, 0.25);
+    // Incoming shots only get hit if he touches them on purpose: a tight radius,
+    // and an alien under the finger always wins.
+    for (const b of this.bolts) consider('bolt', b, -1, b.obj.position, 0.5, -0.5, 40);
     if (this.boss && this.boss.dying === 0) {
       const bb = this.boss;
       bb.model.pods.forEach((p, i) => {
@@ -872,7 +903,11 @@ export class Invasion {
     this.shake = Math.max(0, this.shake - realDt * 2.5);
 
     this.updateStep(dt);
+    const before = this.rig.position.clone();
     this.placeRig(dt);
+    // Shots travel along with him (otherwise the car simply outruns them).
+    const moved = this.rig.position.clone().sub(before);
+    for (const b of this.bolts) b.obj.position.add(moved);
     this.robot.speed = this.vehicle === 'car' ? this.speed * 30 : this.vehicle === 'foot' ? this.speed * 40 : 0;
     this.robot.update(dt);
     this.ship?.update(dt, this.t);

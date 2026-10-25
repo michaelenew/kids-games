@@ -49,24 +49,30 @@ export interface Tuning {
   safeRespawn: boolean;
 }
 
+/**
+ * Arcade missions are tuned so that, with the gear he should have by then,
+ * shooting one alien at a time (not shooting down their shots) ends with
+ * about 200 armor left at tier 0. Tier 1 (the first try after an upgrade)
+ * leaves about 700; HARD (no new upgrade) runs about 500 short.
+ */
 const TABLE: Tuning[] = [
   { damageTaken: 1, enemyHp: 1, fireDelay: 1, bossPace: 1, invulnMs: 1100, coyoteMs: 110, bossDropEvery: 8, mercies: 0, safeRespawn: false },
-  // The very first try after building should already feel much easier.
-  { damageTaken: 0.7, enemyHp: 0.8, fireDelay: 1.3, bossPace: 0.85, invulnMs: 1350, coyoteMs: 150, bossDropEvery: 6, mercies: 1, safeRespawn: true },
-  { damageTaken: 0.5, enemyHp: 0.65, fireDelay: 1.6, bossPace: 0.75, invulnMs: 1600, coyoteMs: 180, bossDropEvery: 5, mercies: 2, safeRespawn: true },
+  // The first try after building: noticeably easier.
+  { damageTaken: 0.8, enemyHp: 1, fireDelay: 1, bossPace: 0.85, invulnMs: 1350, coyoteMs: 150, bossDropEvery: 6, mercies: 0, safeRespawn: true },
+  { damageTaken: 0.6, enemyHp: 0.85, fireDelay: 1.2, bossPace: 0.75, invulnMs: 1600, coyoteMs: 180, bossDropEvery: 5, mercies: 1, safeRespawn: true },
   // By the third try he can't really lose; he still has to play it through.
-  { damageTaken: 0.35, enemyHp: 0.5, fireDelay: 1.9, bossPace: 0.65, invulnMs: 1900, coyoteMs: 210, bossDropEvery: 4, mercies: 99, safeRespawn: true },
+  { damageTaken: 0.4, enemyHp: 0.7, fireDelay: 1.5, bossPace: 0.65, invulnMs: 1900, coyoteMs: 210, bossDropEvery: 4, mercies: 99, safeRespawn: true },
 ];
 
 /**
  * Arcade missions after the first expect a new upgrade. Until he builds one
- * (since clearing the mission before), the mission is much tougher: aliens
- * hit far harder, take more shots and fire more often. Building anything
+ * (since clearing the mission before), the mission is tougher: aliens hit
+ * about 30% harder, on top of him missing the upgrade itself. Building anything
  * switches it to the easy settings above. Nothing on screen says so; after
  * two losses Sprocket says plainly that they need an upgrade.
  */
 export const HARD: Tuning = {
-  damageTaken: 2.6, enemyHp: 1.7, fireDelay: 0.6, bossPace: 1.3, invulnMs: 900, coyoteMs: 110, bossDropEvery: 99, mercies: 0, safeRespawn: false,
+  damageTaken: 1.35, enemyHp: 1, fireDelay: 1, bossPace: 1.15, invulnMs: 900, coyoteMs: 110, bossDropEvery: 99, mercies: 0, safeRespawn: false,
 };
 
 /** Losses (since the last upgrade) before Sprocket says to upgrade. */

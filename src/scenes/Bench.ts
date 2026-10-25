@@ -4,7 +4,7 @@ import { lookFromSave } from '../armor';
 import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
 import { BUILD_COST, GEAR_INFO, type GearId, persist, recordSkill, save } from '../state';
-import { H, W, button, panel, sparks, speak, stopSpeaking, text, toast } from '../ui/widgets';
+import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 
 export type BenchMark = 1 | 2 | 3;
 
@@ -31,7 +31,6 @@ export abstract class BenchScene extends Phaser.Scene {
   protected misses = 0;
   private pips: Phaser.GameObjects.Arc[] = [];
   private bubble!: Phaser.GameObjects.Text;
-  private bubbleText = '';
   private timerBar: Phaser.GameObjects.Graphics | null = null;
   private timeLeft = 0;
   private timeTotal = 0;
@@ -81,7 +80,6 @@ export abstract class BenchScene extends Phaser.Scene {
     this.bubble = this.add
       .text(155, H - 70, '', { fontFamily: FONT, fontSize: '24px', color: '#1a1423', wordWrap: { width: 540 } })
       .setOrigin(0, 0.5);
-    button(this, 740, H - 70, 56, 56, '🔊', () => speak(this.bubbleText), { size: 22, fill: 0x3d4458 });
 
     this.layer = this.add.container(0, 0);
 
@@ -107,10 +105,8 @@ export abstract class BenchScene extends Phaser.Scene {
     if (this.timeLeft <= 0) this.timedOut();
   }
 
-  protected say(line: string, voice = true) {
-    this.bubbleText = line;
+  protected say(line: string) {
     this.bubble.setText(line);
-    if (voice) speak(line);
   }
 
   protected clearLayer() {
@@ -153,7 +149,6 @@ export abstract class BenchScene extends Phaser.Scene {
   }
 
   private complete() {
-    stopSpeaking();
     this.clearLayer();
     const s = save();
     const before = lookFromSave(s);
@@ -179,7 +174,6 @@ export abstract class BenchScene extends Phaser.Scene {
   }
 
   private exit() {
-    stopSpeaking();
     this.scene.start('Engineering');
   }
 

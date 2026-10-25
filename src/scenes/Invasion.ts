@@ -142,6 +142,15 @@ export class InvasionScene extends Phaser.Scene {
     const amount = Math.max(10, Math.round((raw * this.tune.damageTaken) / 5) * 5);
     const where = this.armor.damage(amount);
     this.regionFlash[where] = 1;
+    // Sparks fly off the plate that was hit, and it gets more scorched.
+    const region = where === 'frame' ? 'chest' : where;
+    const at = this.game3d.robot.regionWorld(region);
+    this.game3d.fx.spark(at, 0xffb347, 18, 6);
+    this.game3d.fx.flash(at, 0xff7a3d, 1.2, 0.12);
+    if (where !== 'frame') {
+      const p = this.armor.plates[where]!;
+      this.game3d.robot.setDamage(where, 1 - p.hp / p.max);
+    }
     this.hurtFlash = 1;
     this.cameras.main.shake(180, 0.008);
     const t = text(this, 640 + Phaser.Math.Between(-80, 80), 420, `−${amount}`, 38, '#ff5d5d').setStroke('#000000', 6).setDepth(25);

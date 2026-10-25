@@ -5,6 +5,7 @@ import type { Line } from '../ui/widgets';
 import { type AlienModel, type AlienState, type BossModel, hiveWalker, krawler, plasmaBolt, raider, skimmer } from './aliens';
 import { skyTexture } from './backdrop';
 import { type City, buildCity } from './city';
+import { DESERT_FOG, buildDesert, desertSky } from './desert';
 import { type Dropship, dropship } from './dropship';
 import { FX } from './fx';
 import type { AlienKind, Mission, Spawn, Step, Vehicle } from './missions';
@@ -170,7 +171,9 @@ export class Invasion {
       this.pointDist.push(lens[Math.round((i / (mission.path.length - 1)) * (lens.length - 1))]);
     }
 
-    this.city = buildCity(this.curve, { seed: mission.seed, highway: mission.highway, plazas: mission.plazas });
+    const desert = mission.env === 'desert';
+    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas };
+    this.city = desert ? buildDesert(this.curve, where) : buildCity(this.curve, where);
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
@@ -190,10 +193,20 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    stage.activate(skyTexture(), new THREE.Fog(0x1a1030, 40, 320));
+    if (desert) {
+      stage.activate(desertSky(), new THREE.Fog(DESERT_FOG, 60, 520));
+      // Low, warm desert sun.
+      stage.key.color.setHex(0xffc98a);
+      stage.key.intensity = 3;
+    } else {
+      stage.activate(skyTexture(), new THREE.Fog(0x1a1030, 40, 320));
+      stage.key.color.setHex(0xfff0dd);
+      stage.key.intensity = 2.6;
+    }
     stage.onUpdate((dt) => this.update(dt));
     this.placeRig(0);
-    this.nextStep();
+    // The first step starts on the first frame, once the screen is fully set up
+    // (a mission can open with dialog).
   }
 
   // ---- Path and rig --------------------------------------------------------
@@ -896,6 +909,7 @@ export class Invasion {
 
   update(realDt: number) {
     if (this.paused) return;
+    if (this.stepIndex < 0) this.nextStep();
     if (this.slowMoLeft > 0) {
       this.slowMoLeft -= realDt;
       this.timeScale = 0.3;

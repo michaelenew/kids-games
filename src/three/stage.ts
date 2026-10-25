@@ -145,7 +145,9 @@ export class Stage {
     this.scene.fog = null;
     this.active = false;
     this.clearedOnce = false;
-    // The arcade shooter changes the lens; put it back.
+    // The arcade shooter changes the lens and the sun; put them back.
+    this.key.color.setHex(0xfff0dd);
+    this.key.intensity = 2.6;
     this.camera.fov = FOV;
     this.camera.near = 0.5;
     this.camera.far = 400;

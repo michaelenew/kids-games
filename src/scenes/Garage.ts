@@ -104,19 +104,25 @@ export class GarageScene extends Phaser.Scene {
       else if (needsRepair) this.scene.start('ArmorForge', { mode: 'repair', then });
       else this.scene.start(key, data);
     };
-    text(this, 880, 60, 'MISSIONS', 40);
+    text(this, 880, 44, 'MISSIONS', 36);
+    // Two columns: the city, then Egypt.
+    const cols = { city: { x: 735, n: 0 }, desert: { x: 1025, n: 0 } };
+    text(this, cols.city.x, 84, 'CITY', 18, '#9ad1ff');
+    text(this, cols.desert.x, 84, 'EGYPT', 18, '#ffc98a');
     MISSIONS.forEach((m, i) => {
       const unlocked = i === 0 || s.levelsDone.includes(MISSIONS[i - 1].id);
       const done = s.levelsDone.includes(m.id);
-      const y = 122 + i * 70;
+      const col = cols[m.env === 'desert' ? 'desert' : 'city'];
+      const y = 134 + col.n++ * 64;
+      const name = `${i + 1}. ${m.title.replace(/^Invasion \d+: /, '')}`;
       // Beaten missions can't be replayed, so the only way forward is the next one.
-      const b = button(this, 880, y, 560, 62, '', () => go('Control', { missionId: m.id }, m.id), {
-        fill: 0x7b2cbf, edge: 0xd0a7ff, disabled: !unlocked || done,
+      const b = button(this, col.x, y, 280, 56, '', () => go('Control', { missionId: m.id }, m.id), {
+        fill: m.env === 'desert' ? 0xb5651d : 0x7b2cbf, edge: m.env === 'desert' ? 0xffc98a : 0xd0a7ff, disabled: !unlocked || done,
       });
-      b.label.setText(done ? `${m.title}  ✓ BEATEN` : unlocked ? m.title : '🔒  Locked').setY(unlocked && !done ? -10 : 0).setFontSize(24);
+      b.label.setText(done ? `${name} ✓` : unlocked ? name : '🔒').setY(unlocked && !done ? -9 : 0).setFontSize(19);
       if (done) b.label.setColor('#7ee2b8');
       const locked = unlocked && !done && upgradeRequired(m.id);
-      if (unlocked && !done) b.add(this.add.text(0, 17, locked ? '🔧 Build an upgrade first!' : m.blurb, { fontFamily: FONT, fontSize: '15px', color: '#e6d6ff' }).setOrigin(0.5));
+      if (unlocked && !done) b.add(this.add.text(0, 14, locked ? '🔧 Build an upgrade first!' : m.blurb, { fontFamily: FONT, fontSize: '12px', color: '#f1e6ff', wordWrap: { width: 264 } }).setOrigin(0.5));
     });
     // The side-scrolling patrols open up after the first invasion.
     text(this, 880, 476, 'PATROLS', 22, '#9ad1ff');

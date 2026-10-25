@@ -40,6 +40,8 @@ export interface Mission {
   steps: Step[];
   /** Where the boss stands (boss missions). */
   boss?: [number, number, number];
+  /** Where it happens (default the city). */
+  env?: 'city' | 'desert';
   /** Boss health multiplier (default 1). */
   bossHp?: number;
   /**
@@ -175,6 +177,75 @@ export const MISSIONS: Mission[] = [
       { kind: 'transform', to: 'robot' },
       { kind: 'move', to: 7, speed: 5, vehicle: 'foot' },
       { kind: 'boss', banner: 'HIVE QUEEN!' },
+    ],
+  },
+  // ---- Egypt -------------------------------------------------------------------
+  {
+    id: 'egy-drop',
+    // Tuned with a kid-like bot: one alien at a time, slow to switch, sloppy aim (see README).
+    dmg: 0.83, hp: 1.3, fire: 0.8, extra: 0.8,
+    env: 'desert',
+    title: 'Invasion 6: Desert Landing',
+    blurb: 'Fly to Egypt. They took the pyramids!',
+    seed: 61,
+    path: [
+      [0, 34, 80], [0, 32, 20], [12, 30, -60], [-10, 28, -150], [6, 26, -230], [2, 20, -262], [0, 0, -282], [0, 0, -330], [0, 0, -380],
+    ],
+    plazas: [[0.75, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'The fleet moved to Egypt! They are draining power from the pyramids. Get in there!' }] },
+      { kind: 'move', to: 2, speed: 15, vehicle: 'ship', spawns: [sk(1.5, 'left'), sk(2.5, 'right', true), sk(4, 'above'), sk(5, 'left')] },
+      { kind: 'wave', banner: 'DESERT SQUADRON!', spawns: [sk(0, 'left'), sk(0.4, 'right'), sk(1, 'above', true), sk(2, 'left'), sk(3, 'right', true), sk(4.5, 'above')] },
+      { kind: 'move', to: 4, speed: 15, vehicle: 'ship', spawns: [sk(1, 'right', true), sk(2.5, 'left'), sk(4, 'above', true)] },
+      { kind: 'move', to: 5, speed: 12, vehicle: 'ship' },
+      { kind: 'drop', to: 6 },
+      { kind: 'wave', banner: 'SAND WALKERS!', spawns: [kr(0, 'roofL'), kr(0.8, 'roofR', true), kr(2, 'ahead'), sk(3, 'above'), kr(4, 'roofL', true)] },
+      { kind: 'move', to: 7, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), sk(2, 'right')] },
+      { kind: 'wave', banner: 'HOLD THE CAUSEWAY!', spawns: [kr(0, 'ahead', true), kr(1, 'roofR'), kr(1.5, 'roofL'), sk(2.5, 'above', true), sk(3, 'left'), kr(5, 'roofR', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'egy-temple',
+    dmg: 0.52, hp: 1.5, fire: 0.75, extra: 1,
+    env: 'desert',
+    title: 'Invasion 7: Temple Run',
+    blurb: 'Fight through the temple of columns.',
+    seed: 71,
+    path: [[0, 0, 40], [0, 0, 0], [10, 0, -70], [-8, 0, -150], [8, 0, -230], [-6, 0, -300], [0, 0, -360], [0, 0, -400]],
+    plazas: [[0.1, 0.3], [0.45, 0.6], [0.8, 1]],
+    steps: [
+      { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
+      { kind: 'wave', banner: 'AMBUSH!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR', true), sk(1.5, 'left'), sk(2, 'right'), kr(3, 'ahead')] },
+      { kind: 'move', to: 3, speed: 7, vehicle: 'foot', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'TEMPLE GUARDS!', spawns: [kr(0, 'roofR', true), kr(0.5, 'roofL', true), kr(1.5, 'ahead', true), sk(2.5, 'above', true), sk(3, 'left'), kr(4.5, 'roofR')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'The power lines run to the Great Pyramid. One more temple, then we chase them down!' }] },
+      { kind: 'move', to: 5, speed: 7, vehicle: 'foot', spawns: [sk(1, 'right', true), sk(2, 'left', true), sk(3, 'above', true)] },
+      { kind: 'wave', banner: 'LAST TEMPLE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1, 'ahead', true), sk(2, 'above', true), sk(2.5, 'left', true), sk(3, 'right', true), kr(5, 'roofL', true)] },
+      { kind: 'move', to: 7, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'egy-pyramid',
+    dmg: 0.6, hp: 2.4, fire: 0.7, extra: 1.5,
+    env: 'desert',
+    title: 'Invasion 8: The Great Pyramid',
+    blurb: 'Race the causeway. Final boss!',
+    seed: 83,
+    path: [[0, 0, 20], [0, 0, -20], [14, 0, -120], [-12, 0, -230], [10, 0, -340], [-6, 0, -450], [0, 0, -560], [0, 0, -600]],
+    plazas: [[0.9, 1]],
+    boss: [0, -8, -665],
+    bossHp: 2.2,
+    steps: [
+      { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their biggest walker is guarding the Great Pyramid. Transform and floor it!' }] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 3, speed: 26, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4.5, 'behindL'), rd(5.5, 'behindR')] },
+      { kind: 'wave', banner: 'SANDSTORM AMBUSH!', spawns: [kr(0, 'ahead', true), sk(0.5, 'left', true), sk(1, 'right', true), kr(2.5, 'roofR', true), kr(3.5, 'roofL')] },
+      { kind: 'move', to: 6, speed: 28, vehicle: 'car', spawns: [rd(0.8, 'behindR'), rd(1.4, 'behindL'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR'), rd(7, 'behindL'), rd(8.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'move', to: 7, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'PYRAMID WALKER!' },
     ],
   },
 ];

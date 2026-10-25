@@ -414,8 +414,13 @@ export class InvasionScene extends Phaser.Scene {
       };
       if (this.mission.id === 'inv-queen' && firstWin) {
         dialog(this, [
-          { who: 'volt', text: 'The Hive Queen is down! The rest of their fleet is retreating!' },
-          { who: 'sprocket', text: 'YOU SAVED THE CITY! Best. Robot. Ever.' },
+          { who: 'volt', text: 'The Hive Queen is down! You saved the city!' },
+          { who: 'volt', text: 'But the rest of their fleet just landed in Egypt, right on top of the pyramids. Get ready for a long flight.' },
+        ], after);
+      } else if (this.mission.id === 'egy-pyramid' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Pyramid Walker is scrap! Their whole fleet is fleeing back into space!' },
+          { who: 'sprocket', text: 'YOU SAVED THE WORLD! Best. Robot. Ever.' },
         ], after);
       } else if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {
         dialog(this, [

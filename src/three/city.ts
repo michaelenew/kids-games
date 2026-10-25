@@ -7,7 +7,7 @@ import { METAL, glow, glowSprite, glowTexture, mesh, rboxGeo, sphereGeo } from '
  * burning wrecks, and alien ships in the sky.
  */
 
-function seeded(seed: number) {
+export function seeded(seed: number) {
   let s = seed >>> 0;
   return () => {
     s = (s * 1664525 + 1013904223) >>> 0;
@@ -15,7 +15,7 @@ function seeded(seed: number) {
   };
 }
 
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat?: [number, number]) {
+export function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat?: [number, number]) {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -96,7 +96,7 @@ function facadeTexture(seed: number) {
 }
 
 /** A flat strip that follows the curve, `half` wide on each side, at `lift` above it. */
-function ribbon(curve: THREE.Curve<THREE.Vector3>, left: number, right: number, lift: number, segments: number, vScale: number) {
+export function ribbon(curve: THREE.Curve<THREE.Vector3>, left: number, right: number, lift: number, segments: number, vScale: number) {
   const pos: number[] = [];
   const uv: number[] = [];
   const idx: number[] = [];
@@ -359,6 +359,57 @@ export function buildCity(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
     }
   }
 
+  const sky = addAlienSky(root, curve, rnd, baseY);
+
+  // Ash and embers drifting through the air near the path.
+  const emberCount = 400;
+  const ePos = new Float32Array(emberCount * 3);
+  for (let i = 0; i < emberCount; i++) {
+    const p = curve.getPointAt(rnd());
+    ePos[i * 3] = p.x + (rnd() - 0.5) * 50;
+    ePos[i * 3 + 1] = p.y + rnd() * 30;
+    ePos[i * 3 + 2] = p.z + (rnd() - 0.5) * 50;
+  }
+  const eGeo = new THREE.BufferGeometry();
+  eGeo.setAttribute('position', new THREE.BufferAttribute(ePos, 3));
+  const embers = new THREE.Points(eGeo, disposable(new THREE.PointsMaterial({
+    color: new THREE.Color(0xff9a4a).multiplyScalar(2), size: 0.18, transparent: true, opacity: 0.8,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  })));
+  root.add(embers);
+
+  let t = 0;
+  return {
+    group: root,
+    smokeSpots,
+    update(dt: number) {
+      t += dt;
+      for (const f of flickers) f.s.scale.setScalar(f.base * (0.8 + Math.sin(t * 13 + f.phase) * 0.12 + Math.random() * 0.15));
+      for (const b of blinkers) b.visible = Math.sin(t * 3 + (b.userData.phase as number)) > 0.2;
+      for (const s of spinners) s.o.rotation.y += s.speed * dt;
+      sky(dt, t);
+      const arr = eGeo.attributes.position.array as Float32Array;
+      for (let i = 0; i < emberCount; i++) {
+        arr[i * 3 + 1] += dt * (0.6 + (i % 5) * 0.2);
+        arr[i * 3] += Math.sin(t + i) * dt * 0.4;
+        if (arr[i * 3 + 1] > 40 + (opts.highway ? 10 : 0)) arr[i * 3 + 1] = 0;
+      }
+      eGeo.attributes.position.needsUpdate = true;
+    },
+  };
+}
+
+/**
+ * The alien fleet overhead: a giant mothership with a tractor beam near the
+ * end of the path, smaller ships circling, and searchlights sweeping the sky.
+ * Returns the per-frame update.
+ */
+export function addAlienSky(root: THREE.Group, curve: THREE.Curve<THREE.Vector3>, rnd: () => number, baseY = 0): (dt: number, t: number) => void {
+  const spinners: { o: THREE.Object3D; speed: number }[] = [];
+  const disposable = <T extends THREE.Material>(m: T) => {
+    m.userData.disposable = true;
+    return m;
+  };
   // The sky: a giant mothership with a tractor beam, smaller ships, searchlights.
   const end = curve.getPointAt(1);
   const mother = new THREE.Group();
@@ -418,48 +469,17 @@ export function buildCity(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
     searchlights.push(pivot);
   }
 
-  // Ash and embers drifting through the air near the path.
-  const emberCount = 400;
-  const ePos = new Float32Array(emberCount * 3);
-  for (let i = 0; i < emberCount; i++) {
-    const p = curve.getPointAt(rnd());
-    ePos[i * 3] = p.x + (rnd() - 0.5) * 50;
-    ePos[i * 3 + 1] = p.y + rnd() * 30;
-    ePos[i * 3 + 2] = p.z + (rnd() - 0.5) * 50;
-  }
-  const eGeo = new THREE.BufferGeometry();
-  eGeo.setAttribute('position', new THREE.BufferAttribute(ePos, 3));
-  const embers = new THREE.Points(eGeo, disposable(new THREE.PointsMaterial({
-    color: new THREE.Color(0xff9a4a).multiplyScalar(2), size: 0.18, transparent: true, opacity: 0.8,
-    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
-  })));
-  root.add(embers);
 
-  let t = 0;
-  return {
-    group: root,
-    smokeSpots,
-    update(dt: number) {
-      t += dt;
-      for (const f of flickers) f.s.scale.setScalar(f.base * (0.8 + Math.sin(t * 13 + f.phase) * 0.12 + Math.random() * 0.15));
-      for (const b of blinkers) b.visible = Math.sin(t * 3 + (b.userData.phase as number)) > 0.2;
-      for (const s of spinners) s.o.rotation.y += s.speed * dt;
-      for (const s of ships) {
-        s.a += s.speed * dt;
-        s.o.position.set(s.c.x + Math.cos(s.a) * s.r, s.c.y + Math.sin(s.a * 2) * 4, s.c.z + Math.sin(s.a) * s.r);
-        s.o.rotation.z = Math.sin(s.a) * 0.2;
-      }
-      for (const l of searchlights) {
-        const ph = l.userData.phase as number;
-        l.rotation.set(Math.sin(t * 0.3 + ph) * 0.5, 0, Math.cos(t * 0.23 + ph) * 0.5);
-      }
-      const arr = eGeo.attributes.position.array as Float32Array;
-      for (let i = 0; i < emberCount; i++) {
-        arr[i * 3 + 1] += dt * (0.6 + (i % 5) * 0.2);
-        arr[i * 3] += Math.sin(t + i) * dt * 0.4;
-        if (arr[i * 3 + 1] > 40 + (opts.highway ? 10 : 0)) arr[i * 3 + 1] = 0;
-      }
-      eGeo.attributes.position.needsUpdate = true;
-    },
+  return (dt: number, t: number) => {
+    for (const s of spinners) s.o.rotation.y += s.speed * dt;
+    for (const s of ships) {
+      s.a += s.speed * dt;
+      s.o.position.set(s.c.x + Math.cos(s.a) * s.r, s.c.y + Math.sin(s.a * 2) * 4, s.c.z + Math.sin(s.a) * s.r);
+      s.o.rotation.z = Math.sin(s.a) * 0.2;
+    }
+    for (const l of searchlights) {
+      const ph = l.userData.phase as number;
+      l.rotation.set(Math.sin(t * 0.3 + ph) * 0.5, 0, Math.cos(t * 0.23 + ph) * 0.5);
+    }
   };
 }

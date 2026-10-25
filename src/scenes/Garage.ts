@@ -84,10 +84,10 @@ export class GarageScene extends Phaser.Scene {
     // Missions. Damaged or missing armor has to be fixed in the forge first.
     const needsRepair = repairsNeeded(s.armor ?? {}).length > 0;
     const noArmor = s.levelsDone.includes('inv-drop') && !REGIONS.some((r) => s.armor?.[r]);
-    const go = (key: string, data: object, missionId: string) => {
+    const go = (key: string, data: object, missionId: string, gateId = missionId) => {
       const then = missionId || undefined;
-      if (missionId && upgradeRequired(missionId)) {
-        // Lost twice since the last upgrade: build something first.
+      if (gateId && upgradeRequired(gateId)) {
+        // Lost since the last upgrade: build something first.
         if (needsRepair) {
           this.scene.start('ArmorForge', { mode: 'repair', then: 'engineering' });
           return;
@@ -121,7 +121,7 @@ export class GarageScene extends Phaser.Scene {
       const done = s.levelsDone.includes(lvl.id);
       const x = 880 + (i - 1) * 188;
       const b = button(this, x, 522, 178, 60, unlocked ? `${lvl.title.replace(/^\d+\.\s*/, '')}${done ? ' ✓' : ''}` : '🔒', () =>
-        go('Level', { levelId: lvl.id }, ''), { fill: 0x1f6feb, disabled: !unlocked || done, size: 20 });
+        go('Level', { levelId: lvl.id }, '', lvl.id), { fill: 0x1f6feb, disabled: !unlocked || done, size: 20 });
       if (done) b.label.setColor('#7ee2b8');
     });
 

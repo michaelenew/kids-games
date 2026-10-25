@@ -91,7 +91,6 @@ describe('arcade missions wait on an upgrade', () => {
   it('counts losses and resets them on upgrade', () => {
     const s = freshSave();
     won(s, 'inv-drop');
-    expect(onMissionFailed('inv-chase', s)).toBe(1);
     expect(onMissionFailed('inv-chase', s)).toBe(FAILS_BEFORE_HINT);
     onUpgradeBuilt(s);
     expect(onMissionFailed('inv-chase', s)).toBe(1);
@@ -107,13 +106,12 @@ describe('arcade missions wait on an upgrade', () => {
   });
 });
 
-describe('two losses lock the mission until an upgrade', () => {
-  it('locks after two losses and unlocks after building', () => {
+describe('a loss locks the mission until an upgrade', () => {
+  it('locks after a loss and unlocks after building', () => {
     const s = freshSave();
     s.levelsDone.push('inv-drop');
     onMissionCleared('inv-drop', s);
     onUpgradeBuilt(s);
-    onMissionFailed('inv-chase', s);
     expect(upgradeRequired('inv-chase', s)).toBe(false);
     onMissionFailed('inv-chase', s);
     expect(upgradeRequired('inv-chase', s)).toBe(true);

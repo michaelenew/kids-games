@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONT, ROBOT_CX, ROBOT_H, ROBOT_W, TILE, makeRobotTextures } from '../art';
 import { MissionArmor, lookFromSave, totalMax } from '../armor';
-import { type Tuning, onLevelCleared, onLevelStart, tuning } from '../assist';
+import { type Tuning, cheapestUpgrade, onLevelCleared, onLevelStart, onMissionFailed, tuning, upgradeRequired } from '../assist';
 import { GROUND_ROW, LEVELS, ROWS, type LevelDef } from '../levels';
 import {
   BLASTER_COOLDOWN, BLASTER_DAMAGE, JUMP_VELOCITY,
@@ -841,18 +841,31 @@ export class LevelScene extends Phaser.Scene {
 
   // ---- End states -------------------------------------------------------
 
-  private freeze() {
+  private freeze(won: boolean) {
     this.over = true;
     this.physics.pause();
-    // Plate damage carries back to the garage for repairs.
-    this.marmor.commit(save());
+    // Plate damage carries back for repairs after a win; after a loss he upgrades instead.
+    if (won) this.marmor.commit(save());
     persist();
   }
 
   private retreat(src: Hurt) {
-    this.freeze();
+    this.freeze(false);
+    onMissionFailed(this.def.id);
+    const mustUpgrade = upgradeRequired(this.def.id);
+    if (mustUpgrade) {
+      // Make sure he can afford something, so the way forward is always open.
+      const s = save();
+      const short = Math.max(0, cheapestUpgrade(s) - s.scrap);
+      if (short) {
+        s.scrap += short;
+        persist();
+      }
+    }
     this.view.burst(this.player.x, this.player.y - 40, 0xef476f, 30, true);
-    const tip = this.def.tips[src] ?? this.def.tips.enemy ?? 'Let\'s patch up and try again!';
+    const tip = mustUpgrade
+      ? 'They\'re too tough for us right now. We need to build an upgrade before we come back!'
+      : this.def.tips[src] ?? this.def.tips.enemy ?? 'Let\'s patch up and try again!';
 
     const box = panel(this, W / 2, H / 2 - 40, 760, 420).setScrollFactor(0).setDepth(700);
     const items: Phaser.GameObjects.GameObject[] = [box];
@@ -864,6 +877,15 @@ export class LevelScene extends Phaser.Scene {
         .setScrollFactor(0).setDepth(701),
     );
     const by = H / 2 + 110;
+    if (mustUpgrade) {
+      const up = button(this, W / 2 - 140, by, 300, 76, 'Engineering Zone', () => this.scene.start('Engineering'), {
+        fill: 0xf77f00, edge: 0xffd166, size: 28,
+      });
+      const back = button(this, W / 2 + 190, by, 230, 76, 'Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 });
+      for (const b of [up, back]) b.setScrollFactor(0, 0, true).setDepth(702);
+      this.tweens.add({ targets: up, scale: 1.06, duration: 500, yoyo: true, repeat: -1 });
+      return;
+    }
     const again = button(this, W / 2 - 240, by, 210, 76, 'Try again', () =>
       this.scene.restart({ levelId: this.def.id, checkpointCol: this.checkpointCol }), { fill: 0x2a9d8f, edge: 0x9ff0e3 });
     const forge = button(this, W / 2, by, 230, 76, 'Engineering\nZone', () => this.scene.start('Engineering'), {
@@ -875,7 +897,7 @@ export class LevelScene extends Phaser.Scene {
 
   private finish() {
     if (this.over) return;
-    this.freeze();
+    this.freeze(true);
     const s = save();
     const firstClear = !s.levelsDone.includes(this.def.id);
     if (firstClear) s.levelsDone.push(this.def.id);

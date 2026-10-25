@@ -350,9 +350,13 @@ export class InvasionScene extends Phaser.Scene {
 
   // ---- End of the mission ------------------------------------------------------------
 
-  private bank() {
+  /**
+   * Keep the scrap. Plate damage only carries over after a win (that's what
+   * repairs are for); after a loss the answer is an upgrade instead.
+   */
+  private bank(won: boolean) {
     const s = save();
-    this.armor.commit(s);
+    if (won) this.armor.commit(s);
     s.scrap += this.scrap;
     persist();
   }
@@ -374,7 +378,7 @@ export class InvasionScene extends Phaser.Scene {
     const firstWin = !s.levelsDone.includes(this.mission.id);
     if (firstWin) s.levelsDone.push(this.mission.id);
     onMissionCleared(this.mission.id);
-    this.bank();
+    this.bank(true);
     music('calm');
     sfx.success();
     this.time.delayedCall(800, () => {
@@ -420,11 +424,11 @@ export class InvasionScene extends Phaser.Scene {
     this.over = true;
     this.game3d.pointer.down = false;
     this.game3d.paused = true;
-    this.bank();
+    this.bank(false);
     onMissionFailed(this.mission.id);
     music('calm');
     sfx.alarm();
-    // Two losses since the last upgrade: no more retries until he builds one.
+    // A loss since the last upgrade: no retries until he builds one.
     if (upgradeRequired(this.mission.id)) {
       this.time.delayedCall(600, () => this.upgradeHint());
       return;

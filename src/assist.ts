@@ -75,8 +75,8 @@ export const HARD: Tuning = {
   damageTaken: 1.35, enemyHp: 1, fireDelay: 1, bossPace: 1.15, invulnMs: 900, coyoteMs: 110, bossDropEvery: 99, mercies: 0, safeRespawn: false,
 };
 
-/** Losses (since the last upgrade) before Sprocket says to upgrade. */
-export const FAILS_BEFORE_HINT = 2;
+/** Losses (since the last upgrade) before the mission locks until he upgrades. */
+export const FAILS_BEFORE_HINT = 1;
 
 function allMaxed(s: SaveData) {
   return (Object.keys(s.gear) as GearId[]).every((g) => s.gear[g] >= 3);
@@ -118,7 +118,7 @@ export function onMissionCleared(id: string, s: SaveData = save()) {
 }
 
 /**
- * After two losses since his last upgrade, the mission stays locked until he
+ * After a loss since his last upgrade, the mission stays locked until he
  * builds something (unless everything is already fully upgraded).
  */
 export function upgradeRequired(id: string, s: SaveData = save()): boolean {

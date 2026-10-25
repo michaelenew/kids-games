@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { onLevelCleared, onLevelStart, tuning, type Tuning } from '../assist';
+import { FAILS_BEFORE_HINT, type Tuning, cheapestUpgrade, missionStart, onMissionCleared, onMissionFailed } from '../assist';
 import { MissionArmor, REGIONS, type Region, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import { persist, save } from '../state';
@@ -18,6 +18,8 @@ export class InvasionScene extends Phaser.Scene {
   private armor!: MissionArmor;
   private maxHp = 1;
   private tune!: Tuning;
+  /** Waiting on an upgrade (see assist.ts). */
+  private hard = false;
   private mercies = 0;
   private score = 0;
   private scrap = 0;
@@ -56,7 +58,9 @@ export class InvasionScene extends Phaser.Scene {
 
   create() {
     const s = save();
-    this.tune = tuning(onLevelStart(this.mission.id));
+    const start = missionStart(this.mission.id);
+    this.tune = start.tune;
+    this.hard = start.hard;
     // The very first mission is the story opener: he can't lose it.
     const opener = this.mission.id === 'inv-drop' && !s.levelsDone.includes('inv-drop');
     this.mercies = opener ? 99 : this.tune.mercies;
@@ -370,8 +374,9 @@ export class InvasionScene extends Phaser.Scene {
     this.over = true;
     this.game3d.pointer.down = false;
     const s = save();
-    if (!s.levelsDone.includes(this.mission.id)) s.levelsDone.push(this.mission.id);
-    onLevelCleared(this.mission.id);
+    const firstWin = !s.levelsDone.includes(this.mission.id);
+    if (firstWin) s.levelsDone.push(this.mission.id);
+    onMissionCleared(this.mission.id);
     this.bank();
     music('calm');
     sfx.success();
@@ -395,7 +400,12 @@ export class InvasionScene extends Phaser.Scene {
         }).setDepth(62);
         this.tweens.add({ targets: b, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });
       };
-      if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {
+      if (this.mission.id === 'inv-queen' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Hive Queen is down! The rest of their fleet is retreating!' },
+          { who: 'sprocket', text: 'YOU SAVED THE CITY! Best. Robot. Ever.' },
+        ], after);
+      } else if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {
         dialog(this, [
           { who: 'sprocket', text: 'You did it! But look at you... a bare frame. Those hits went right through!' },
           { who: 'sprocket', text: 'Come back to the forge. Let\'s build you some real armor plates!' },
@@ -414,8 +424,13 @@ export class InvasionScene extends Phaser.Scene {
     this.game3d.pointer.down = false;
     this.game3d.paused = true;
     this.bank();
+    const fails = onMissionFailed(this.mission.id);
     music('calm');
     sfx.alarm();
+    if (this.hard && fails >= FAILS_BEFORE_HINT) {
+      this.time.delayedCall(600, () => this.upgradeHint());
+      return;
+    }
     panel(this, W / 2, H / 2, 760, 400).setDepth(60);
     text(this, W / 2, H / 2 - 140, 'EMERGENCY RETREAT!', 50, '#ef476f').setStroke('#000000', 6).setDepth(61);
     text(this, W / 2, H / 2 - 50, 'Your armor ran out. Patch up and try again!\nThicker plates from the forge help a lot.', 28, '#ffffff')
@@ -426,6 +441,35 @@ export class InvasionScene extends Phaser.Scene {
       else this.scene.start(next.key, { ...next.data, then: this.mission.id });
     }, { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
     button(this, W / 2 + 180, H / 2 + 100, 300, 84, 'Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 }).setDepth(62);
+  }
+
+  /** After two losses without upgrading: say plainly that it's time to upgrade. */
+  private upgradeHint() {
+    const s = save();
+    // Make sure he can afford something, so the advice can always be followed.
+    const cost = cheapestUpgrade(s);
+    const topUp = Math.max(0, cost - s.scrap);
+    if (topUp > 0) {
+      s.scrap += topUp;
+      persist();
+    }
+    const lines = [
+      { who: 'sprocket' as const, text: 'These aliens are way too tough for us right now. Their shots are tearing right through!' },
+      { who: 'sprocket' as const, text: 'We need to upgrade to get stronger. Let\'s build something new in the Engineering Zone!' },
+    ];
+    if (topUp > 0) lines.push({ who: 'sprocket', text: `I dug up ${topUp} extra scrap from the wreckage. That's enough for an upgrade!` });
+    dialog(this, lines, () => {
+      panel(this, W / 2, H / 2, 760, 360).setDepth(60);
+      text(this, W / 2, H / 2 - 120, 'TIME TO UPGRADE!', 52, '#ffd166').setStroke('#000000', 6).setDepth(61);
+      text(this, W / 2, H / 2 - 40, 'Build a new upgrade, then come back\nand blast them!', 28, '#ffffff').setDepth(61);
+      const repair = this.nextScene();
+      const b = button(this, W / 2 - 170, H / 2 + 90, 320, 84, 'Engineering Zone', () => {
+        if (repair.key === 'ArmorForge') this.scene.start('ArmorForge', { ...repair.data, then: 'engineering' });
+        else this.scene.start('Engineering');
+      }, { fill: 0xf77f00, edge: 0xffd166, size: 28 }).setDepth(62);
+      this.tweens.add({ targets: b, scale: 1.06, duration: 500, yoyo: true, repeat: -1 });
+      button(this, W / 2 + 190, H / 2 + 90, 260, 84, 'Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 }).setDepth(62);
+    });
   }
 
   private pause() {

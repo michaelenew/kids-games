@@ -11,7 +11,7 @@ import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, scrapBadge, text } from '../ui/widgets';
 import { carUnlocked } from './Level';
-import { currentTier } from '../assist';
+import { currentTier, needsUpgrade } from '../assist';
 import { music } from '../audio';
 
 const SKILL_LABELS: Record<string, string> = {
@@ -94,20 +94,20 @@ export class GarageScene extends Phaser.Scene {
     MISSIONS.forEach((m, i) => {
       const unlocked = i === 0 || s.levelsDone.includes(MISSIONS[i - 1].id);
       const done = s.levelsDone.includes(m.id);
-      const y = 150 + i * 110;
-      const b = button(this, 880, y, 560, 96, '', () => go('Invasion', { missionId: m.id }, m.id), {
+      const y = 122 + i * 70;
+      const b = button(this, 880, y, 560, 62, '', () => go('Invasion', { missionId: m.id }, m.id), {
         fill: done ? 0x1d6f5f : 0x7b2cbf, edge: 0xd0a7ff, disabled: !unlocked,
       });
-      b.label.setText(unlocked ? `${m.title}${done ? '  ✓' : ''}` : '🔒  Locked').setY(-14).setFontSize(30);
-      if (unlocked) b.add(this.add.text(0, 24, m.blurb, { fontFamily: FONT, fontSize: '20px', color: '#e6d6ff' }).setOrigin(0.5));
+      b.label.setText(unlocked ? `${m.title}${done ? '  ✓' : ''}` : '🔒  Locked').setY(unlocked ? -10 : 0).setFontSize(24);
+      if (unlocked) b.add(this.add.text(0, 17, m.blurb, { fontFamily: FONT, fontSize: '15px', color: '#e6d6ff' }).setOrigin(0.5));
     });
     // The side-scrolling patrols open up after the first invasion.
-    text(this, 880, 382, 'PATROLS', 26, '#9ad1ff');
+    text(this, 880, 476, 'PATROLS', 22, '#9ad1ff');
     LEVELS.forEach((lvl, i) => {
       const unlocked = s.levelsDone.includes('inv-drop') && (i === 0 || s.levelsDone.includes(LEVELS[i - 1].id));
       const done = s.levelsDone.includes(lvl.id);
       const x = 880 + (i - 1) * 188;
-      const b = button(this, x, 445, 178, 80, unlocked ? `${lvl.title.replace(/^\d+\.\s*/, '')}${done ? ' ✓' : ''}` : '🔒', () =>
+      const b = button(this, x, 522, 178, 60, unlocked ? `${lvl.title.replace(/^\d+\.\s*/, '')}${done ? ' ✓' : ''}` : '🔒', () =>
         go('Level', { levelId: lvl.id }, ''), { fill: done ? 0x1d6f5f : 0x1f6feb, disabled: !unlocked, size: 20 });
       void b;
     });
@@ -122,11 +122,11 @@ export class GarageScene extends Phaser.Scene {
 
     // Engineering Zone.
     const ready = upgradeAffordable();
-    button(this, 880, 600, 560, 110, 'ENGINEERING ZONE', () => this.scene.start('Engineering'), {
+    button(this, 880, 640, 560, 88, 'ENGINEERING ZONE', () => this.scene.start('Engineering'), {
       fill: 0xf77f00, edge: 0xffd166, size: 40,
     });
     if (ready) {
-      const badge = this.add.container(1120, 548, [
+      const badge = this.add.container(1120, 598, [
         this.add.graphics().fillStyle(0xef476f, 1).fillRoundedRect(-95, -20, 190, 40, 14),
         text(this, 0, 0, 'Upgrade ready!', 22),
       ]).setDepth(2);
@@ -200,10 +200,12 @@ export class GarageScene extends Phaser.Scene {
       .join('     ');
     items.push(text(this, W / 2, 115, gears, 22, '#9ad1ff').setDepth(52));
     // The hidden help each unbeaten level is set to (never shown to the kid).
-    const help = [...MISSIONS, ...LEVELS].filter((l) => !s.levelsDone.includes(l.id))
-      .map((l) => `${l.title.replace(/^\d+\.\s*/, '')}: ${currentTier(l.id)}/3`)
-      .join('   ');
-    items.push(text(this, W / 2, 574, help ? `Quiet extra help after upgrades: ${help}` : 'All missions beaten!', 18, '#8d99ae').setDepth(52));
+    // The next arcade mission: hard until he builds an upgrade, then quietly easier.
+    const nextMission = MISSIONS.find((m) => !s.levelsDone.includes(m.id));
+    const help = nextMission
+      ? `Next mission (${nextMission.title.replace(/^Invasion \d+: /, '')}): ${needsUpgrade(nextMission.id) ? 'HARD until an upgrade is built' : `extra help ${currentTier(nextMission.id)}/3`}`
+      : 'All missions beaten!';
+    items.push(text(this, W / 2, 574, help, 18, '#8d99ae').setDepth(52));
     Object.entries(SKILL_LABELS).forEach(([key, label], i) => {
       const st = s.skills[key];
       const y = 165 + i * 46;

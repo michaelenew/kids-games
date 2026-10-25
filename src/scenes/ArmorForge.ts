@@ -21,7 +21,7 @@ type Mode = 'build' | 'repair';
 interface ForgeData {
   mode: Mode;
   mark?: 1 | 2 | 3;
-  /** Mission to offer next when done (e.g. after a retreat). */
+  /** Mission to offer next when done (e.g. after a retreat), or 'engineering'. */
   then?: string;
 }
 
@@ -636,7 +636,12 @@ export class ArmorForge extends Phaser.Scene {
     text(this, cx, 345, `Armor plates: ${formatNumber(total)} points`, 30, '#ffffff');
     text(this, cx, 395, 'Your robot can take way more hits now!', 24, '#9ad1ff');
     const next = this.then;
-    if (next) {
+    if (next === 'engineering') {
+      // Sent here on the way to building an upgrade.
+      button(this, cx, 480, 380, 80, 'To the Engineering Zone', () => this.scene.start('Engineering'), {
+        fill: 0xf77f00, edge: 0xffd166,
+      });
+    } else if (next) {
       button(this, cx - 160, 480, 290, 80, 'Back to mission!', () => this.scene.start('Invasion', { missionId: next }), {
         fill: 0x2a9d8f, edge: 0x9ff0e3,
       });

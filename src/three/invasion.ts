@@ -465,8 +465,9 @@ export class Invasion {
     model.root.position.set(x, y, z);
     model.root.lookAt(this.rig.position.x, y, this.rig.position.z);
     this.root.add(model.root);
-    const podMax = Math.ceil(14 * this.opts.enemyHp);
-    const coreMax = Math.ceil(45 * this.opts.enemyHp);
+    const k = this.opts.enemyHp * (this.mission.bossHp ?? 1);
+    const podMax = Math.ceil(14 * k);
+    const coreMax = Math.ceil(45 * k);
     this.boss = {
       model, podHp: model.pods.map(() => podMax), podMax, coreHp: coreMax, coreMax, t: 0,
       fireIn: 3 * this.opts.fireDelay, charge: 0, charging: false, dying: 0, sinceHit: 9,
@@ -566,7 +567,7 @@ export class Invasion {
       if (b.coreHp <= 0) {
         b.dying = 0.001;
         this.registerKill(5000, 25, at, true);
-        this.events.banner('HIVE WALKER DESTROYED!', '#06d6a0');
+        this.events.banner('BOSS DESTROYED!', '#06d6a0');
       }
     }
     this.events.bossBar(this.bossFrac());

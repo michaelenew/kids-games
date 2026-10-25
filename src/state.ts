@@ -25,7 +25,10 @@ export interface SaveData {
   /** The five armor plates (see armor.ts). Missing plates aren't built yet. */
   armor?: import('./armor').ArmorState;
   /** Hidden per-level help after upgrades (see assist.ts). */
-  assist?: Record<string, { tier: number; armed: boolean; started: boolean }>;
+  assist?: Record<string, { tier: number; armed: boolean; started: boolean; fails?: number }>;
+  /** Upgrades built so far, and how many there were when each mission was first beaten. */
+  upgradeCount?: number;
+  clearedAt?: Record<string, number>;
   skills: Record<string, SkillStat>;
 }
 

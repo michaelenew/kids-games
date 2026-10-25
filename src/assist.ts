@@ -1,6 +1,6 @@
 import { LEVELS } from './levels';
 import { MISSION_IDS } from './three/missions';
-import { type SaveData, persist, save } from './state';
+import { BUILD_COST, type GearId, type SaveData, persist, save } from './state';
 
 /**
  * Behind-the-scenes help. Building an upgrade should always make the next
@@ -22,6 +22,8 @@ export interface LevelAssist {
   armed: boolean;
   /** True once an attempt has started since the last upgrade. */
   started: boolean;
+  /** Missions lost since the last upgrade. */
+  fails?: number;
 }
 
 export const MAX_TIER = 3;
@@ -56,6 +58,65 @@ const TABLE: Tuning[] = [
   { damageTaken: 0.35, enemyHp: 0.5, fireDelay: 1.9, bossPace: 0.65, invulnMs: 1900, coyoteMs: 210, bossDropEvery: 4, mercies: 99, safeRespawn: true },
 ];
 
+/**
+ * Arcade missions after the first expect a new upgrade. Until he builds one
+ * (since clearing the mission before), the mission is much tougher: aliens
+ * hit far harder, take more shots and fire more often. Building anything
+ * switches it to the easy settings above. Nothing on screen says so; after
+ * two losses Sprocket says plainly that they need an upgrade.
+ */
+export const HARD: Tuning = {
+  damageTaken: 2.6, enemyHp: 1.7, fireDelay: 0.6, bossPace: 1.3, invulnMs: 900, coyoteMs: 110, bossDropEvery: 99, mercies: 0, safeRespawn: false,
+};
+
+/** Losses (since the last upgrade) before Sprocket says to upgrade. */
+export const FAILS_BEFORE_HINT = 2;
+
+function allMaxed(s: SaveData) {
+  return (Object.keys(s.gear) as GearId[]).every((g) => s.gear[g] >= 3);
+}
+
+/** True if this mission is waiting on an upgrade (and so plays hard). */
+export function needsUpgrade(id: string, s: SaveData = save()): boolean {
+  const i = MISSION_IDS.indexOf(id);
+  if (i <= 0 || s.levelsDone.includes(id) || allMaxed(s)) return false;
+  const before = s.clearedAt?.[MISSION_IDS[i - 1]];
+  if (before === undefined) return false;
+  return (s.upgradeCount ?? 0) <= before;
+}
+
+/** Settings for an attempt at an arcade mission. Call once per attempt. */
+export function missionStart(id: string, s: SaveData = save()): { tune: Tuning; hard: boolean } {
+  if (needsUpgrade(id, s)) return { tune: HARD, hard: true };
+  return { tune: tuning(onLevelStart(id, s)), hard: false };
+}
+
+/** Count a loss. Returns how many since the last upgrade. */
+export function onMissionFailed(id: string, s: SaveData = save()): number {
+  const a = entry(s, id);
+  a.fails = (a.fails ?? 0) + 1;
+  persist();
+  return a.fails;
+}
+
+/** A mission is beaten: remember the upgrade count, and the next mission's help starts fresh. */
+export function onMissionCleared(id: string, s: SaveData = save()) {
+  s.clearedAt ??= {};
+  if (s.clearedAt[id] === undefined) s.clearedAt[id] = s.upgradeCount ?? 0;
+  onLevelCleared(id, s);
+  const next = MISSION_IDS[MISSION_IDS.indexOf(id) + 1];
+  if (next && !s.levelsDone.includes(next)) {
+    s.assist![next] = { tier: 0, armed: false, started: false };
+  }
+  persist();
+}
+
+/** Cheapest upgrade he could build next (0 if everything is maxed). */
+export function cheapestUpgrade(s: SaveData = save()): number {
+  const costs = (Object.keys(s.gear) as GearId[]).filter((g) => s.gear[g] < 3).map((g) => BUILD_COST[s.gear[g] + 1]);
+  return costs.length ? Math.min(...costs) : 0;
+}
+
 export function tuning(tier: number): Tuning {
   return TABLE[Math.max(0, Math.min(MAX_TIER, tier))];
 }
@@ -68,12 +129,14 @@ function entry(s: SaveData, id: string): LevelAssist {
 
 /** Call when an upgrade is built (not for practice runs). */
 export function onUpgradeBuilt(s: SaveData = save()) {
+  s.upgradeCount = (s.upgradeCount ?? 0) + 1;
   for (const id of [...MISSION_IDS, ...LEVELS.map((l) => l.id)]) {
     if (s.levelsDone.includes(id)) continue;
     const a = entry(s, id);
     a.tier = Math.min(MAX_TIER, a.tier + 1);
     a.armed = true;
     a.started = false;
+    a.fails = 0;
   }
   persist();
 }

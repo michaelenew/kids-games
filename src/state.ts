@@ -20,18 +20,24 @@ export interface SaveData {
   voice: boolean;
   /** 'best' adapts to the device; 'fast' turns off glow and shadows for older iPads. */
   graphics?: 'best' | 'fast';
+  /** Sound effects and music. */
+  sound?: boolean;
+  /** The five armor plates (see armor.ts). Missing plates aren't built yet. */
+  armor?: import('./armor').ArmorState;
   /** Hidden per-level help after upgrades (see assist.ts). */
   assist?: Record<string, { tier: number; armed: boolean; started: boolean }>;
   skills: Record<string, SkillStat>;
 }
 
-const KEY = 'mecha-forge-save-v1';
+// v2: armor became five plates; older saves start fresh.
+const KEY = 'mecha-forge-save-v2';
 
 export function freshSave(): SaveData {
   return {
     v: 1,
-    name: '',
-    color: 0x3a86ff,
+    name: 'BOLT',
+    /** Armor paint. The bare frame is always plain grey. */
+    color: 0x1f6fff,
     scrap: 0,
     gear: { armor: 0, blaster: 0, boots: 0 },
     levelsDone: [],

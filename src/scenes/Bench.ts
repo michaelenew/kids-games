@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT } from '../art';
+import { lookFromSave } from '../armor';
 import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
 import { BUILD_COST, GEAR_INFO, type GearId, persist, recordSkill, save } from '../state';
@@ -155,7 +156,7 @@ export abstract class BenchScene extends Phaser.Scene {
     stopSpeaking();
     this.clearLayer();
     const s = save();
-    const before = { color: s.color, ...s.gear };
+    const before = lookFromSave(s);
     if (!this.practice) {
       s.scrap -= BUILD_COST[this.mark];
       s.gear[this.gear] = this.mark;

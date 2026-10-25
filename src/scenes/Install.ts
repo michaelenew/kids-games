@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { RobotLook } from '../art';
+import { lookFromSave } from '../armor';
 import { GEAR_INFO, type GearId, save } from '../state';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
@@ -28,7 +29,7 @@ export class InstallScene extends Phaser.Scene {
   create() {
     const { gear, mark, before } = this.data_;
     const s = save();
-    const after: RobotLook = { color: s.color, ...s.gear };
+    const after: RobotLook = lookFromSave(s);
     const show = new Showcase(getStage(this.game.canvas), [{ look: before, x: W / 2, y: 600, height: 430, spin: 0.7, yaw: 0.4 }]);
     const robot = show.robots[0];
 

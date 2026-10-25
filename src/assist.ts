@@ -1,4 +1,5 @@
 import { LEVELS } from './levels';
+import { MISSION_IDS } from './three/missions';
 import { type SaveData, persist, save } from './state';
 
 /**
@@ -67,9 +68,9 @@ function entry(s: SaveData, id: string): LevelAssist {
 
 /** Call when an upgrade is built (not for practice runs). */
 export function onUpgradeBuilt(s: SaveData = save()) {
-  for (const lvl of LEVELS) {
-    if (s.levelsDone.includes(lvl.id)) continue;
-    const a = entry(s, lvl.id);
+  for (const id of [...MISSION_IDS, ...LEVELS.map((l) => l.id)]) {
+    if (s.levelsDone.includes(id)) continue;
+    const a = entry(s, id);
     a.tier = Math.min(MAX_TIER, a.tier + 1);
     a.armed = true;
     a.started = false;

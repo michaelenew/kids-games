@@ -24,9 +24,12 @@ export const ROBOT_COLORS = [0x3a86ff, 0xef476f, 0x06d6a0, 0xffd166, 0x9b5de5, 0
 
 export interface RobotLook {
   color: number;
+  /** Armor mark used for every plate when `plates` isn't given. */
   armor: Mark;
   blaster: Mark;
   boots: Mark;
+  /** Per-plate armor: which mark is installed and how damaged it is (0 = like new, 1 = wrecked). */
+  plates?: Partial<Record<'chest' | 'armL' | 'armR' | 'legL' | 'legR', { mark: Mark; damage: number }>>;
 }
 
 /** Robot canvas size in base units, before scaling. The body centre is at ROBOT_CX. */

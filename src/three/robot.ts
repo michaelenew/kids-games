@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { RobotLook } from '../art';
 import {
   METAL, clamp01, coneGeo, cylGeo, glow, glowSprite, group, lerp, mesh, paint, rboxGeo, setGlow,
-  shade, smooth, sphereGeo, torusGeo,
+  smooth, sphereGeo, torusGeo,
 } from './kit';
 
 /**
@@ -12,11 +12,18 @@ import {
  * The robot's right arm (the blaster) is on the -X side.
  * Standing height is about 2.25 units.
  *
+ * The bare robot is a plain grey frame. Armor comes in five plates (chest,
+ * arms, legs). Installing a plate drops colored armor onto that part and
+ * repaints it; damage scorches it and makes it spark.
+ *
  * Animation works on named joints. Each frame we work out a "robot pose"
  * (idle, run, jump, aim) and a fixed "car pose", then blend between them
  * joint by joint with staggered timing, which is what makes the transform
  * look mechanical instead of a simple morph.
  */
+
+export type Region = 'chest' | 'armL' | 'armR' | 'legL' | 'legR';
+export const REGIONS: Region[] = ['chest', 'armL', 'armR', 'legL', 'legR'];
 
 type JointName =
   | 'body' | 'waist' | 'neck' | 'head'
@@ -61,12 +68,19 @@ const YAW_DEG = 45;
 const CAR_YAW_DEG = 78;
 const CAR_SCALE = 1.3;
 const ACCENT = [0x4cf0ff, 0x4cf0ff, 0x8af7ff, 0xffc940];
+/** Primer grey for the bare frame. */
+const FRAME_GREY = 0x8b939f;
+const SCORCH = new THREE.Color(0x2a1f18);
 
 interface FlyIn {
   obj: THREE.Object3D;
   t: number;
   delay: number;
   from: THREE.Vector3;
+  /** 'fly' arcs in and overshoots; 'drop' falls straight down like a heavy plate. */
+  style: 'fly' | 'drop';
+  onLand?: () => void;
+  landed?: boolean;
 }
 
 export class Robot {
@@ -81,11 +95,16 @@ export class Robot {
   private readonly flames: THREE.Object3D[] = [];
   private readonly muzzles: THREE.Object3D[] = [];
   private readonly flashes: THREE.Sprite[] = [];
+  /** A spot on each armor region, for sparks and for screen positions. */
+  private readonly anchors = {} as Record<Region, THREE.Object3D>;
+  private readonly sparks = {} as Record<Region, THREE.Sprite>;
   private gatling: THREE.Object3D | null = null;
 
   readonly mats: {
-    paint: THREE.MeshPhysicalMaterial;
-    paintDark: THREE.MeshPhysicalMaterial;
+    /** Panels that turn into armor color, one material per region. */
+    region: Record<Region, THREE.MeshPhysicalMaterial>;
+    plate: Record<Region, THREE.MeshPhysicalMaterial>;
+    trim: THREE.MeshPhysicalMaterial;
     accent: THREE.MeshBasicMaterial;
     visor: THREE.MeshBasicMaterial;
     hot: THREE.MeshBasicMaterial;
@@ -105,6 +124,11 @@ export class Robot {
   /** If set, overrides facing with a free turntable angle (radians). */
   spin: number | null = null;
   thrust = 0;
+  /** Free aim while shooting: turn (yaw) and tilt (pitch) of the blaster, radians. */
+  aimYaw = 0;
+  aimPitch = 0;
+  /** Keep the blaster up even when not firing (for the arcade shooter). */
+  holdAim = false;
 
   private t = 0;
   private phase = 0;
@@ -122,9 +146,20 @@ export class Robot {
 
   constructor(look: RobotLook) {
     this.look = { ...look };
+    const region = {} as Record<Region, THREE.MeshPhysicalMaterial>;
+    const plate = {} as Record<Region, THREE.MeshPhysicalMaterial>;
+    for (const r of REGIONS) {
+      region[r] = paint(FRAME_GREY);
+      region[r].clearcoat = 0.3;
+      region[r].roughness = 0.45;
+      plate[r] = paint(look.color);
+    }
+    const trim = paint(0x3d434e);
+    trim.clearcoat = 0.4;
     this.mats = {
-      paint: paint(look.color),
-      paintDark: paint(shade(look.color, 0.5)),
+      region,
+      plate,
+      trim,
       accent: glow(ACCENT[look.armor]),
       visor: glow(0x4cf0ff, 2.6),
       hot: glow(0xff4d8d, 2.6),
@@ -136,7 +171,7 @@ export class Robot {
     this.mats.flame.userData.disposable = true;
     this.holder.add(this.root);
     this.build();
-    this.applyLook(false);
+    this.applyLook();
     this.update(0);
   }
 
@@ -159,6 +194,15 @@ export class Robot {
     return g;
   }
 
+  private anchor(region: Region, parent: THREE.Object3D, x: number, y: number, z: number) {
+    const a = group(parent, x, y, z, `anchor-${region}`);
+    this.anchors[region] = a;
+    const s = glowSprite(0xffb347, 0.35, 2.4);
+    s.visible = false;
+    a.add(s);
+    this.sparks[region] = s;
+  }
+
   private wheel(parent: THREE.Object3D, x: number, y: number, z: number, r = 0.17) {
     const w = group(parent, x, y, z);
     const side = Math.sign(x) || 1;
@@ -171,8 +215,8 @@ export class Robot {
 
   private build() {
     const M = METAL;
-    const P = this.mats.paint;
-    const PD = this.mats.paintDark;
+    const R = this.mats.region;
+    const PD = this.mats.trim;
     const A = this.mats.accent;
 
     const body = this.joint('body', this.root, 0, 1.07, 0);
@@ -186,13 +230,12 @@ export class Robot {
     const waist = this.joint('waist', body, 0, 0.12, 0);
     mesh(waist, rboxGeo(0.46, 0.26, 0.3, 0.05), M.gunmetal, 0, 0.14, 0);
     for (let i = 0; i < 3; i++) mesh(waist, rboxGeo(0.36, 0.035, 0.04, 0.012), M.dark, 0, 0.06 + i * 0.07, 0.15);
-    mesh(waist, rboxGeo(0.92, 0.54, 0.5, 0.08), P, 0, 0.5, 0);
+    mesh(waist, rboxGeo(0.92, 0.54, 0.5, 0.08), R.chest, 0, 0.5, 0);
     mesh(waist, rboxGeo(0.7, 0.12, 0.46, 0.04), PD, 0, 0.26, 0.03);
     // Chest windows and grille, the classic truck-robot look.
     for (const sx of [-1, 1]) {
       mesh(waist, rboxGeo(0.3, 0.22, 0.04, 0.02), M.glass, sx * 0.21, 0.56, 0.245, { rz: sx * -0.05 });
       mesh(waist, rboxGeo(0.32, 0.24, 0.03, 0.02), M.chrome, sx * 0.21, 0.56, 0.235);
-      // Headlights.
       mesh(waist, rboxGeo(0.1, 0.05, 0.03, 0.01), this.mats.visor, sx * 0.32, 0.31, 0.25, { shadow: false });
     }
     mesh(waist, cylGeo(0.075, 0.075, 0.04, 20), A, 0, 0.36, 0.252, { rx: Math.PI / 2, shadow: false });
@@ -202,15 +245,15 @@ export class Robot {
     for (const sx of [-1, 1]) {
       mesh(waist, cylGeo(0.05, 0.055, 0.5, 14), M.chrome, sx * 0.3, 0.86, -0.22);
       mesh(waist, cylGeo(0.06, 0.06, 0.04, 14), M.dark, sx * 0.3, 1.11, -0.22);
-      // Front wheels sit on the lower torso sides.
       this.wheel(waist, sx * 0.49, 0.24, 0.12, 0.17);
     }
+    this.anchor('chest', waist, 0, 0.5, 0.3);
 
-    // Head.
+    // Head (painted with the chest).
     const neck = this.joint('neck', waist, 0, 0.8, 0);
     const head = this.joint('head', neck, 0, 0, 0);
     mesh(head, cylGeo(0.07, 0.08, 0.1, 12), M.gunmetal, 0, 0.03, 0);
-    mesh(head, rboxGeo(0.3, 0.28, 0.3, 0.06), P, 0, 0.19, 0);
+    mesh(head, rboxGeo(0.3, 0.28, 0.3, 0.06), R.chest, 0, 0.19, 0);
     mesh(head, rboxGeo(0.22, 0.12, 0.06, 0.03), M.chrome, 0, 0.11, 0.14);
     mesh(head, rboxGeo(0.24, 0.06, 0.04, 0.02), this.mats.visor, 0, 0.2, 0.15, { shadow: false });
     mesh(head, rboxGeo(0.06, 0.1, 0.24, 0.02), PD, 0, 0.35, -0.01);
@@ -222,113 +265,141 @@ export class Robot {
     // Arms.
     for (const side of ['L', 'R'] as const) {
       const sx = side === 'L' ? 1 : -1;
+      const reg: Region = side === 'L' ? 'armL' : 'armR';
       const sh = this.joint(`sh${side}`, waist, sx * 0.58, 0.64, 0, 'YXZ');
       mesh(sh, sphereGeo(0.14), M.gunmetal, 0, 0, 0);
-      mesh(sh, rboxGeo(0.3, 0.3, 0.38, 0.06), P, sx * 0.05, -0.02, 0);
+      mesh(sh, rboxGeo(0.3, 0.3, 0.38, 0.06), R[reg], sx * 0.05, -0.02, 0);
       mesh(sh, rboxGeo(0.31, 0.05, 0.39, 0.02), PD, sx * 0.05, 0.11, 0);
       mesh(sh, rboxGeo(0.19, 0.32, 0.19, 0.04), M.gunmetal, 0, -0.27, 0);
       mesh(sh, cylGeo(0.025, 0.025, 0.28, 10), M.chrome, sx * 0.07, -0.27, 0.07);
       const el = this.joint(`el${side}`, sh, 0, -0.44, 0);
       mesh(el, sphereGeo(0.1), M.gunmetal, 0, 0, 0);
-      mesh(el, rboxGeo(0.27, 0.34, 0.29, 0.06), P, 0, -0.19, 0);
+      mesh(el, rboxGeo(0.27, 0.34, 0.29, 0.06), R[reg], 0, -0.19, 0);
       mesh(el, rboxGeo(0.06, 0.18, 0.02, 0.01), A, sx * 0.0, -0.19, 0.148, { shadow: false });
       if (side === 'L') {
         mesh(el, rboxGeo(0.2, 0.18, 0.21, 0.05), M.gunmetal, 0, -0.42, 0.01);
         mesh(el, rboxGeo(0.21, 0.06, 0.07, 0.02), M.dark, 0, -0.46, 0.1);
       }
+      this.anchor(reg, sh, sx * 0.12, -0.1, 0.1);
     }
 
     // Legs.
     for (const side of ['L', 'R'] as const) {
       const sx = side === 'L' ? 1 : -1;
+      const reg: Region = side === 'L' ? 'legL' : 'legR';
       const hip = this.joint(`hip${side}`, body, sx * 0.2, -0.08, 0);
       mesh(hip, sphereGeo(0.1), M.gunmetal, 0, 0, 0);
       mesh(hip, rboxGeo(0.24, 0.42, 0.26, 0.05), M.gunmetal, 0, -0.22, 0);
-      mesh(hip, rboxGeo(0.27, 0.3, 0.14, 0.04), P, sx * 0.01, -0.24, 0.08);
+      mesh(hip, rboxGeo(0.27, 0.3, 0.14, 0.04), R[reg], sx * 0.01, -0.24, 0.08);
       mesh(hip, cylGeo(0.022, 0.022, 0.3, 10), M.chrome, sx * 0.11, -0.22, -0.06);
       const kn = this.joint(`kn${side}`, hip, 0, -0.44, 0);
       mesh(kn, sphereGeo(0.09), M.gunmetal, 0, 0, 0);
-      mesh(kn, rboxGeo(0.33, 0.48, 0.38, 0.07), P, 0, -0.24, 0);
+      mesh(kn, rboxGeo(0.33, 0.48, 0.38, 0.07), R[reg], 0, -0.24, 0);
       mesh(kn, rboxGeo(0.22, 0.05, 0.02, 0.01), A, 0, -0.08, 0.192, { shadow: false });
       for (let i = 0; i < 3; i++) mesh(kn, rboxGeo(0.2, 0.025, 0.02, 0.008), M.dark, 0, -0.2 - i * 0.05, 0.192);
-      // Rear wheels on the outside of each shin.
       this.wheel(kn, sx * 0.2, -0.16, 0.1, 0.17);
       const an = this.joint(`an${side}`, kn, 0, -0.47, 0);
       mesh(an, rboxGeo(0.3, 0.12, 0.5, 0.04), M.gunmetal, 0, -0.05, 0.07);
-      mesh(an, rboxGeo(0.31, 0.07, 0.14, 0.02), P, 0, -0.03, 0.27);
+      mesh(an, rboxGeo(0.31, 0.07, 0.14, 0.02), R[reg], 0, -0.03, 0.27);
+      this.anchor(reg, kn, 0, -0.2, 0.2);
     }
 
     // Car shell: roof, windshield, rear deck and spoiler. Hidden when standing.
     // These are in body space, where the car's top is the robot's back (-Z)
     // and the car's front is the robot's head (+Y).
     const shell = this.joint('shell', body, 0, 0, 0);
-    // Truck cab with windshield, side windows and a roof light bar.
-    mesh(shell, rboxGeo(0.76, 0.5, 0.28, 0.05), P, 0, 0.36, -0.38);
+    mesh(shell, rboxGeo(0.76, 0.5, 0.28, 0.05), R.chest, 0, 0.36, -0.38);
     mesh(shell, rboxGeo(0.66, 0.04, 0.2, 0.015), M.glass, 0, 0.615, -0.4);
     for (const sx of [-1, 1]) mesh(shell, rboxGeo(0.02, 0.22, 0.13, 0.008), M.glass, sx * 0.385, 0.46, -0.42);
     mesh(shell, rboxGeo(0.5, 0.06, 0.05, 0.02), this.mats.visor, 0, 0.5, -0.54, { shadow: false });
-    // Rear deck over the folded legs, and a spoiler on the folded feet.
     mesh(shell, rboxGeo(0.68, 0.86, 0.14, 0.04), PD, 0, -0.55, -0.26);
     mesh(shell, rboxGeo(0.72, 0.07, 0.18, 0.02), M.gunmetal, 0, -1.04, -0.44);
     for (const sx of [-1, 1]) mesh(shell, rboxGeo(0.05, 0.07, 0.2, 0.01), M.gunmetal, sx * 0.28, -1.0, -0.34);
     mesh(shell, rboxGeo(0.56, 0.03, 0.04, 0.01), this.mats.hot, 0, -1.12, -0.18, { shadow: false });
 
-    this.buildArmor();
+    this.buildPlates();
     this.buildBlasters();
     this.buildBoots();
   }
 
-  private buildArmor() {
+  /**
+   * Armor plates, keyed `plate:<region>:<mark>`. Mark 1 is the colored plate
+   * itself; marks 2 and 3 add steel spikes, then gold trim and wings.
+   */
+  private buildPlates() {
     const M = METAL;
-    const P = this.mats.paint;
     const A = this.mats.accent;
-    // Mark I: big shoulder pauldrons and a forearm guard.
-    for (const side of ['L', 'R'] as const) {
-      const sx = side === 'L' ? 1 : -1;
-      const pa = this.part('armor1', this.joints[`sh${side}`], sx * 0.08, 0.13, 0);
-      mesh(pa, rboxGeo(0.36, 0.08, 0.42, 0.03), M.steel, 0, 0, 0, { rz: sx * -0.3 });
-      mesh(pa, rboxGeo(0.37, 0.025, 0.43, 0.01), P, 0, 0.045, 0, { rz: sx * -0.3 });
-      mesh(pa, rboxGeo(0.06, 0.1, 0.44, 0.02), M.steel, sx * 0.18, -0.08, 0);
-    }
-    const guard = this.part('armor1', this.joints.elL, 0.0, -0.18, 0);
-    mesh(guard, rboxGeo(0.25, 0.26, 0.08, 0.03), M.steel, 0, 0, 0.12);
-    mesh(guard, rboxGeo(0.1, 0.1, 0.02, 0.01), A, 0, 0, 0.165, { shadow: false });
+    const PL = this.mats.plate;
 
-    // Mark II: chest emblem, belly armor, thigh plates and knee spikes.
-    const chest = this.part('armor2', this.joints.waist, 0, 0, 0);
-    mesh(chest, rboxGeo(0.5, 0.2, 0.06, 0.03), M.steel, 0, 0.16, 0.17);
-    mesh(chest, cylGeo(0.11, 0.11, 0.03, 8), M.steel, 0, 0.36, 0.235, { rx: Math.PI / 2 });
-    mesh(chest, cylGeo(0.07, 0.07, 0.035, 8), A, 0, 0.36, 0.24, { rx: Math.PI / 2, shadow: false });
-    for (const side of ['L', 'R'] as const) {
-      const th = this.part('armor2', this.joints[`hip${side}`], 0, -0.22, 0.12);
-      mesh(th, rboxGeo(0.22, 0.32, 0.06, 0.02), M.steel, 0, 0, 0);
-      const kc = this.part('armor2', this.joints[`kn${side}`], 0, 0.02, 0.15);
-      mesh(kc, rboxGeo(0.2, 0.14, 0.08, 0.03), M.steel, 0, 0, 0);
-      mesh(kc, coneGeo(0.04, 0.12, 8), M.chrome, 0, 0.02, 0.07, { rx: Math.PI / 2 });
-    }
-
-    // Mark III: gold crest, wings and gold trim.
-    const crest = this.part('armor3', this.joints.head, 0, 0.32, 0.02);
-    mesh(crest, rboxGeo(0.05, 0.16, 0.2, 0.02), M.gold, 0, 0.06, 0, { rx: -0.3 });
+    // Chest Mark I: armored side panels framing the windows, a collar guard, a belly plate and an emblem.
+    const c1 = this.part('plate:chest:1', this.joints.waist, 0, 0, 0);
     for (const sx of [-1, 1]) {
-      mesh(crest, rboxGeo(0.04, 0.2, 0.06, 0.015), M.gold, sx * 0.14, 0.02, 0.06, { rz: sx * -0.55 });
+      mesh(c1, rboxGeo(0.14, 0.58, 0.56, 0.05), PL.chest, sx * 0.48, 0.5, 0);
+      mesh(c1, rboxGeo(0.15, 0.06, 0.57, 0.02), M.steel, sx * 0.48, 0.79, 0);
     }
-    const wings = this.part('armor3', this.joints.waist, 0, 0.62, -0.28);
+    mesh(c1, rboxGeo(0.98, 0.09, 0.54, 0.03), PL.chest, 0, 0.82, -0.01);
+    mesh(c1, rboxGeo(0.54, 0.2, 0.07, 0.03), PL.chest, 0, 0.15, 0.17);
+    mesh(c1, cylGeo(0.11, 0.11, 0.03, 8), M.steel, 0, 0.36, 0.262, { rx: Math.PI / 2 });
+    mesh(c1, cylGeo(0.07, 0.07, 0.035, 8), A, 0, 0.36, 0.27, { rx: Math.PI / 2, shadow: false });
+    // Chest Mark II: steel collar spikes and a reinforced belly.
+    const c2 = this.part('plate:chest:2', this.joints.waist, 0, 0, 0);
+    mesh(c2, rboxGeo(0.56, 0.06, 0.08, 0.02), M.steel, 0, 0.06, 0.18);
+    for (const sx of [-1, 1]) mesh(c2, coneGeo(0.05, 0.2, 6), M.chrome, sx * 0.4, 0.92, 0.02);
+    // Chest Mark III: gold crest and wings.
+    const crest = this.part('plate:chest:3', this.joints.head, 0, 0.32, 0.02);
+    mesh(crest, rboxGeo(0.05, 0.16, 0.2, 0.02), M.gold, 0, 0.06, 0, { rx: -0.3 });
+    for (const sx of [-1, 1]) mesh(crest, rboxGeo(0.04, 0.2, 0.06, 0.015), M.gold, sx * 0.14, 0.02, 0.06, { rz: sx * -0.55 });
+    const wings = this.part('plate:chest:3', this.joints.waist, 0, 0.62, -0.28);
     for (const sx of [-1, 1]) {
       const w = group(wings, sx * 0.22, 0, 0);
       w.rotation.set(-0.3, sx * 0.35, sx * -0.95);
-      mesh(w, rboxGeo(0.18, 1.0, 0.05, 0.02), this.mats.paint, 0, 0.5, 0);
+      mesh(w, rboxGeo(0.18, 1.0, 0.05, 0.02), PL.chest, 0, 0.5, 0);
       mesh(w, rboxGeo(0.04, 0.95, 0.06, 0.01), M.gold, sx * 0.1, 0.5, 0);
       mesh(w, rboxGeo(0.03, 0.7, 0.065, 0.01), A, sx * -0.04, 0.52, 0, { shadow: false });
       mesh(w, coneGeo(0.08, 0.22, 6), M.gold, 0, 1.08, 0);
     }
+
     for (const side of ['L', 'R'] as const) {
       const sx = side === 'L' ? 1 : -1;
-      const trim = this.part('armor3', this.joints[`sh${side}`], sx * 0.08, 0.13, 0);
-      mesh(trim, rboxGeo(0.38, 0.03, 0.06, 0.01), M.gold, 0, 0.0, 0.2, { rz: sx * -0.3 });
-      mesh(trim, coneGeo(0.05, 0.18, 6), M.gold, sx * 0.1, 0.1, 0, { rz: sx * -0.6 });
+      const arm: Region = side === 'L' ? 'armL' : 'armR';
+      const leg: Region = side === 'L' ? 'legL' : 'legR';
+      // Arm Mark I: a big shoulder pauldron and a forearm guard.
+      const pa = this.part(`plate:${arm}:1`, this.joints[`sh${side}`], sx * 0.08, 0.15, 0);
+      mesh(pa, rboxGeo(0.4, 0.1, 0.46, 0.03), PL[arm], 0, 0, 0, { rz: sx * -0.3 });
+      mesh(pa, rboxGeo(0.41, 0.025, 0.47, 0.01), M.steel, 0, -0.055, 0, { rz: sx * -0.3 });
+      mesh(pa, rboxGeo(0.07, 0.14, 0.48, 0.02), PL[arm], sx * 0.2, -0.1, 0);
+      if (side === 'L') {
+        const guard = this.part(`plate:${arm}:1`, this.joints.elL, 0, -0.19, 0);
+        mesh(guard, rboxGeo(0.29, 0.28, 0.08, 0.03), PL[arm], 0, 0, 0.15);
+        mesh(guard, rboxGeo(0.1, 0.1, 0.02, 0.01), A, 0, 0, 0.195, { shadow: false });
+      } else {
+        const guard = this.part(`plate:${arm}:1`, this.joints.elR, 0, -0.16, 0);
+        mesh(guard, rboxGeo(0.31, 0.2, 0.31, 0.04), PL[arm], 0, 0, 0);
+      }
+      // Arm Mark II: steel blade fins on the pauldron.
+      const p2 = this.part(`plate:${arm}:2`, this.joints[`sh${side}`], sx * 0.08, 0.15, 0);
+      for (const z of [-0.12, 0.12]) mesh(p2, coneGeo(0.045, 0.22, 6), M.chrome, sx * 0.12, 0.1, z, { rz: sx * -0.5 });
+      // Arm Mark III: gold trim and a gold horn.
+      const p3 = this.part(`plate:${arm}:3`, this.joints[`sh${side}`], sx * 0.08, 0.15, 0);
+      mesh(p3, rboxGeo(0.42, 0.03, 0.06, 0.01), M.gold, 0, 0.0, 0.23, { rz: sx * -0.3 });
+      mesh(p3, coneGeo(0.06, 0.24, 6), M.gold, sx * 0.14, 0.14, 0, { rz: sx * -0.7 });
+
+      // Leg Mark I: thigh plate, knee cap and a shin guard with a glow strip.
+      const th = this.part(`plate:${leg}:1`, this.joints[`hip${side}`], 0, -0.22, 0.14);
+      mesh(th, rboxGeo(0.29, 0.34, 0.07, 0.03), PL[leg], 0, 0, 0);
+      const kc = this.part(`plate:${leg}:1`, this.joints[`kn${side}`], 0, 0.02, 0.18);
+      mesh(kc, rboxGeo(0.24, 0.16, 0.1, 0.04), PL[leg], 0, 0, 0);
+      const sg = this.part(`plate:${leg}:1`, this.joints[`kn${side}`], 0, -0.27, 0.21);
+      mesh(sg, rboxGeo(0.3, 0.32, 0.05, 0.03), PL[leg], 0, 0, 0);
+      mesh(sg, rboxGeo(0.04, 0.24, 0.02, 0.01), A, 0, 0, 0.03, { shadow: false });
+      // Leg Mark II: knee spike and steel shin edges.
+      const k2 = this.part(`plate:${leg}:2`, this.joints[`kn${side}`], 0, 0.02, 0.18);
+      mesh(k2, coneGeo(0.045, 0.16, 8), M.chrome, 0, 0.02, 0.09, { rx: Math.PI / 2 });
+      for (const ex of [-0.15, 0.15]) mesh(k2, rboxGeo(0.03, 0.32, 0.06, 0.01), M.steel, ex, -0.29, 0.03);
+      // Leg Mark III: gold calf fins.
+      const l3 = this.part(`plate:${leg}:3`, this.joints[`kn${side}`], sx * 0.18, -0.2, -0.05);
+      mesh(l3, rboxGeo(0.04, 0.36, 0.2, 0.01), M.gold, 0, 0, 0, { rx: 0.2 });
     }
-    void P;
   }
 
   private addMuzzle(parent: THREE.Object3D, y: number) {
@@ -369,14 +440,14 @@ export class Robot {
     mesh(b2, rboxGeo(0.28, 0.24, 0.26, 0.05), M.gunmetal, 0, 0, 0);
     for (const sx of [-1, 1]) mesh(b2, cylGeo(0.05, 0.055, 0.66, 14), M.dark, sx * 0.07, -0.36, 0);
     for (let i = 0; i < 3; i++) mesh(b2, torusGeo(0.12, 0.022, 20), HOT, 0, -0.2 - i * 0.14, 0, { rx: Math.PI / 2, shadow: false });
-    mesh(b2, rboxGeo(0.12, 0.2, 0.16, 0.03), this.mats.paintDark, 0.17, -0.08, 0);
+    mesh(b2, rboxGeo(0.12, 0.2, 0.16, 0.03), this.mats.trim, 0.17, -0.08, 0);
     mesh(b2, rboxGeo(0.22, 0.08, 0.14, 0.03), M.chrome, 0, -0.7, 0);
     this.addMuzzle(b2, -0.76);
 
     // Mark III: spinning gatling and a shoulder missile pod.
     const b3 = this.part('blaster3', arm, 0, -0.36, 0);
     mesh(b3, rboxGeo(0.3, 0.26, 0.3, 0.06), M.gunmetal, 0, 0, 0);
-    mesh(b3, cylGeo(0.15, 0.15, 0.12, 20), this.mats.paintDark, 0, -0.18, 0);
+    mesh(b3, cylGeo(0.15, 0.15, 0.12, 20), this.mats.trim, 0, -0.18, 0);
     const spin = group(b3, 0, -0.45, 0);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
@@ -387,7 +458,7 @@ export class Robot {
     this.gatling = spin;
     this.addMuzzle(b3, -0.8);
     const pod = this.part('blaster3', this.joints.waist, -0.42, 0.88, -0.08);
-    mesh(pod, rboxGeo(0.3, 0.22, 0.34, 0.04), this.mats.paintDark, 0, 0, 0);
+    mesh(pod, rboxGeo(0.3, 0.22, 0.34, 0.04), this.mats.trim, 0, 0, 0);
     mesh(pod, rboxGeo(0.06, 0.18, 0.2, 0.02), M.gunmetal, 0.14, -0.08, 0);
     for (let r = 0; r < 2; r++) {
       for (let c = 0; c < 3; c++) {
@@ -403,18 +474,18 @@ export class Robot {
       const kn = this.joints[`kn${side}`];
       const an = this.joints[`an${side}`];
       // Mark I: chrome pistons and springs on the back of the shins, bigger feet.
-      const p1 = this.part('boots1', kn, 0, -0.24, -0.17);
+      const p1 = this.part('boots1', kn, 0, -0.24, -0.2);
       mesh(p1, cylGeo(0.04, 0.04, 0.34, 12), M.chrome, 0, 0, 0);
       for (let i = 0; i < 5; i++) mesh(p1, torusGeo(0.055, 0.012, 14), M.gold, 0, -0.12 + i * 0.05, 0, { rx: Math.PI / 2 });
       const f1 = this.part('boots1', an, 0, -0.06, 0.06);
-      mesh(f1, rboxGeo(0.3, 0.07, 0.5, 0.03), this.mats.paintDark, 0, -0.02, 0);
+      mesh(f1, rboxGeo(0.3, 0.07, 0.5, 0.03), this.mats.trim, 0, -0.02, 0);
       // Mark II: armored boots with glowing vents.
       const p2 = this.part('boots2', an, 0, 0.04, 0);
       mesh(p2, rboxGeo(0.31, 0.2, 0.36, 0.05), M.steel, 0, 0.02, 0);
       for (let i = 0; i < 3; i++) mesh(p2, rboxGeo(0.04, 0.12, 0.02, 0.01), glowOrange, -0.08 + i * 0.08, 0.03, 0.185, { shadow: false });
       mesh(p2, coneGeo(0.04, 0.12, 6), M.chrome, 0, -0.04, -0.22, { rx: -Math.PI / 2 });
       // Mark III: calf jet thrusters with flames.
-      const p3 = this.part('boots3', kn, sx * 0.02, -0.12, -0.2);
+      const p3 = this.part('boots3', kn, sx * 0.02, -0.12, -0.23);
       mesh(p3, rboxGeo(0.18, 0.26, 0.12, 0.04), M.gunmetal, 0, 0, 0);
       mesh(p3, cylGeo(0.06, 0.08, 0.1, 14), M.chrome, 0, -0.17, 0);
       const flame = mesh(p3, coneGeo(0.07, 0.45, 12), this.mats.flame, 0, -0.43, 0, { rx: Math.PI, shadow: false });
@@ -424,27 +495,93 @@ export class Robot {
 
   // ---- Look --------------------------------------------------------------
 
+  /** Mark and damage for one plate under the current look. */
+  plateOf(r: Region): { mark: number; damage: number } {
+    const p = this.look.plates;
+    if (p) return p[r] ?? { mark: 0, damage: 0 };
+    return { mark: this.look.armor, damage: 0 };
+  }
+
   setColor(color: number) {
     this.look.color = color;
-    this.mats.paint.color.set(color);
-    this.mats.paintDark.color.set(shade(color, 0.5));
+    this.repaint();
+  }
+
+  /** Paint each region: grey frame without a plate, armor color with one, scorched when damaged. */
+  private repaint() {
+    for (const r of REGIONS) {
+      const { mark, damage } = this.plateOf(r);
+      const c = new THREE.Color(mark > 0 ? this.look.color : FRAME_GREY);
+      if (mark > 0) c.lerp(SCORCH, clamp01(damage) * 0.75);
+      this.mats.region[r].color.copy(c);
+      this.mats.plate[r].color.copy(c);
+      const rough = mark > 0 ? 0.3 + damage * 0.4 : 0.45;
+      this.mats.region[r].roughness = rough;
+      this.mats.plate[r].roughness = rough;
+      this.mats.region[r].clearcoat = mark > 0 ? 1 - damage * 0.8 : 0.3;
+    }
   }
 
   /** Switch parts on or off. With `animate`, new parts fly in and snap on. Returns the new parts. */
   setLook(look: RobotLook, animate = false): THREE.Object3D[] {
     const before = new Set(this.visibleParts());
-    this.look = { ...look };
-    this.setColor(look.color);
-    this.applyLook(false);
+    this.look = { ...look, plates: look.plates ? { ...look.plates } : undefined };
+    this.applyLook();
     const added = this.visibleParts().filter((p) => !before.has(p));
     if (animate) {
       added.forEach((obj, i) => {
         const dir = new THREE.Vector3((Math.random() - 0.5) * 1.5, 1.2 + Math.random() * 0.6, 0.8 + Math.random() * 0.6);
-        this.flyIns.push({ obj, t: 0, delay: i * 0.12, from: dir });
+        this.flyIns.push({ obj, t: 0, delay: i * 0.12, from: dir, style: 'fly' });
         obj.scale.setScalar(0.001);
       });
     }
     return added;
+  }
+
+  /**
+   * Drop a freshly built plate onto the robot from above. `onLand` fires the
+   * moment it hits (play the clang there). The region turns armor-colored on impact.
+   */
+  dropPlate(region: Region, mark: 1 | 2 | 3, onLand?: () => void) {
+    const plates = { ...(this.look.plates ?? {}) };
+    const prevMark = plates[region]?.mark ?? 0;
+    const before = new Set(this.visibleParts());
+    plates[region] = { mark, damage: 0 };
+    this.look = { ...this.look, plates };
+    // Keep the region grey (or its old color) until the plate lands.
+    const keepColor = this.mats.region[region].color.clone();
+    this.applyLook();
+    this.mats.region[region].color.copy(keepColor);
+    const added = this.visibleParts().filter((p) => !before.has(p));
+    let first = true;
+    added.forEach((obj) => {
+      this.flyIns.push({
+        obj, t: 0, delay: 0, from: new THREE.Vector3(0, 2.6, 0), style: 'drop',
+        onLand: () => {
+          if (!first) return;
+          first = false;
+          this.repaint();
+          this.powerUp();
+          onLand?.();
+        },
+      });
+      obj.scale.setScalar(1);
+    });
+    if (!added.length) {
+      this.repaint();
+      onLand?.();
+    }
+    void prevMark;
+  }
+
+  /** Show a plate's damage (0..1) without changing anything else. */
+  setDamage(region: Region, damage: number) {
+    const plates = { ...(this.look.plates ?? {}) };
+    const p = plates[region];
+    if (!p) return;
+    plates[region] = { ...p, damage };
+    this.look = { ...this.look, plates };
+    this.repaint();
   }
 
   private visibleParts(): THREE.Object3D[] {
@@ -453,23 +590,28 @@ export class Robot {
     return out;
   }
 
-  private applyLook(_animate: boolean) {
+  private applyLook() {
     const L = this.look;
     for (const [key, list] of this.parts) {
-      const kind = key.replace(/\d/, '');
-      const n = Number(key.slice(-1));
       let on = false;
-      if (kind === 'armor') on = L.armor >= n;
-      if (kind === 'boots') on = L.boots >= n;
-      if (kind === 'blaster') on = L.blaster === n;
+      if (key.startsWith('plate:')) {
+        const [, region, n] = key.split(':');
+        on = this.plateOf(region as Region).mark >= Number(n);
+      } else {
+        const kind = key.replace(/\d/, '');
+        const n = Number(key.slice(-1));
+        if (kind === 'boots') on = L.boots >= n;
+        if (kind === 'blaster') on = L.blaster === n;
+      }
       for (const o of list) {
         o.visible = on;
         o.scale.setScalar(1);
         o.position.copy(o.userData.rest as THREE.Vector3);
       }
     }
-    setGlow(this.mats.accent, ACCENT[L.armor]);
-    this.muzzles.forEach((m) => (m.userData.active = (m.parent?.visible ?? false)));
+    const lowest = Math.min(...REGIONS.map((r) => this.plateOf(r).mark));
+    setGlow(this.mats.accent, ACCENT[Math.max(0, Math.min(3, lowest))]);
+    this.repaint();
   }
 
   // ---- Actions -----------------------------------------------------------
@@ -519,6 +661,24 @@ export class Robot {
     return m.getWorldPosition(out);
   }
 
+  /** World position of an armor region (for sparks, or to fly 2D pieces at). */
+  regionWorld(r: Region, out = new THREE.Vector3()): THREE.Vector3 {
+    this.holder.updateMatrixWorld(true);
+    return this.anchors[r].getWorldPosition(out);
+  }
+
+  /** Point the blaster at a world position (sets aimYaw/aimPitch). */
+  aimAt(target: THREE.Vector3) {
+    this.holder.updateMatrixWorld(true);
+    const local = this.root.worldToLocal(target.clone());
+    // From roughly the right shoulder.
+    const dx = local.x + 0.58;
+    const dy = local.y - 1.8;
+    const dz = local.z;
+    this.aimYaw = Math.atan2(dx, dz);
+    this.aimPitch = Math.atan2(dy, Math.hypot(dx, dz));
+  }
+
   // ---- Per-frame ---------------------------------------------------------
 
   update(dt: number) {
@@ -549,7 +709,7 @@ export class Robot {
     const airTarget = this.grounded ? 0 : 1;
     this.air += (airTarget - this.air) * Math.min(1, dt * 12);
     this.aimHold = Math.max(0, this.aimHold - dt);
-    const aimTarget = this.aimHold > 0 ? 1 : 0;
+    const aimTarget = this.aimHold > 0 || this.holdAim ? 1 : 0;
     this.aim += (aimTarget - this.aim) * Math.min(1, dt * 16);
     this.recoil = Math.max(0, this.recoil - dt * 8);
     this.hitFlash = Math.max(0, this.hitFlash - dt * 6);
@@ -599,14 +759,18 @@ export class Robot {
     pose.shR.rz = lerp(pose.shR.rz, -0.5, a);
 
     // Aiming from the hip: upper arm a little forward, forearm level so the
-    // cannon points straight ahead (+20° yaw cancels the 3/4 view angle).
+    // cannon points straight ahead. In side view, +45° yaw cancels the 3/4 angle;
+    // with free aim (arcade mode), the torso and arm turn toward the target.
     const am = smooth(this.aim);
     const yawFix = this.spin === null ? ((90 - YAW_DEG) * Math.PI) / 180 : 0;
+    const freeYaw = this.spin === null ? 0 : clampTo(this.aimYaw, -1.2, 1.2);
+    const freePitch = this.spin === null ? 0 : clampTo(this.aimPitch, -0.9, 0.9);
     pose.shR.rx = lerp(pose.shR.rx, -0.35 + this.recoil * 0.12, am);
-    pose.shR.ry = lerp(pose.shR.ry, yawFix, am);
+    pose.shR.ry = lerp(pose.shR.ry, yawFix + freeYaw * 0.55, am);
     pose.shR.rz = lerp(pose.shR.rz, -0.05, am);
-    pose.elR.rx = lerp(pose.elR.rx, -Math.PI / 2 + 0.35 + this.recoil * 0.1, am);
-    pose.waist.ry += -0.15 * am;
+    pose.elR.rx = lerp(pose.elR.rx, -Math.PI / 2 + 0.35 + this.recoil * 0.1 - freePitch, am);
+    pose.waist.ry += lerp(0, -0.15 + freeYaw * 0.45, am);
+    pose.neck.ry = lerp(0, freeYaw * 0.4, am);
     pose.body.z -= this.recoil * 0.03;
 
     // Blend toward car mode, each joint on its own schedule.
@@ -617,7 +781,6 @@ export class Robot {
       const c = CAR[j];
       const r = pose[j];
       const target: Pose = { ...zero(), ...(j === 'shell' ? { s: 0.001 } : {}), ...c };
-      // Car mode keeps everything else still (no run cycle).
       const out: Pose = {
         x: lerp(r.x, target.x, b), y: lerp(r.y, target.y, b), z: lerp(r.z, target.z, b),
         rx: lerp(r.rx, target.rx, b), ry: lerp(r.ry, target.ry, b), rz: lerp(r.rz, target.rz, b),
@@ -659,29 +822,63 @@ export class Robot {
       fl.scale.set(1, thrust * flick, 1);
     }
 
-    // Hit flash.
-    this.mats.paint.emissive.copy(this.flashColor).multiplyScalar(this.hitFlash * 0.9);
-    this.mats.paintDark.emissive.copy(this.flashColor).multiplyScalar(this.hitFlash * 0.9);
+    // Damaged plates crackle with sparks.
+    for (const r of REGIONS) {
+      const { mark, damage } = this.plateOf(r);
+      const s = this.sparks[r];
+      const crackle = mark > 0 && damage > 0.2 && Math.random() < damage * 0.18;
+      s.visible = crackle;
+      if (crackle) {
+        s.position.set((Math.random() - 0.5) * 0.25, (Math.random() - 0.5) * 0.25, 0.05);
+        s.scale.setScalar(0.15 + Math.random() * 0.3);
+      }
+    }
 
-    // Parts flying in during an upgrade.
+    // Hit flash.
+    for (const r of REGIONS) {
+      this.mats.region[r].emissive.copy(this.flashColor).multiplyScalar(this.hitFlash * 0.9);
+      this.mats.plate[r].emissive.copy(this.flashColor).multiplyScalar(this.hitFlash * 0.9);
+    }
+    this.mats.trim.emissive.copy(this.flashColor).multiplyScalar(this.hitFlash * 0.6);
+
+    // Parts flying in during an upgrade, or plates dropping into place.
     for (const f of this.flyIns) {
       f.t += dt;
+      const rest = f.obj.userData.rest as THREE.Vector3;
+      if (f.style === 'drop') {
+        // Fall with gravity, then a short heavy bounce.
+        const fallT = 0.42;
+        const k = clamp01(f.t / fallT);
+        let off = 1 - k * k;
+        if (f.t > fallT) {
+          if (!f.landed) {
+            f.landed = true;
+            f.onLand?.();
+          }
+          const b = (f.t - fallT) / 0.25;
+          off = b < 1 ? Math.sin(b * Math.PI) * 0.06 : 0;
+        }
+        f.obj.position.set(rest.x + f.from.x * off, rest.y + f.from.y * off, rest.z + f.from.z * off);
+        continue;
+      }
       const k = clamp01((f.t - f.delay) / 0.55);
       const e = easeOutBack(k);
-      const rest = f.obj.userData.rest as THREE.Vector3;
       f.obj.position.set(rest.x + f.from.x * (1 - e), rest.y + f.from.y * (1 - e), rest.z + f.from.z * (1 - e));
       f.obj.scale.setScalar(Math.max(0.001, Math.min(1.15, k < 0.01 ? 0.001 : 0.3 + 0.7 * e)));
     }
-    this.flyIns = this.flyIns.filter((f) => f.t - f.delay < 0.6);
+    this.flyIns = this.flyIns.filter((f) => (f.style === 'drop' ? f.t < 0.7 : f.t - f.delay < 0.6));
   }
 
   dispose() {
     this.holder.removeFromParent();
-    Object.values(this.mats).forEach((m) => m.dispose());
   }
 }
 
 const glowOrange = glow(0xff9f1c, 2.4);
+
+function clampTo(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
+}
 
 function easeOutBack(x: number) {
   const c1 = 1.70158;

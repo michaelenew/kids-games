@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { COLORS, FONT, ROBOT_CX, ROBOT_H, ROBOT_W, TILE, makeRobotTextures } from '../art';
+import { MissionArmor, lookFromSave, totalMax } from '../armor';
 import { type Tuning, onLevelCleared, onLevelStart, tuning } from '../assist';
 import { GROUND_ROW, LEVELS, ROWS, type LevelDef } from '../levels';
 import {
-  ARMOR, BLASTER_COOLDOWN, BLASTER_DAMAGE, JUMP_VELOCITY,
+  BLASTER_COOLDOWN, BLASTER_DAMAGE, JUMP_VELOCITY,
   canDoubleJump, hasSeen, markSeen, persist, save,
 } from '../state';
 import { getStage } from '../three/stage';
@@ -77,6 +78,7 @@ export class LevelScene extends Phaser.Scene {
 
   private armor = 0;
   private maxArmor = 0;
+  private marmor!: MissionArmor;
   private facing = 1;
   private invulnUntil = 0;
   private lastGrounded = 0;
@@ -120,8 +122,9 @@ export class LevelScene extends Phaser.Scene {
   create() {
     const s = save();
     makeRobotTextures(this, { color: s.color, ...s.gear });
-    this.maxArmor = ARMOR[s.gear.armor];
-    this.armor = this.maxArmor;
+    this.marmor = new MissionArmor(s.armor ?? {});
+    this.maxArmor = totalMax(s.armor ?? {});
+    this.armor = this.marmor.hp;
     this.tune = tuning(onLevelStart(this.def.id));
     this.merciesLeft = this.tune.mercies;
 
@@ -135,7 +138,7 @@ export class LevelScene extends Phaser.Scene {
 
     // Everything you see in the level is drawn by the 3D layer; the game
     // objects here are invisible and only handle movement and collisions.
-    this.view = new WorldView(getStage(this.game.canvas), map, { color: s.color, ...s.gear });
+    this.view = new WorldView(getStage(this.game.canvas), map, lookFromSave(s));
     this.view.blasterMark = s.gear.blaster;
 
     this.solids = this.physics.add.staticGroup();
@@ -782,13 +785,16 @@ export class LevelScene extends Phaser.Scene {
   /** Returns true if damage was applied. */
   private hurt(raw: number, src: Hurt): boolean {
     if (this.over || this.time.now < this.invulnUntil) return false;
-    const amount = Math.max(10, Math.round((raw * this.tune.damageTaken) / 10) * 10);
-    this.armor -= amount;
+    // Armor points run about three times the old scale, so hits do too.
+    const amount = Math.max(10, Math.round((raw * 3 * this.tune.damageTaken) / 10) * 10);
+    this.marmor.damage(amount);
+    this.armor = this.marmor.hp;
     this.invulnUntil = this.time.now + this.tune.invulnMs;
     if (this.armor <= 0 && this.merciesLeft > 0) {
       // Hang on by a thread, and a repair can happens to drop nearby.
       this.merciesLeft--;
-      this.armor = 1;
+      this.marmor.frame = 1;
+      this.armor = this.marmor.hp;
       this.invulnUntil = this.time.now + 2000;
       this.time.delayedCall(700, () => this.luckyDrop());
     }
@@ -830,9 +836,10 @@ export class LevelScene extends Phaser.Scene {
       item.destroy();
       this.drawHud();
     } else if (kind === 'oil') {
-      this.armor = Math.min(this.maxArmor, this.armor + 150);
+      this.marmor.heal(400);
+      this.armor = this.marmor.hp;
       this.view.burst(item.x, item.y, 0x06d6a0, 14);
-      toast(this, item.x, item.y - 40, '+150 armor', '#06d6a0', 30);
+      toast(this, item.x, item.y - 40, '+400 armor', '#06d6a0', 30);
       item.destroy();
       this.drawHud();
     } else if (kind === 'beacon') {
@@ -854,6 +861,9 @@ export class LevelScene extends Phaser.Scene {
   private freeze() {
     this.over = true;
     this.physics.pause();
+    // Plate damage carries back to the garage for repairs.
+    this.marmor.commit(save());
+    persist();
   }
 
   private retreat(src: Hurt) {

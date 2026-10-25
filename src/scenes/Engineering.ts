@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
+import { REGIONS, lookFromSave } from '../armor';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { BUILD_COST, GEAR_INFO, type GearId, hasSeen, markSeen, save } from '../state';
@@ -23,8 +24,11 @@ export class EngineeringScene extends Phaser.Scene {
     // Each bench shows the robot wearing that bench's next upgrade.
     const gears: GearId[] = ['armor', 'blaster', 'boots'];
     new Showcase(getStage(this.game.canvas), gears.map((gear, i) => {
-      const look = { color: s.color, ...s.gear };
-      if (look[gear] < 3) look[gear] = (look[gear] + 1) as 1 | 2 | 3;
+      const look = lookFromSave(s);
+      if (gear === 'armor') {
+        const next = Math.min(3, look.armor + 1) as 1 | 2 | 3;
+        for (const r of REGIONS) look.plates![r] = { mark: next, damage: 0 };
+      } else if (look[gear] < 3) look[gear] = (look[gear] + 1) as 1 | 2 | 3;
       return { look, x: 230 + i * 410, y: 400, height: 220, spin: 0.6, yaw: 0.5 + i };
     }));
     this.add.graphics().fillStyle(0x0b0f1a, 0.75).fillRect(0, 0, W, 122).fillStyle(0xf77f00, 1).fillRect(0, 120, W, 6);
@@ -77,7 +81,11 @@ export class EngineeringScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const label = afford ? `BUILD  (${cost} scrap)` : `Need ${cost - s.scrap} more scrap`;
-    const b = button(this, x, 600, 320, 80, label, () => this.scene.start(BENCH_SCENE[gear], { gear, mark: next, practice: false }), {
+    const b = button(this, x, 600, 320, 80, label, () => {
+      // Armor is built plate by plate in the forge.
+      if (gear === 'armor') this.scene.start('ArmorForge', { mode: 'build', mark: next });
+      else this.scene.start(BENCH_SCENE[gear], { gear, mark: next, practice: false });
+    }, {
       fill: 0x2a9d8f, edge: 0x9ff0e3, disabled: !afford, size: 26,
     });
     if (afford) this.tweens.add({ targets: b, scale: 1.04, duration: 600, yoyo: true, repeat: -1 });

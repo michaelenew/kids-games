@@ -8,6 +8,9 @@ import { GarageScene } from './scenes/Garage';
 import { LevelScene } from './scenes/Level';
 import { TitleScene } from './scenes/Title';
 import { InstallScene } from './scenes/Install';
+import { InvasionScene } from './scenes/Invasion';
+import { ArmorForge } from './scenes/ArmorForge';
+import { unlockAudio } from './audio';
 import { getStage, hasStage } from './three/stage';
 import { H, W } from './ui/widgets';
 
@@ -30,7 +33,7 @@ const game = new Phaser.Game({
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 1500 }, debug: false },
   },
-  scene: [BootScene, TitleScene, GarageScene, LevelScene, EngineeringScene, ArmorBench, BlasterBench, BootsBench, InstallScene],
+  scene: [BootScene, TitleScene, GarageScene, LevelScene, EngineeringScene, ArmorBench, BlasterBench, BootsBench, InstallScene, InvasionScene, ArmorForge],
 });
 
 // Draw the 3D layer once per game step, after the game logic has run.
@@ -47,6 +50,7 @@ Object.defineProperty(window, 'stage', { get: () => (hasStage() ? getStage() : n
 window.addEventListener(
   'pointerup',
   () => {
+    unlockAudio();
     try {
       const u = new SpeechSynthesisUtterance(' ');
       u.volume = 0;

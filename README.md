@@ -58,6 +58,12 @@ See [GAME_DESIGN.md](GAME_DESIGN.md) for the full plan and the syllabus mapping.
 
 You can jump on rust-bots' heads to squash them.
 
+## Playing it
+
+The game is hosted on GitHub Pages at **https://michaelenew.github.io/kids-games/**. Open it in Safari on the iPad (Share → "Add to Home Screen" makes it open full screen like an app) or in any browser on the laptop. It updates automatically a minute or two after every push to `main` (`.github/workflows/pages.yml`).
+
+Progress is saved in each browser separately, so the iPad and the laptop each keep their own robot. To start over: Garage → ⚙ → Start over (tap it twice).
+
 ## Running it
 
 You need [Node.js](https://nodejs.org) 20 or newer.

@@ -3,9 +3,11 @@ import * as THREE from 'three';
 import { onUpgradeBuilt, upgradeRequired } from '../assist';
 import { REGIONS, REGION_NAMES, type Region, armorMark, lookFromSave, plateTarget, repairsNeeded } from '../armor';
 import { music, sfx } from '../audio';
-import { type PlaceCounts, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
+import { type PlaceCounts, type SpecFormat, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
 import { BUILD_COST, bumpGuide, egyptUnlocked, guideCount, persist, recordSkill, save } from '../state';
 import { countUp } from '../skills/steps';
+import { placeValueCards } from '../skills/concepts';
+import { howTo, needsIntro } from '../ui/howto';
 import { type PatchPiece, PlatePatch } from '../three/patch';
 import { missionById } from '../three/missions';
 import { Showcase } from '../three/showcase';
@@ -52,6 +54,8 @@ interface Job {
   region: Region;
   target: number;
   spec: string;
+  /** How the blueprint writes the number. */
+  format: SpecFormat;
   misses: number;
 }
 
@@ -70,6 +74,8 @@ export class ArmorForge extends Phaser.Scene {
   private readout!: Phaser.GameObjects.Text;
   private patch: PlatePatch | null = null;
   private guideLine: Phaser.GameObjects.Text | null = null;
+  /** This job introduces something new, so it's guided whatever the counts say. */
+  private forceGuide = false;
   /** Repairs are subtraction problems (from Egypt on). */
   private subtracting = false;
   private camHome: THREE.Vector3 | null = null;
@@ -127,12 +133,12 @@ export class ArmorForge extends Phaser.Scene {
       this.jobs = REGIONS.map((region, i) => {
         const target = plateTarget(Math.random, this.mark, region);
         const format = this.mark === 1 ? 'digits' : this.mark === 2 ? (i % 2 ? 'words' : 'digits') : (['digits', 'expanded', 'words'] as const)[i % 3];
-        return { region, target, spec: specText(target, format), misses: 0 };
+        return { region, target, spec: specText(target, format), format, misses: 0 };
       });
       this.places = this.mark === 3 ? [0, 1, 2, 3] : [1, 2, 3];
       text(this, (LEFT + RIGHT) / 2, 46, `ARMOR FORGE · MARK ${ROMAN[this.mark]}`, 40, '#ffd166').setStroke('#000000', 8);
     } else {
-      this.jobs = repairsNeeded(s.armor ?? {}).map(({ region, missing }) => ({ region, target: missing, spec: formatNumber(missing), misses: 0 }));
+      this.jobs = repairsNeeded(s.armor ?? {}).map(({ region, missing }) => ({ region, target: missing, spec: formatNumber(missing), format: 'digits' as SpecFormat, misses: 0 }));
       this.places = [1, 2, 3];
       text(this, (LEFT + RIGHT) / 2, 46, 'REPAIR BAY', 44, '#ffd166').setStroke('#000000', 8);
       if (!this.jobs.length) {
@@ -244,6 +250,7 @@ export class ArmorForge extends Phaser.Scene {
     this.countTexts = [];
     this.counts = [0, 0, 0, 0];
     this.busy = false;
+    this.forceGuide = false;
     this.pips.forEach((p, i) => p.setFillStyle(i < this.jobIndex ? 0x06d6a0 : i === this.jobIndex ? 0xffd166 : 0x3d4458));
     const j = this.job;
     const cx = (LEFT + RIGHT) / 2;
@@ -269,7 +276,21 @@ export class ArmorForge extends Phaser.Scene {
     this.buildTray();
     this.refresh();
     // The first few subtraction repairs walk him through counting up.
-    if (this.mode === 'repair' && this.subtracting && guideCount('subtract') < 3) this.countUpGuide();
+    if (this.mode === 'repair' && this.subtracting && guideCount('subtract') < 3) {
+      this.countUpGuide();
+      return;
+    }
+    // Every place-value idea gets a "how to" the first time it shows up, and
+    // then this job is guided column by column.
+    const cards = this.subtracting ? [] : placeValueCards(j.target, j.format);
+    if (cards.some((c) => needsIntro(c.concept))) {
+      this.forceGuide = true;
+      this.busy = true;
+      howTo(this, cards, () => {
+        this.busy = false;
+        this.refresh();
+      }, { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 });
+    }
   }
 
   /**
@@ -504,6 +525,7 @@ export class ArmorForge extends Phaser.Scene {
 
   /** Which walk-through applies to this job, if any (the first two of each kind). */
   private get pieceGuide(): string | null {
+    if (this.forceGuide) return this.mode === 'build' ? 'build' : 'fill';
     if (this.mode === 'build') return this.mark === 1 && guideCount('build') < 2 ? 'build' : null;
     return !this.subtracting && guideCount('fill') < 2 ? 'fill' : null;
   }

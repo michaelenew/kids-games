@@ -100,3 +100,24 @@ describe('walk-through steps', () => {
     }
   });
 });
+
+import { placeValueCards } from '../src/skills/concepts';
+
+describe('concept cards', () => {
+  const ids = (n: number, f: 'digits' | 'words' | 'expanded' = 'digits') => placeValueCards(n, f).map((c) => c.concept);
+  it('finds the ideas a number uses', () => {
+    expect(ids(500)).toEqual(['pv-hundreds']);
+    expect(ids(430)).toEqual(['pv-hundreds', 'pv-tens']);
+    expect(ids(705)).toContain('pv-zero');
+    expect(ids(1325)).toContain('pv-thousands');
+    expect(ids(430, 'words')).toContain('pv-words');
+    expect(ids(1325, 'expanded')).toContain('pv-expanded');
+  });
+  it('explains number words chunk by chunk', () => {
+    const w = placeValueCards(432, 'words').find((c) => c.concept === 'pv-words')!;
+    expect(w.steps.join(' ')).toContain('"four hundred"');
+    expect(w.steps.join(' ')).toContain('3 strips');
+    const teen = placeValueCards(614, 'words').find((c) => c.concept === 'pv-words')!;
+    expect(teen.steps.join(' ')).toContain('teen');
+  });
+});

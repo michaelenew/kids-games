@@ -5,6 +5,7 @@ import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
 import { BUILD_COST, GEAR_INFO, type GearId, persist, recordSkill, save } from '../state';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
+import { type HowTo, howTo, needsIntro } from '../ui/howto';
 
 export type BenchMark = 1 | 2 | 3;
 
@@ -34,7 +35,7 @@ export abstract class BenchScene extends Phaser.Scene {
   private timerBar: Phaser.GameObjects.Graphics | null = null;
   private timeLeft = 0;
   private timeTotal = 0;
-  private timerRunning = false;
+  protected timerRunning = false;
   /** Extra seconds granted after each time-out, so it gets easier rather than stuck. */
   private static bonusTime: Record<string, number> = {};
 
@@ -104,6 +105,28 @@ export abstract class BenchScene extends Phaser.Scene {
     this.timerBar.fillStyle(frac > 0.3 ? 0x4cc9f0 : 0xef476f, 1).fillRoundedRect(W / 2 - 298, 84, 596 * frac, 12, 6);
     if (this.timeLeft <= 0) this.timedOut();
   }
+
+  /**
+   * Show "how to" cards the first time a concept comes up; the timer (if any)
+   * waits, and `busy` blocks the controls until he's read them.
+   */
+  protected introduce(cards: HowTo[], done: () => void = () => {}) {
+    if (!cards.some((c) => needsIntro(c.concept))) {
+      done();
+      return;
+    }
+    const wasRunning = this.timerRunning;
+    this.timerRunning = false;
+    this.introducing = true;
+    howTo(this, cards, () => {
+      this.introducing = false;
+      this.timerRunning = wasRunning;
+      done();
+    }, { x: W / 2, y: 255, w: 1000, h: 260 });
+  }
+
+  /** True while a "how to" card is up. */
+  protected introducing = false;
 
   protected say(line: string) {
     this.bubble.setText(line);

@@ -4,6 +4,7 @@ import { sfx } from '../audio';
 import { save } from '../state';
 import { button, sparks, text } from '../ui/widgets';
 import { BenchScene } from './Bench';
+import { needsIntro } from '../ui/howto';
 
 const X0 = 190;
 const PX_PER_INCH = 150;
@@ -126,6 +127,38 @@ export class BlasterBench extends BenchScene {
 
   private intro() {
     const want = formatInches(this.problem.target);
+    // The first problem of each mark: a step-by-step "how to", then the
+    // target is marked on the ruler so the first cut is guided.
+    const q = this.problem.target;
+    const whole = Math.floor(q / 4);
+    const part = q % 4;
+    const cards = this.mark === 1
+      ? [{ concept: 'ruler-half', title: 'MEASURING TO THE HALF INCH', steps: [
+          'The long lines with big numbers are whole INCHES: 1, 2, 3...',
+          'Halfway between two numbers is HALF an inch. Those lines are marked ½.',
+          part ? `${want} means: go to the ${whole}, then one more half step to the ½ line after it.` : `${want} means: go right to the line with the ${whole} on it.`,
+          'Drag the red laser to that line (or use ◀ ▶), then press CUT.',
+        ] }]
+      : this.mark === 2
+        ? [{ concept: 'ruler-quarter', title: 'MEASURING TO THE QUARTER INCH', steps: [
+            'Now every inch is split into 4 QUARTERS. The shortest lines are quarter steps.',
+            'Counting from one number: ¼, then ½ (two quarters), then ¾ (three quarters), then the next whole inch.',
+            part ? `${want} means: go to the ${whole}, then ${part} little step${part === 1 ? '' : 's'} more.` : `${want} means: right on the line with the ${whole}.`,
+            'Slide the laser there and press CUT.',
+          ] }]
+        : [{ concept: 'ruler-read', title: 'READING A LENGTH', steps: [
+            'These barrels are already made. Your job is to find the one that is the right length.',
+            'Every barrel starts at 0. Look at where its END lines up with the ruler.',
+            'Drag the red laser to a barrel\'s end, then read the ruler under the laser: whole inches, then the quarter lines.',
+            `Tap the barrel that is ${want} inches.`,
+          ] }];
+    if (this.index === 0 && cards.some((c) => needsIntro(c.concept))) {
+      this.busy = true;
+      this.introduce(cards, () => {
+        this.busy = false;
+        if (this.mark < 3) this.showTargetMarker();
+      });
+    }
     if (this.mark === 1) {
       this.say(this.index === 0
         ? `A longer barrel makes bigger shots! Slide the red laser to ${want} inches on the ruler, then press CUT.`

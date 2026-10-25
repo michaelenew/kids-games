@@ -79,6 +79,7 @@ export class BootsBench extends BenchScene {
     this.drawSlots();
     this.drawGauge();
 
+    if (this.index === 0) this.puzzleIntro();
     if (this.mark === 1) {
       this.say(this.index === 0
         ? `Jump boots need springs pumped to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`
@@ -89,6 +90,36 @@ export class BootsBench extends BenchScene {
         ? `Mark II springs start with some pressure already: ${c.start}. Some cells add and some take away. Get it to exactly ${c.target}!`
         : `Start at ${c.start}. Get to exactly ${c.target}.`);
     }
+  }
+
+  /** First time: step-by-step cards for adding pairs, or for +/− chains. */
+  private puzzleIntro() {
+    const p = this.problem;
+    if (p.kind === 'pair') {
+      // One cell of a right pair, to show the "what goes with it" idea.
+      const a = p.cells.find((c) => p.cells.includes(p.target - c) && (c * 2 !== p.target || p.cells.filter((x) => x === c).length > 1)) ?? p.cells[0];
+      this.busy = true;
+      this.introduce([{ concept: 'facts-pair', title: 'MAKING A NUMBER WITH TWO CELLS', steps: [
+        `The spring needs EXACTLY ${p.target}. Two energy cells that add up to ${p.target} will do it.`,
+        `Pick one cell, like the ${a}. Then ask: ${a} + what = ${p.target}?`,
+        `Count up from ${a} to ${p.target}: that's ${p.target - a}. Is there a ${p.target - a} cell? Tap both, then PUMP!`,
+      ] }], () => (this.busy = false));
+      return;
+    }
+    const c = p as ChainProblem;
+    let first = c.cells[0];
+    let mid = c.start + first;
+    for (const x of c.cells) for (const y of c.cells) if (x !== y && c.start + x + y === c.target) {
+      first = x;
+      mid = c.start + x;
+    }
+    this.busy = true;
+    this.introduce([{ concept: 'facts-chain', title: 'ADDING AND TAKING AWAY', steps: [
+      `This spring STARTS at ${c.start}. We need to get to exactly ${c.target}.`,
+      'GREEN cells add (+). RED cells take away (−). You can use up to 3 cells.',
+      `Go one cell at a time. For example ${c.start} ${signed(first)} = ${mid}.`,
+      `Then ask: from ${mid}, how do I get to ${c.target}? Up or down, and by how much?`,
+    ] }], () => (this.busy = false));
   }
 
   private get start(): number {
@@ -292,6 +323,13 @@ export class BootsBench extends BenchScene {
 
     if (this.index === 0 && this.misses === 0) {
       this.say('Mark III boots need a turbo spring! Answer 10 quick ones to pump it all the way. Go go go!');
+      this.busy = true;
+      this.introduce([{ concept: 'facts-quick', title: 'QUICK FACTS', steps: [
+        'Type the answer on the keypad and press ✓. Ten in a row fills the spring.',
+        'Adding? Start with the BIGGER number and count on. 3 + 9: start at 9, then 10, 11, 12.',
+        'Taking away? Count UP from the small number to the big one. 13 − 9: from 9 to 13 is 4.',
+        'The timer waits while you read this. When you press the button, go!',
+      ] }], () => (this.busy = false));
     }
   }
 

@@ -4,6 +4,10 @@ A robot action game where every upgrade is built by hand in the workshop, and th
 
 Source syllabus: "Entering 3rd Grade Math Summer Packet" (35 pages, 8 weeks).
 
+> **Update after the second prototype:** the main mode is now an **arcade invasion** shooter (the camera moves on its own, he just touches aliens), with the side-scroller kept as "patrols". The robot starts as a plain grey frame, and armor is five colored plates built in the **armor forge** from hundreds, tens and ones. Mark I plates are round hundreds. Damage from missions knocks points off plates, and the **repair bay** asks for the exact missing amount (the less round numbers), shown as holes in each plate. Repairs are required before the next mission; all other upgrades stay optional.
+
+> **Update after the first prototype:** math is now **opt-in**. Instead of the forge being a required step after every defeat, there's an **Engineering Zone** he can visit whenever he likes. Levels get harder over time, and the upgrades he builds there (armor, a bigger blaster, jump boots) make them easier. Every level stays beatable with starter gear. Sprocket suggests the Engineering Zone after a retreat, but never forces it. Read "the forge" below as the Engineering Zone, and "Not enough!" moments as nudges, not gates.
+
 ---
 
 ## 1. What the packet actually teaches

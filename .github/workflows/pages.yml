@@ -1,0 +1,54 @@
+# Publish the game to GitHub Pages on every push to main, so it can be
+# played from any device (iPad or laptop) at a plain link.
+#
+# A deploy, not a gate: it builds and publishes, nothing more. Run
+# `npm test` and `npm run typecheck` before pushing.
+#
+# One-time setup: repo Settings → Pages → Build and deployment → Source:
+# "GitHub Actions".
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one halfway: a cancelled deploy can
+# leave the site on a half-uploaded build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Cheap check first: fails fast if Pages isn't switched on yet.
+      - uses: actions/configure-pages@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # The build uses relative paths (vite.config.ts base: './'), so it works
+      # under the /kids-games/ project path without extra settings.
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

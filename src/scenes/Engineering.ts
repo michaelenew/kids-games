@@ -1,0 +1,97 @@
+import Phaser from 'phaser';
+import { COLORS, FONT } from '../art';
+import { REGIONS, lookFromSave } from '../armor';
+import { Showcase } from '../three/showcase';
+import { getStage } from '../three/stage';
+import { BUILD_COST, GEAR_INFO, type GearId, hasSeen, markSeen, save, egyptUnlocked } from '../state';
+import { W, button, dialog, scrapBadge, text } from '../ui/widgets';
+
+const ROMAN = ['', 'I', 'II', 'III'];
+const BENCH_SCENE: Record<GearId, string> = { armor: 'ArmorBench', blaster: 'BlasterBench', boots: 'BootsBench' };
+const STORY: Record<GearId, string> = {
+  armor: 'Bolt on plates so hits hurt less.',
+  blaster: 'Cut a longer barrel for bigger shots.',
+  boots: 'Pump up springs to jump higher.',
+};
+
+export class EngineeringScene extends Phaser.Scene {
+  constructor() {
+    super('Engineering');
+  }
+
+  create() {
+    const s = save();
+    // Each bench shows the robot wearing that bench's next upgrade.
+    const gears: GearId[] = ['armor', 'blaster', 'boots'];
+    new Showcase(getStage(this.game.canvas), gears.map((gear, i) => {
+      const look = lookFromSave(s);
+      if (gear === 'armor') {
+        const next = Math.min(3, look.armor + 1) as 1 | 2 | 3;
+        for (const r of REGIONS) look.plates![r] = { mark: next, damage: 0 };
+      } else if (look[gear] < 3) look[gear] = (look[gear] + 1) as 1 | 2 | 3;
+      return { look, x: 230 + i * 410, y: 400, height: 220, spin: 0.6, yaw: 0.5 + i };
+    }));
+    this.add.graphics().fillStyle(0x0b0f1a, 0.75).fillRect(0, 0, W, 122).fillStyle(0xf77f00, 1).fillRect(0, 120, W, 6);
+
+    text(this, W / 2, 60, 'ENGINEERING ZONE', 56, '#ffd166').setStroke('#6a040f', 10);
+    scrapBadge(this, W - 180, 60, s.scrap);
+    button(this, 105, 60, 170, 64, '◀ Garage', () => this.scene.start('Garage'), { size: 26, fill: 0x3d4458 });
+
+    (['armor', 'blaster', 'boots'] as GearId[]).forEach((gear, i) => this.station(gear, 230 + i * 410));
+
+    if (!hasSeen('engineering-intro')) {
+      dialog(this, [
+        { who: 'sprocket', text: 'This is my favorite place! Each bench builds one kind of upgrade.' },
+        { who: 'sprocket', text: 'Building takes scrap, and a little brain power. Pick whatever you like!' },
+      ], () => markSeen('engineering-intro'));
+    }
+  }
+
+  private station(gear: GearId, x: number) {
+    const s = save();
+    const mark = s.gear[gear];
+    const info = GEAR_INFO[gear];
+    const maxed = mark >= 3;
+    const next = (mark + 1) as 1 | 2 | 3;
+    const cost = maxed ? 0 : BUILD_COST[next];
+    const afford = s.scrap >= cost;
+
+    const card = this.add.graphics();
+    card.fillStyle(0x0b0f1a, 0.55).fillRoundedRect(x - 190, 140, 380, 520, 20);
+    card.fillStyle(0x0b0f1a, 0.85).fillRoundedRect(x - 190, 410, 380, 250, { tl: 0, tr: 0, bl: 20, br: 20 });
+    card.lineStyle(4, maxed ? 0x06d6a0 : 0xf77f00, 1).strokeRoundedRect(x - 190, 140, 380, 520, 20);
+    text(this, x, 170, `${info.title.toUpperCase()} BENCH`, 30, '#ffffff').setStroke('#000000', 6);
+
+    // Mark pips.
+    for (let m = 1; m <= 3; m++) {
+      this.add.circle(x - 50 + (m - 1) * 50, 440, 14, m <= mark ? 0x06d6a0 : 0x3d4458).setStrokeStyle(3, 0xffffff, 0.6);
+    }
+
+    if (maxed) {
+      text(this, x, 490, `Mark III built!\n${info.perks[3]}`, 24, '#06d6a0');
+      button(this, x, 600, 320, 80, 'Practice\n+3 scrap', () =>
+        this.scene.start(BENCH_SCENE[gear], { gear, mark: 3, practice: true }), { fill: 0x3d4458, size: 26 });
+      return;
+    }
+
+    this.add
+      .text(x, 495, `Mark ${ROMAN[next]}: ${info.perks[next]}\n${STORY[gear]}`, {
+        fontFamily: FONT, fontSize: '21px', color: COLORS.text, align: 'center', wordWrap: { width: 340 },
+      })
+      .setOrigin(0.5);
+
+    const label = afford ? `BUILD  (${cost} scrap)` : `Need ${cost - s.scrap} more scrap`;
+    const b = button(this, x, 600, 320, 80, label, () => {
+      // Armor is built plate by plate in the forge.
+      // First buy the power core from the junk trader (money), then build.
+      const then = gear === 'armor'
+        ? { key: 'ArmorForge', data: { mode: 'build', mark: next } }
+        : { key: BENCH_SCENE[gear], data: { gear, mark: next, practice: false } };
+      if (egyptUnlocked()) this.scene.start('Trader', { gear, mark: next, then });
+      else this.scene.start(then.key, then.data);
+    }, {
+      fill: 0x2a9d8f, edge: 0x9ff0e3, disabled: !afford, size: 26,
+    });
+    if (afford) this.tweens.add({ targets: b, scale: 1.04, duration: 600, yoyo: true, repeat: -1 });
+  }
+}

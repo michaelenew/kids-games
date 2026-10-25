@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Mecha Forge" />
+    <title>Mecha Forge</title>
+    <style>
+      html, body {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        background: #0b0f1a; overflow: hidden;
+        touch-action: none; -webkit-user-select: none; user-select: none;
+        -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: none;
+      }
+      #game { width: 100%; height: 100%; }
+      #rotate {
+        display: none; position: fixed; inset: 0; z-index: 10;
+        background: #0b0f1a; color: #ffd166; font: bold 28px system-ui, sans-serif;
+        align-items: center; justify-content: center; text-align: center; padding: 24px;
+      }
+      @media (orientation: portrait) and (pointer: coarse) {
+        #rotate { display: flex; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="rotate">Turn the iPad sideways to play! ↻</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

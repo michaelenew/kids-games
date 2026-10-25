@@ -67,8 +67,40 @@ describe('mission armor', () => {
     const a = new MissionArmor(s.armor);
     a.damage(120, () => 0); // always the chest
     a.commit(s);
-    expect(s.armor.chest!.hp).toBe(380);
-    expect(repairsNeeded(s.armor)).toEqual([{ region: 'chest', missing: 120 }]);
+    const missing = 500 - s.armor.chest!.hp;
+    expect(missing).toBeGreaterThanOrEqual(116);
+    expect(missing).toBeLessThanOrEqual(124);
+    expect(repairsNeeded(s.armor)).toEqual([{ region: 'chest', missing }]);
+  });
+
+  it('a stripped plate never comes back at zero, and repairs vary', () => {
+    const seen = new Set<number>();
+    const r = rng(9);
+    for (let i = 0; i < 40; i++) {
+      const s = freshSave();
+      s.armor = full();
+      const a = new MissionArmor(s.armor);
+      for (let k = 0; k < 60; k++) a.damage(100, r);
+      a.commit(s, r);
+      for (const reg of REGIONS) {
+        const p = s.armor[reg]!;
+        expect(p.hp).toBeGreaterThan(0);
+        expect(p.max - p.hp).toBeLessThanOrEqual(Math.round(p.max * 0.85) + 4);
+      }
+      seen.add(500 - s.armor.chest!.hp);
+    }
+    expect(seen.size).toBeGreaterThan(20);
+  });
+
+  it('spreads hits over all the plates', () => {
+    const a = new MissionArmor(full());
+    const r = rng(5);
+    const hits: Record<string, number> = {};
+    for (let k = 0; k < 10; k++) {
+      const reg = a.damage(10, r);
+      hits[reg] = (hits[reg] ?? 0) + 1;
+    }
+    expect(Object.keys(hits).length).toBeGreaterThanOrEqual(3);
   });
 
   it('never knocks more than the cap off one plate', () => {

@@ -11,7 +11,7 @@ import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, scrapBadge, text } from '../ui/widgets';
 import { carUnlocked } from './Level';
-import { currentTier, needsUpgrade } from '../assist';
+import { currentTier, needsUpgrade, upgradeRequired } from '../assist';
 import { music } from '../audio';
 
 const SKILL_LABELS: Record<string, string> = {
@@ -86,6 +86,16 @@ export class GarageScene extends Phaser.Scene {
     const noArmor = s.levelsDone.includes('inv-drop') && !REGIONS.some((r) => s.armor?.[r]);
     const go = (key: string, data: object, missionId: string) => {
       const then = missionId || undefined;
+      if (missionId && upgradeRequired(missionId)) {
+        // Lost twice since the last upgrade: build something first.
+        if (needsRepair) {
+          this.scene.start('ArmorForge', { mode: 'repair', then: 'engineering' });
+          return;
+        }
+        dialog(this, [{ who: 'sprocket', text: 'Those aliens are too strong for us right now. We have to build an upgrade before we go back!' }],
+          () => this.scene.start('Engineering'));
+        return;
+      }
       if (noArmor) this.scene.start('ArmorForge', { mode: 'build', mark: 1, then });
       else if (needsRepair) this.scene.start('ArmorForge', { mode: 'repair', then });
       else this.scene.start(key, data);
@@ -101,7 +111,8 @@ export class GarageScene extends Phaser.Scene {
       });
       b.label.setText(done ? `${m.title}  ✓ BEATEN` : unlocked ? m.title : '🔒  Locked').setY(unlocked && !done ? -10 : 0).setFontSize(24);
       if (done) b.label.setColor('#7ee2b8');
-      if (unlocked && !done) b.add(this.add.text(0, 17, m.blurb, { fontFamily: FONT, fontSize: '15px', color: '#e6d6ff' }).setOrigin(0.5));
+      const locked = unlocked && !done && upgradeRequired(m.id);
+      if (unlocked && !done) b.add(this.add.text(0, 17, locked ? '🔧 Build an upgrade first!' : m.blurb, { fontFamily: FONT, fontSize: '15px', color: '#e6d6ff' }).setOrigin(0.5));
     });
     // The side-scrolling patrols open up after the first invasion.
     text(this, 880, 476, 'PATROLS', 22, '#9ad1ff');

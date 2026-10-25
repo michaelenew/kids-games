@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
-import { onUpgradeBuilt } from '../assist';
+import { onUpgradeBuilt, upgradeRequired } from '../assist';
 import { REGIONS, REGION_NAMES, type Region, armorMark, lookFromSave, plateTarget, repairsNeeded } from '../armor';
 import { music, sfx } from '../audio';
 import { type PlaceCounts, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
@@ -680,6 +680,11 @@ export class ArmorForge extends Phaser.Scene {
     if (next === 'engineering') {
       // Sent here on the way to building an upgrade.
       button(this, cx, 480, 380, 80, 'To the Engineering Zone', () => this.scene.start('Engineering'), {
+        fill: 0xf77f00, edge: 0xffd166,
+      });
+    } else if (next && upgradeRequired(next)) {
+      text(this, cx, 440, 'Now build an upgrade to beat that mission!', 24, '#ffd166');
+      button(this, cx, 500, 380, 80, 'To the Engineering Zone', () => this.scene.start('Engineering'), {
         fill: 0xf77f00, edge: 0xffd166,
       });
     } else if (next) {

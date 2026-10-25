@@ -61,8 +61,8 @@ const rd = (at: number, from: Spawn['from']): Spawn => ({ kind: 'raider', at, fr
 export const MISSIONS: Mission[] = [
   {
     id: 'inv-drop',
-    // Tuned with a bot that shoots one alien at a time (see README).
-    dmg: 0.45, extra: 0.3,
+    // Tuned with a kid-like bot: one alien at a time, slow to switch, sloppy aim (see README).
+    dmg: 0.2, extra: 0.3,
     title: 'Invasion 1: Drop Zone',
     blurb: 'Ride the dropship into the city.',
     seed: 11,
@@ -87,8 +87,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'inv-chase',
-    // Tuned with a bot that shoots one alien at a time (see README).
-    dmg: 0.98, hp: 1.2, fire: 0.85, extra: 0.5,
+    // Tuned with a kid-like bot: one alien at a time, slow to switch, sloppy aim (see README).
+    dmg: 0.61, hp: 1, fire: 0.85, extra: 0.5,
     title: 'Invasion 2: Highway Run',
     blurb: 'Transform and chase them down. Boss!',
     seed: 23,
@@ -112,8 +112,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'inv-streets',
-    // Tuned with a bot that shoots one alien at a time (see README).
-    dmg: 0.8, hp: 1.2, fire: 0.85, extra: 0.5,
+    // Tuned with a kid-like bot: one alien at a time, slow to switch, sloppy aim (see README).
+    dmg: 0.43, hp: 1, fire: 0.85, extra: 0.5,
     title: 'Invasion 3: Street Fight',
     blurb: 'Hold the streets. Walkers on every roof!',
     seed: 37,
@@ -132,8 +132,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'inv-sky',
-    // Tuned with a bot that shoots one alien at a time (see README).
-    dmg: 1.15, hp: 1.4, fire: 0.8, extra: 0.8,
+    // Tuned with a kid-like bot: one alien at a time, slow to switch, sloppy aim (see README).
+    dmg: 0.62, hp: 1.2, fire: 0.8, extra: 0.8,
     title: 'Invasion 4: Sky Battle',
     blurb: 'Their elite saucer squadron. Up high!',
     seed: 41,
@@ -153,8 +153,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'inv-queen',
-    // Tuned with a bot that shoots one alien at a time (see README).
-    dmg: 1.2, hp: 2, fire: 0.7, extra: 1.2,
+    // Tuned with a kid-like bot: one alien at a time, slow to switch, sloppy aim (see README).
+    dmg: 0.4, hp: 1.6, fire: 0.75, extra: 1.2,
     title: 'Invasion 5: The Hive Queen',
     blurb: 'Race to the biggest walker of all!',
     seed: 53,

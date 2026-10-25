@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FAILS_BEFORE_HINT, HARD, MAX_TIER, currentTier, missionStart, needsUpgrade, onLevelCleared, onLevelStart, onMissionCleared,
-  onMissionFailed, onUpgradeBuilt, tuning,
+  onMissionFailed, onUpgradeBuilt, tuning, upgradeRequired,
 } from '../src/assist';
 import { freshSave } from '../src/state';
 
@@ -104,5 +104,20 @@ describe('arcade missions wait on an upgrade', () => {
     expect(needsUpgrade('inv-chase', s)).toBe(false);
     s.gear = { armor: 3, blaster: 3, boots: 3 };
     expect(needsUpgrade('inv-streets', s)).toBe(false);
+  });
+});
+
+describe('two losses lock the mission until an upgrade', () => {
+  it('locks after two losses and unlocks after building', () => {
+    const s = freshSave();
+    s.levelsDone.push('inv-drop');
+    onMissionCleared('inv-drop', s);
+    onUpgradeBuilt(s);
+    onMissionFailed('inv-chase', s);
+    expect(upgradeRequired('inv-chase', s)).toBe(false);
+    onMissionFailed('inv-chase', s);
+    expect(upgradeRequired('inv-chase', s)).toBe(true);
+    onUpgradeBuilt(s);
+    expect(upgradeRequired('inv-chase', s)).toBe(false);
   });
 });

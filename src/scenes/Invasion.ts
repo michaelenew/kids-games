@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { FAILS_BEFORE_HINT, type Tuning, cheapestUpgrade, missionStart, onMissionCleared, onMissionFailed } from '../assist';
+import { type Tuning, cheapestUpgrade, missionStart, onMissionCleared, onMissionFailed, upgradeRequired } from '../assist';
 import { MissionArmor, REGIONS, type Region, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import { persist, save } from '../state';
@@ -18,8 +18,6 @@ export class InvasionScene extends Phaser.Scene {
   private armor!: MissionArmor;
   private maxHp = 1;
   private tune!: Tuning;
-  /** Waiting on an upgrade (see assist.ts). */
-  private hard = false;
   private mercies = 0;
   private score = 0;
   private scrap = 0;
@@ -60,7 +58,6 @@ export class InvasionScene extends Phaser.Scene {
     const s = save();
     const start = missionStart(this.mission.id);
     this.tune = start.tune;
-    this.hard = start.hard;
     // The very first mission is the story opener: he can't lose it.
     const opener = this.mission.id === 'inv-drop' && !s.levelsDone.includes('inv-drop');
     this.mercies = opener ? 99 : this.tune.mercies;
@@ -424,10 +421,11 @@ export class InvasionScene extends Phaser.Scene {
     this.game3d.pointer.down = false;
     this.game3d.paused = true;
     this.bank();
-    const fails = onMissionFailed(this.mission.id);
+    onMissionFailed(this.mission.id);
     music('calm');
     sfx.alarm();
-    if (this.hard && fails >= FAILS_BEFORE_HINT) {
+    // Two losses since the last upgrade: no more retries until he builds one.
+    if (upgradeRequired(this.mission.id)) {
       this.time.delayedCall(600, () => this.upgradeHint());
       return;
     }

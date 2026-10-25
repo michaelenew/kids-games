@@ -117,6 +117,15 @@ export function onMissionCleared(id: string, s: SaveData = save()) {
   persist();
 }
 
+/**
+ * After two losses since his last upgrade, the mission stays locked until he
+ * builds something (unless everything is already fully upgraded).
+ */
+export function upgradeRequired(id: string, s: SaveData = save()): boolean {
+  if (allMaxed(s) || s.levelsDone.includes(id)) return false;
+  return (s.assist?.[id]?.fails ?? 0) >= FAILS_BEFORE_HINT;
+}
+
 /** Cheapest upgrade he could build next (0 if everything is maxed). */
 export function cheapestUpgrade(s: SaveData = save()): number {
   const costs = (Object.keys(s.gear) as GearId[]).filter((g) => s.gear[g] < 3).map((g) => BUILD_COST[s.gear[g] + 1]);

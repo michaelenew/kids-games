@@ -72,7 +72,6 @@ export function armorMark(a: ArmorState): Mark {
 export class MissionArmor {
   plates: Record<Region, { hp: number; floor: number; max: number } | null>;
   frame = FRAME_HP;
-  private last: Region | null = null;
 
   constructor(a: ArmorState) {
     this.plates = {} as MissionArmor['plates'];
@@ -93,9 +92,8 @@ export class MissionArmor {
       return p && p.hp > p.floor;
     });
     if (open.length) {
-      // Hits tend to land on the same plate, so there are fewer (bigger) repairs.
-      const r = this.last && open.includes(this.last) && rng() < 0.7 ? this.last : open[Math.floor(rng() * open.length)];
-      this.last = r;
+      // Each hit lands on a random plate.
+      const r = open[Math.floor(rng() * open.length)];
       const p = this.plates[r]!;
       const take = Math.min(amount, p.hp - p.floor);
       p.hp -= take;
@@ -122,13 +120,29 @@ export class MissionArmor {
     }
   }
 
-  /** Write the plates' damage back to the save (the frame always resets). */
-  commit(s: SaveData) {
+  /**
+   * Write the plates' damage back to the save (the frame always resets).
+   * Repairs should be fresh numbers each time, so a plate never comes back
+   * fully stripped (that would always be the same number), and the missing
+   * amount gets a little jitter so the ones digit varies.
+   */
+  commit(s: SaveData, rng: Rng = Math.random) {
     const a = s.armor ?? {};
     for (const r of REGIONS) {
       const p = a[r];
       const m = this.plates[r];
-      if (p && m) p.hp = Math.min(p.max, m.hp);
+      if (!p || !m) continue;
+      let missing = Math.max(0, p.max - m.hp);
+      if (missing === 0) {
+        p.hp = p.max;
+        continue;
+      }
+      // Cap heavy damage somewhere between 40% and 85% of the plate.
+      const cap = Math.round(p.max * (0.4 + rng() * 0.45));
+      missing = Math.min(missing, cap);
+      missing += randInt(rng, -4, 4);
+      missing = Math.max(1, Math.min(p.max - 1, missing, MAX_PLATE_DAMAGE));
+      p.hp = p.max - missing;
     }
   }
 }

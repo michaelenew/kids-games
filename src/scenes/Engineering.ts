@@ -83,8 +83,11 @@ export class EngineeringScene extends Phaser.Scene {
     const label = afford ? `BUILD  (${cost} scrap)` : `Need ${cost - s.scrap} more scrap`;
     const b = button(this, x, 600, 320, 80, label, () => {
       // Armor is built plate by plate in the forge.
-      if (gear === 'armor') this.scene.start('ArmorForge', { mode: 'build', mark: next });
-      else this.scene.start(BENCH_SCENE[gear], { gear, mark: next, practice: false });
+      // First buy the power core from the junk trader (money), then build.
+      const then = gear === 'armor'
+        ? { key: 'ArmorForge', data: { mode: 'build', mark: next } }
+        : { key: BENCH_SCENE[gear], data: { gear, mark: next, practice: false } };
+      this.scene.start('Trader', { gear, mark: next, then });
     }, {
       fill: 0x2a9d8f, edge: 0x9ff0e3, disabled: !afford, size: 26,
     });

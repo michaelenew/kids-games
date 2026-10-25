@@ -3,7 +3,7 @@ import { type Tuning, cheapestUpgrade, missionStart, onMissionCleared, onMission
 import { MissionArmor, REGIONS, type Region, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import { persist, save } from '../state';
-import { Invasion, type Target } from '../three/invasion';
+import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, missionById } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
@@ -37,13 +37,18 @@ export class InvasionScene extends Phaser.Scene {
   private bossFrac: number | null = null;
   private shownHp = 0;
   private bannerParts: Phaser.GameObjects.GameObject[] = [];
+  /** Every hit he took, for the recap graph and sums. */
+  private hitLog: { from: Shooter; amount: number }[] = [];
+  /** Extra shield earned at mission control. */
+  private shieldBonus = 0;
 
   constructor() {
     super('Invasion');
   }
 
-  init(data: { missionId?: string }) {
+  init(data: { missionId?: string; shield?: number }) {
     this.mission = missionById(data.missionId ?? 'inv-drop');
+    this.shieldBonus = data.shield ?? 0;
     this.over = false;
     this.paused = false;
     this.score = 0;
@@ -52,6 +57,7 @@ export class InvasionScene extends Phaser.Scene {
     this.everFired = false;
     this.regionFlash = {};
     this.bannerParts = [];
+    this.hitLog = [];
   }
 
   create() {
@@ -62,7 +68,9 @@ export class InvasionScene extends Phaser.Scene {
     const opener = this.mission.id === 'inv-drop' && !s.levelsDone.includes('inv-drop');
     this.mercies = opener ? 99 : this.tune.mercies;
     this.armor = new MissionArmor(s.armor ?? {});
-    this.maxHp = totalMax(s.armor ?? {});
+    // Mission control's shield bonus sits on top of the frame for this mission only.
+    this.armor.frame += this.shieldBonus;
+    this.maxHp = totalMax(s.armor ?? {}) + this.shieldBonus;
     this.shownHp = this.armor.hp;
 
     const look = lookFromSave(s);
@@ -71,7 +79,7 @@ export class InvasionScene extends Phaser.Scene {
       enemyHp: this.tune.enemyHp,
       fireDelay: this.tune.fireDelay,
     }, {
-      hit: (raw) => this.onHit(raw),
+      hit: (raw, from) => this.onHit(raw, from),
       kill: (k) => this.onKill(k),
       banner: (t, c) => this.banner(t, c),
       say: (lines, done) => {
@@ -138,9 +146,11 @@ export class InvasionScene extends Phaser.Scene {
 
   // ---- Events from the game -------------------------------------------------
 
-  private onHit(raw: number) {
+  private onHit(raw: number, from: Shooter) {
     if (this.over) return;
-    const amount = Math.max(10, Math.round((raw * this.tune.damageTaken) / 5) * 5);
+    // Whole numbers (not rounded to 5s), so the recap's sums have varied digits.
+    const amount = Math.max(10, Math.round(raw * this.tune.damageTaken));
+    this.hitLog.push({ from, amount });
     const where = this.armor.damage(amount);
     this.regionFlash[where] = 1;
     // Sparks fly off the plate that was hit, and it gets more scorched.
@@ -396,7 +406,8 @@ export class InvasionScene extends Phaser.Scene {
       text(this, W / 2, H / 2 + 10, `+${this.scrap} scrap`, 36, '#ffd166').setDepth(61);
       const next = this.nextScene();
       const after = () => {
-        const b = button(this, W / 2, H / 2 + 120, 320, 84, next.label, () => this.scene.start(next.key, next.data), {
+        const b = button(this, W / 2, H / 2 + 120, 320, 84, 'Mission report ▶', () =>
+          this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data } }), {
           fill: 0x2a9d8f, edge: 0x9ff0e3, size: 32,
         }).setDepth(62);
         this.tweens.add({ targets: b, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });

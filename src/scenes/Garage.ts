@@ -24,7 +24,11 @@ const SKILL_LABELS: Record<string, string> = {
   'boots-1': 'Two numbers that make a sum (within 20)',
   'boots-2': 'Add/subtract chains (9 − 4 + 3)',
   'boots-3': 'Fast facts within 20 (timed)',
-  repair: 'Repairs: build an exact amount (hundreds, tens, ones)',
+  repair: 'Repairs: 3-digit subtraction (full plate minus what is left)',
+  time: 'Mission control: telling time, minutes until, days of the week',
+  money: 'Junk trader: pay exact amounts with coins (up to $2)',
+  addition: 'Mission report: add the biggest hits (2-digit, three at a time)',
+  graphs: 'Mission report: read a bar graph',
 };
 
 /** True if any gear has a next mark he has enough scrap for. */
@@ -106,7 +110,7 @@ export class GarageScene extends Phaser.Scene {
       const done = s.levelsDone.includes(m.id);
       const y = 122 + i * 70;
       // Beaten missions can't be replayed, so the only way forward is the next one.
-      const b = button(this, 880, y, 560, 62, '', () => go('Invasion', { missionId: m.id }, m.id), {
+      const b = button(this, 880, y, 560, 62, '', () => go('Control', { missionId: m.id }, m.id), {
         fill: 0x7b2cbf, edge: 0xd0a7ff, disabled: !unlocked || done,
       });
       b.label.setText(done ? `${m.title}  ✓ BEATEN` : unlocked ? m.title : '🔒  Locked').setY(unlocked && !done ? -10 : 0).setFontSize(24);
@@ -215,14 +219,14 @@ export class GarageScene extends Phaser.Scene {
     items.push(text(this, W / 2, 574, help, 18, '#8d99ae').setDepth(52));
     Object.entries(SKILL_LABELS).forEach(([key, label], i) => {
       const st = s.skills[key];
-      const y = 165 + i * 46;
+      const y = 150 + i * 31;
       const recent = st?.recent ?? [];
       const rate = recent.length ? recent.filter(Boolean).length / recent.length : -1;
       const color = rate < 0 ? '#6c757d' : rate >= 0.8 ? '#06d6a0' : rate >= 0.5 ? '#ffd166' : '#ef476f';
       const status = rate < 0 ? 'not tried yet' : `${Math.round(rate * 100)}% first-try (last ${recent.length})`;
       items.push(this.add.text(120, y, '●', { fontFamily: FONT, fontSize: '26px', color }).setOrigin(0, 0.5).setDepth(52));
-      items.push(this.add.text(160, y, label, { fontFamily: FONT, fontSize: '22px', color: COLORS.text }).setOrigin(0, 0.5).setDepth(52));
-      items.push(this.add.text(1160, y, status, { fontFamily: FONT, fontSize: '20px', color }).setOrigin(1, 0.5).setDepth(52));
+      items.push(this.add.text(160, y, label, { fontFamily: FONT, fontSize: '18px', color: COLORS.text }).setOrigin(0, 0.5).setDepth(52));
+      items.push(this.add.text(1160, y, status, { fontFamily: FONT, fontSize: '17px', color }).setOrigin(1, 0.5).setDepth(52));
     });
     items.push(button(this, W / 2, H - 70, 240, 64, 'Close', () => items.forEach((o) => o.destroy()), { fill: 0x3d4458 }).setDepth(53));
   }

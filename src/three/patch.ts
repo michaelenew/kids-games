@@ -48,6 +48,38 @@ function gridTexture(cols: number, rows: number): THREE.CanvasTexture {
   return t;
 }
 
+/** A charred, cracked patch of plate: hides exactly how much is missing. */
+function scorchTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(64, 64, 10, 64, 64, 90);
+  grad.addColorStop(0, '#3a2a22');
+  grad.addColorStop(1, '#0c0a0a');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 300; i++) {
+    g.fillStyle = `rgba(0,0,0,${Math.random() * 0.4})`;
+    g.fillRect(Math.random() * 128, Math.random() * 128, 3, 3);
+  }
+  g.strokeStyle = 'rgba(255,140,40,0.9)';
+  g.lineWidth = 2;
+  for (let k = 0; k < 6; k++) {
+    g.beginPath();
+    let x = 64, y = 64;
+    g.moveTo(x, y);
+    for (let i = 0; i < 6; i++) {
+      x += (Math.random() - 0.5) * 50;
+      y += (Math.random() - 0.5) * 50;
+      g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 /** Block size in cells for each place. */
 const SIZE: Record<Place, [number, number]> = { 1: [10, 10], 2: [1, 10], 3: [1, 1] };
 
@@ -63,6 +95,7 @@ export class PlatePatch {
   private edgeMat: THREE.LineBasicMaterial;
   private edgeRed: THREE.LineBasicMaterial;
   private edgeDone: THREE.LineBasicMaterial;
+  private covers: THREE.Mesh[] = [];
 
   /**
    * `have` and `missing` are [hundreds, tens, ones]. The patch is fitted into
@@ -136,6 +169,45 @@ export class PlatePatch {
     for (let i = 0; i < nO; i++) add(3, i >= have[2], onesX + (i % 5) * 1.2 * c, lowY - Math.floor(i / 5) * 1.2 * c);
   }
 
+  /**
+   * Cover the damage with scorch marks so the holes can't simply be counted:
+   * he has to work out the missing amount (full minus what's left). The
+   * covers are a bit bigger than the holes and uneven.
+   */
+  coverHoles() {
+    const mat = new THREE.MeshStandardMaterial({ map: scorchTexture(), roughness: 1, emissive: 0x401000, emissiveIntensity: 0.6 });
+    mat.userData.disposable = true;
+    const c = this.cell;
+    for (const place of [1, 2, 3] as Place[]) {
+      const holes = this.holes(place);
+      if (!holes.length) continue;
+      const box = new THREE.Box3();
+      for (const h of holes) {
+        h.mesh.geometry.computeBoundingBox();
+        box.union(h.mesh.geometry.boundingBox!.clone().translate(h.mesh.position));
+      }
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const padL = c * (0.6 + Math.random() * 2.5);
+      const padR = c * (0.6 + Math.random() * 2.5);
+      const padY = c * (0.4 + Math.random() * 1.2);
+      const cover = new THREE.Mesh(new THREE.BoxGeometry(size.x + padL + padR, size.y + padY * 2, c * 0.7), mat);
+      cover.position.set(center.x + (padR - padL) / 2, center.y, c * 0.25);
+      cover.rotation.z = (Math.random() - 0.5) * 0.08;
+      this.group.add(cover);
+      this.covers.push(cover);
+    }
+  }
+
+  get covered() {
+    return this.covers.length > 0;
+  }
+
+  /** Blow the scorch away to show the real holes. */
+  reveal() {
+    for (const cv of this.covers) cv.userData.vanish = 1;
+  }
+
   holes(place?: Place): PatchPiece[] {
     return this.pieces.filter((p) => p.hole && (place === undefined || p.place === place));
   }
@@ -168,6 +240,19 @@ export class PlatePatch {
     const red = this.flashT > 0 && Math.floor(this.t / 0.12) % 2 === 0;
     const pulse = 1.6 + Math.sin(this.t * 5) * 0.8;
     this.edgeMat.color.setHex(0xff9f1c).multiplyScalar(pulse);
+    for (const cv of this.covers) {
+      if (!cv.userData.vanish) continue;
+      cv.userData.vanish -= dt * 4;
+      cv.scale.setScalar(Math.max(0.001, cv.userData.vanish));
+      cv.position.z += dt * this.cell * 6;
+    }
+    this.covers = this.covers.filter((cv) => {
+      if (cv.userData.vanish !== undefined && cv.userData.vanish <= 0) {
+        cv.removeFromParent();
+        return false;
+      }
+      return true;
+    });
     for (const p of this.pieces) {
       if (p.hole && !p.filled) p.outline.material = red ? this.edgeRed : this.edgeMat;
       if (p.pop > 0) {

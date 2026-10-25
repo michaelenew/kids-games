@@ -79,7 +79,12 @@ interface Bolt {
   damage: number;
   life: number;
   big: boolean;
+  /** Who fired it (for the mission recap). */
+  from: Shooter;
 }
+
+/** Who can shoot him: the three alien kinds and the boss. */
+export type Shooter = AlienKind | 'boss';
 
 export interface Target {
   x: number;
@@ -91,7 +96,7 @@ export interface Target {
 }
 
 export interface InvasionEvents {
-  hit(raw: number): void;
+  hit(raw: number, from: Shooter): void;
   kill(info: { points: number; scrap: number; x: number; y: number; big: boolean; combo: number }): void;
   banner(text: string, color?: string): void;
   say(lines: Line[], done: () => void): void;
@@ -564,7 +569,7 @@ export class Invasion {
         sources.forEach((s, i) => {
           const from = model3dWorld(s);
           const spread = podsLeft ? 0 : (i - 1) * 2.5;
-          this.fireBolt(from, 9, Math.round(140 * (this.mission.dmg ?? 1)), true, spread);
+          this.fireBolt(from, 9, Math.round(140 * (this.mission.dmg ?? 1)), true, spread, 'boss');
         });
       }
     }
@@ -708,7 +713,7 @@ export class Invasion {
             e.charge = 0;
             e.fireIn = this.rand(spec.fireEvery[0], spec.fireEvery[1]) * this.opts.fireDelay * (this.mission.fire ?? 1);
             const muzzle = model3dWorld(e.model.muzzle);
-            this.fireBolt(muzzle, spec.boltSpeed, Math.round(this.rand(spec.damage[0], spec.damage[1]) * (this.mission.dmg ?? 1)), e.kind === 'krawler', 0);
+            this.fireBolt(muzzle, spec.boltSpeed, Math.round(this.rand(spec.damage[0], spec.damage[1]) * (this.mission.dmg ?? 1)), e.kind === 'krawler', 0, e.kind);
           }
         }
       }
@@ -716,13 +721,13 @@ export class Invasion {
     }
   }
 
-  private fireBolt(from: THREE.Vector3, speed: number, damage: number, big: boolean, spread: number) {
+  private fireBolt(from: THREE.Vector3, speed: number, damage: number, big: boolean, spread: number, shooter: Shooter) {
     const obj = plasmaBolt(big ? 0xb8ff5d : 0x5dff7a, big ? 0.45 : 0.3);
     obj.position.copy(from);
     this.root.add(obj);
     const aim = this.camera.position.clone().add(new THREE.Vector3(this.rand(-0.6, 0.6) + spread, this.rand(-0.4, 0.3), 0));
     const vel = aim.sub(from).normalize().multiplyScalar(speed);
-    this.bolts.push({ obj, vel, damage, life: 6, big });
+    this.bolts.push({ obj, vel, damage, life: 6, big, from: shooter });
     this.fx.flash(from, 0x9fffb0, big ? 2 : 1.2, 0.1);
   }
 
@@ -738,7 +743,7 @@ export class Invasion {
       if (Math.random() < dt * 30) this.fx.spark(b.obj.position, 0x7dff8a, 1, 1.5);
       if (b.obj.position.distanceTo(cam) < 1.5) {
         b.life = 0;
-        this.events.hit(b.damage);
+        this.events.hit(b.damage, b.from);
         this.robot.hit();
         this.shake = Math.max(this.shake, b.big ? 1.1 : 0.7);
         sfx.hurt();

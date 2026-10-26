@@ -204,7 +204,7 @@ export class Invasion {
       this.robot.showroom = false;
       // Lit, but short enough not to hide the screen.
       this.robot.thrust = 0.5;
-      this.robot.holder.scale.setScalar(JET_SCALE);
+      this.robot.flightScale = JET_SCALE;
     }
     this.robot.spin = 0;
     this.robot.holder.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
@@ -269,7 +269,9 @@ export class Invasion {
 
   private placeCamera() {
     const k = this.robot.vehicleAmount;
-    const j = this.jetCam * this.jetCam * (3 - 2 * this.jetCam);
+    // The jet's chase camera, easing back to the over-the-shoulder one in robot mode.
+    const jc = this.jetCam * (this.robot instanceof Jet ? this.robot.flight : 1);
+    const j = jc * jc * (3 - 2 * jc);
     const off = CAM_ROBOT.clone().lerp(CAM_CAR, k).lerp(CAM_JET, j);
     const look = LOOK_ROBOT.clone().lerp(LOOK_CAR, k).lerp(LOOK_JET, j);
     if (this.vehicle === 'foot' && this.speed > 0.5) off.y += Math.abs(Math.sin(this.t * 7)) * 0.06;
@@ -327,11 +329,13 @@ export class Invasion {
         this.startDrop(s.to);
         break;
       case 'transform':
-        this.robot.setVehicle(s.to === 'car');
+        // BOLT: robot ⇄ car. STRIKER: robot ⇄ jet.
+        this.robot.setVehicle(s.to === 'car' || s.to === 'jet');
         sfx.transform();
         this.shake = 0.4;
         this.fx.ring(this.robot.regionWorld('chest'), 0x4cf0ff, 4);
         if (s.to === 'car') engineSound('car');
+        else if (s.to === 'jet') engineSound('ship');
         else engineSound('off');
         break;
       case 'boss':
@@ -359,7 +363,7 @@ export class Invasion {
     }
     jet.spin = 0;
     jet.holder.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
-    jet.holder.scale.setScalar(JET_SCALE);
+    if (jet instanceof Jet) jet.flightScale = JET_SCALE;
     this.rig.add(jet.holder);
     jet.holder.position.set(0, 14, -40);
     this.swap = { jet, t: 0, old: this.robot };
@@ -402,6 +406,8 @@ export class Invasion {
 
   private setVehicle(v: Vehicle) {
     this.vehicle = v;
+    // STRIKER's afterburners stay lit in flight.
+    if (v === 'jet' && this.robot instanceof Jet) this.robot.thrust = 0.5;
     if (v === 'car') engineSound('car');
     else if (v === 'ship') engineSound('ship');
     else engineSound('off');
@@ -511,7 +517,8 @@ export class Invasion {
     engineSound('off');
     sfx.whoosh();
     this.robot.grounded = false;
-    this.robot.thrust = this.opts.look.boots >= 3 ? 1 : 0;
+    // STRIKER's jetpack fires on the way down; BOLT's boots only at Mark III.
+    this.robot.thrust = this.robot instanceof Jet ? 0.7 : this.opts.look.boots >= 3 ? 1 : 0;
     this.vehicle = 'foot';
   }
 

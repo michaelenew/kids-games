@@ -26,7 +26,7 @@ export type Step =
   | { kind: 'wave'; banner: string; spawns: Spawn[] }
   | { kind: 'say'; lines: Line[] }
   | { kind: 'drop'; to: number }
-  | { kind: 'transform'; to: 'car' | 'robot' }
+  | { kind: 'transform'; to: 'car' | 'robot' | 'jet' }
   /** STRIKER swoops in and takes over from BOLT (the first Egypt mission). */
   | { kind: 'swap' }
   | { kind: 'boss'; banner: string };
@@ -252,23 +252,30 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'egy-temple',
-    dmg: 0.56, hp: 1.1, fire: 0.85, extra: 0.7,
+    dmg: 0.62, hp: 1.1, fire: 0.85, extra: 0.7,
     env: 'desert',
     bot: 'jet',
     title: 'Invasion 8: Temple Run',
-    blurb: 'Weave through the temple of columns.',
+    blurb: 'Land in the temple and fight on foot!',
     seed: 71,
-    path: [[0, 5, 40], [0, 5, 0], [10, 5, -70], [-8, 5, -150], [8, 5, -230], [-6, 5, -300], [0, 5, -360], [0, 5, -400]],
-    plazas: [[0.1, 0.3], [0.45, 0.6], [0.8, 1]],
+    path: [[0, 5, 40], [0, 5, 0], [10, 5, -70], [-6, 0, -130], [6, 0, -190], [-4, 0, -240], [4, 6, -300], [0, 6, -360], [0, 6, -400]],
+    plazas: [[0.1, 0.3], [0.4, 0.6], [0.8, 1]],
     steps: [
       { kind: 'move', to: 1, speed: 10, vehicle: 'jet' },
       { kind: 'wave', banner: 'AMBUSH!', spawns: [kr(0, 'roofL'), kr(0.6, 'roofR'), sk(1.5, 'left'), sk(2, 'right'), kr(3, 'ahead')] },
-      { kind: 'move', to: 3, speed: 14, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3.5, 'above')] },
+      { kind: 'move', to: 2, speed: 14, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(2, 'right')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their guards are hiding between the columns. Transform and take them on foot!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'drop', to: 3 },
       { kind: 'wave', banner: 'TEMPLE GUARDS!', spawns: [kr(0, 'roofR', true), kr(0.5, 'roofL'), kr(1.5, 'ahead'), sk(2.5, 'above', true), sk(3, 'left'), kr(4.5, 'roofR')] },
-      { kind: 'say', lines: [{ who: 'volt', text: 'The power lines run toward the Great Pyramid. One more temple!' }] },
-      { kind: 'move', to: 5, speed: 14, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left', true), sk(3, 'above', true)] },
-      { kind: 'wave', banner: 'LAST TEMPLE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR'), kr(1, 'ahead', true), sk(2, 'above', true), sk(2.5, 'left'), sk(3, 'right'), kr(5, 'roofL')] },
-      { kind: 'move', to: 7, speed: 10, vehicle: 'jet' },
+      { kind: 'move', to: 4, speed: 6, vehicle: 'foot', spawns: [sk(1, 'right'), kr(2.5, 'roofL')] },
+      { kind: 'wave', banner: 'HOLD THE TEMPLE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR'), kr(1, 'ahead', true), sk(2, 'above'), sk(3, 'right')] },
+      { kind: 'move', to: 5, speed: 6, vehicle: 'foot' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Temple clear! Back in the air, STRIKER!' }] },
+      { kind: 'transform', to: 'jet' },
+      { kind: 'move', to: 6, speed: 14, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left'), sk(3, 'above', true)] },
+      { kind: 'wave', banner: 'LAST SQUADRON!', spawns: [sk(0, 'left'), sk(0.5, 'right', true), sk(1.5, 'above'), sk(2.5, 'left', true), sk(3.5, 'right')] },
+      { kind: 'move', to: 8, speed: 12, vehicle: 'jet' },
     ],
   },
   {

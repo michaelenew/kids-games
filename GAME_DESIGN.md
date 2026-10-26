@@ -10,6 +10,15 @@ Source syllabus: "Entering 3rd Grade Math Summer Packet" (35 pages, 8 weeks).
 
 ---
 
+## 0. Rules for every new piece of learning
+
+1. **Start small.** The first problem of any kind is the easiest version, with a walk-through.
+2. **Make it visual.** Show the thing (the clock hand moving, the plate with holes, the stacked sum), don't just state it.
+3. **It has to make sense in the story.** The math is how the robot gets built, repaired, launched or briefed, never a riddle standing between him and the fun.
+4. **One or two math sections between rewards, at most.** When unsure, add more blasting, not more math. He'll get the math if he keeps playing; if he stops playing, none of it matters.
+
+---
+
 ## 1. What the packet actually teaches
 
 The packet has 35 pages. Grouped by skill:

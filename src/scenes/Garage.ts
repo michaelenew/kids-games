@@ -109,10 +109,12 @@ export class GarageScene extends Phaser.Scene {
       }, { fill: 0x3d4458, size: 20 });
     }
 
-    if (carUnlocked() && bot === 'bolt') {
+    if ((carUnlocked() && bot === 'bolt') || bot === 'jet') {
+      // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet.
       const tf = button(this, 300, 660, 260, 70, 'TRANSFORM ⇄', () => {
         robot.setVehicle(!robot.isVehicle);
-        tf.label.setText(robot.isVehicle ? 'ROBOT MODE ⇄' : 'TRANSFORM ⇄');
+        const vehicleNow = robot.isVehicle;
+        tf.label.setText(bot === 'jet' ? (vehicleNow ? 'TRANSFORM ⇄' : 'JET MODE ⇄') : (vehicleNow ? 'ROBOT MODE ⇄' : 'TRANSFORM ⇄'));
         show.sparkle(0);
       }, { fill: 0x7b2cbf, edge: 0xd0a7ff, size: 28 });
     }

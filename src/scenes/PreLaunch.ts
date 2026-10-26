@@ -3,11 +3,12 @@ import { lookFromSave } from '../armor';
 import { music, sfx } from '../audio';
 import { practiceCheck, type PracticeCheck } from '../skills/checks';
 import { RAMP, rampProblem } from '../skills/steps';
-import { type BotId, alerts, botName, bumpGuide, guideCount, persist, recordSkill, save, setActiveBot } from '../state';
+import { type BotId, alerts, botName, bumpGuide, guideCount, persist, recordSkill, save, setActiveBot, titanUnlocked } from '../state';
 import { missionById } from '../three/missions';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { countUpPanel } from '../ui/countup';
+import { needsIntro } from '../ui/howto';
 import { numpad } from '../ui/numpad';
 import { button, panel, sparks, text, toast } from '../ui/widgets';
 
@@ -16,7 +17,8 @@ import { button, panel, sparks, text, toast } from '../ui/widgets';
  * Sprocket runs down a checklist: most of it is already fine, and one item
  * is his to check. Every other alert it's practice from that robot's own
  * benches; the rest, it's the math the current missions are about (fuel to
- * top up, worked out by counting up). Then: launch.
+ * top up, worked out by counting up; in the canyon, crates to load, worked
+ * out by multiplying). Then: launch.
  */
 
 export interface PreLaunchData {
@@ -59,20 +61,23 @@ export class PreLaunchScene extends Phaser.Scene {
 
     const a = alerts(s);
     const focus = a.next === 'focus';
-    const item = focus ? 'Fuel' : '';
+    // In the canyon the focus is multiplying (once he has built a couple of walls).
+    const crates = focus && titanUnlocked(s) && guideCount('wall') >= 2;
+    const item = crates ? 'Supply crates' : focus ? 'Fuel' : '';
     const check = focus ? null : practiceCheck(Math.random, bot === 'jet' ? 'jet' : 'bolt', guideCount('prelaunch'));
     const lines = ['✓ Radio', '✓ Engines warm', `☐ ${check?.item ?? item}`];
     this.add.text(RIGHT_X - 330, 80, lines.slice(0, 2).join('     '), { fontFamily: 'Arial', fontSize: '22px', color: '#06d6a0' });
     this.checkText = this.add.text(RIGHT_X + 50, 80, lines[2], { fontFamily: 'Arial', fontSize: '22px', fontStyle: 'bold', color: '#ffd166' });
 
     const done = (firstTry: boolean) => {
-      recordSkill(focus ? 'countup' : `check-${check!.kind}`, firstTry);
+      recordSkill(crates ? 'multiply' : focus ? 'countup' : `check-${check!.kind}`, firstTry);
       bumpGuide('prelaunch');
       a.next = focus ? 'practice' : 'focus';
       persist();
       this.ready(check?.item ?? item);
     };
-    if (focus) this.fuelCheck(bot, done);
+    if (crates) this.crateCheck(bot, done);
+    else if (focus) this.fuelCheck(bot, done);
     else this.practice(check!, done);
   }
 
@@ -93,6 +98,49 @@ export class PreLaunchScene extends Phaser.Scene {
         done(solo || step.guided);
       },
     });
+  }
+
+  /** Canyon focus: count the supply crates, stacked in rows (rows × crates per row). */
+  private crateCheck(bot: BotId, done: (firstTry: boolean) => void) {
+    const easy = guideCount('wall') < 6;
+    const cols = (easy ? [2, 5, 10] : [2, 3, 4, 5, 10])[Math.floor(Math.random() * (easy ? 3 : 5))];
+    const rows = cols === 10 ? 2 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * (easy ? 3 : 4));
+    const ask = needsIntro('times') ? `${rows} rows of ${cols}` : `${rows} × ${cols}`;
+    text(this, RIGHT_X, 140, `${botName(bot)} is taking supply crates to TITAN. How many crates are loaded?`, 24, '#ffffff', { wordWrap: { width: 700 } });
+    const g = this.add.graphics();
+    this.layer.add(g);
+    const size = Math.min(60, Math.floor(400 / cols));
+    const x0 = RIGHT_X - 160 - (cols * size) / 2;
+    const yBase = 440 + (rows * size) / 2;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = x0 + c * size;
+        const y = yBase - (r + 1) * size;
+        g.fillStyle(0xc98a3a, 1).fillRect(x + 2, y + 2, size - 4, size - 4);
+        g.lineStyle(2, 0x6b3f14, 1).strokeRect(x + 2, y + 2, size - 4, size - 4).lineBetween(x + 4, y + 4, x + size - 4, y + size - 4);
+      }
+    }
+    this.layer.add(text(this, x0 + (cols * size) / 2, 230, `${ask} = ?`, 40, '#ffd166'));
+    let misses = 0;
+    const pad = numpad(this, RIGHT_X + 230, 300, (v) => {
+      if (v === rows * cols) {
+        pad.destroy();
+        sfx.success();
+        this.layer.add(text(this, x0 + (cols * size) / 2, 230, `${ask} = ${rows * cols}`, 40, '#06d6a0').setStroke('#16213e', 12));
+        this.time.delayedCall(700, () => done(misses === 0));
+        return;
+      }
+      misses++;
+      sfx.buzz();
+      pad.display.setColor('#ef476f');
+      this.time.delayedCall(500, () => pad.clear());
+      if (misses === 1) {
+        toast(this, RIGHT_X - 140, 610, `Count by ${cols}s, one row at a time!`, '#ff9f9f', 24);
+        return;
+      }
+      // Second miss: count the rows out loud beside them.
+      for (let r = 0; r < rows; r++) this.layer.add(text(this, x0 + cols * size + 26, yBase - (r + 0.5) * size, `${(r + 1) * cols}`, 22, '#ffd166'));
+    }, 2);
   }
 
   private practice(c: PracticeCheck, done: (firstTry: boolean) => void) {

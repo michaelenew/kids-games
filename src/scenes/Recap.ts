@@ -67,14 +67,26 @@ export class RecapScene extends Phaser.Scene {
     const turn = (s.guide?.recap ?? 0) % 2;
     bumpGuide('recap', s);
     const pair = this.twoHits();
+    // Estimating starts with small hits (under 50), so the sum stays small too.
+    const ok = this.hits.map((h) => h.amount).filter((a) => a >= 11 && a <= 99 && a % 10 !== 5);
+    const small = ok.filter((a) => a < 50).sort((a, b) => a - b);
+    const est = guideCount('estimate') < 2 && small.length >= 2 ? small : ok.sort((a, b) => b - a);
     if (this.env === 'jungle') {
       // The Amazon: picture graphs, then estimating, taking turns.
-      // Estimating starts with small hits (under 50), so the sum stays small too.
-      const ok = this.hits.map((h) => h.amount).filter((a) => a >= 11 && a <= 99 && a % 10 !== 5);
-      const small = ok.filter((a) => a < 50).sort((a, b) => a - b);
-      const pick = guideCount('estimate') < 2 && small.length >= 2 ? small : ok.sort((a, b) => b - a);
-      if (turn === 1 && pick.length >= 2) this.estimate(pick[0], pick[1]);
+      if (turn === 1 && est.length >= 2) this.estimate(est[0], est[1]);
       else this.pictureGraph();
+      return;
+    }
+    if (this.env === 'canyon') {
+      // The canyon is about multiplying, so the report is review: each kind in turn.
+      const k = (s.guide?.recap ?? 1) % 4;
+      if (k === 1 && pair) this.addition(pair[0], pair[1]);
+      else if (k === 2) this.pictureGraph();
+      else if (k === 3 && est.length >= 2) this.estimate(est[0], est[1]);
+      else {
+        this.drawGraph();
+        this.graphQuestion();
+      }
       return;
     }
     if (turn === 0 && pair) this.addition(pair[0], pair[1]);

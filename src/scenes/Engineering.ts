@@ -4,8 +4,8 @@ import { REGIONS, lookFromSave } from '../armor';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import {
-  BUILD_COST, GADGETS, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, egyptUnlocked,
-  gearInfo, hasSeen, jetUnlocked, markSeen, save, setActiveBot, superLabUnlocked,
+  BUILD_COST, GADGETS, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, botsUnlocked, egyptUnlocked,
+  gearInfo, hasSeen, markSeen, save, setActiveBot, superLabUnlocked,
 } from '../state';
 import { W, button, dialog, scrapBadge, text } from '../ui/widgets';
 
@@ -22,11 +22,21 @@ const STORY: Record<BotId, Record<GearId, string>> = {
     blaster: 'Cut new cannon barrels for bigger shots.',
     boots: 'Pump up the afterburners to roll past shots.',
   },
+  titan: {
+    armor: 'Build brick walls, row by row.',
+    blaster: 'Cut new rivet barrels for bigger shots.',
+    boots: 'Pump up the treads so its digger arm swats shots.',
+  },
+};
+const TAB: Record<BotId, { icon: string; fill: number; edge: number; card: number }> = {
+  titan: { icon: '🚜', fill: 0xd96c00, edge: 0xffc27a, card: 0xff8c1a },
+  jet: { icon: '✈', fill: 0xd4a800, edge: 0xfff3a0, card: 0xffd60a },
+  bolt: { icon: '🤖', fill: 0x1f6feb, edge: 0x9ad1ff, card: 0xf77f00 },
 };
 
 /**
  * The upgrade benches. Once STRIKER (the jet) has joined, a menu at the top
- * picks which robot to work on; the jet is the one picked by default.
+ * picks which robot to work on; the newest robot is the one picked by default.
  */
 export class EngineeringScene extends Phaser.Scene {
   /** Showing the Super Lab (STRIKER's one-mission gadgets) instead of the benches. */
@@ -60,7 +70,7 @@ export class EngineeringScene extends Phaser.Scene {
     }));
     this.add.graphics().fillStyle(0x0b0f1a, 0.75).fillRect(0, 0, W, 122).fillStyle(0xf77f00, 1).fillRect(0, 120, W, 6);
 
-    const twoBots = jetUnlocked(s);
+    const twoBots = botsUnlocked(s).length > 1;
     text(this, W / 2, twoBots ? 42 : 60, 'ENGINEERING ZONE', twoBots ? 44 : 56, '#ffd166').setStroke('#6a040f', 10);
     scrapBadge(this, W - 180, 60, s.scrap);
     button(this, 105, 60, 170, 64, '◀ Garage', () => this.scene.start('Garage'), { size: 26, fill: 0x3d4458 });
@@ -74,6 +84,11 @@ export class EngineeringScene extends Phaser.Scene {
         { who: 'sprocket', text: 'This is my favorite place! Each bench builds one kind of upgrade.' },
         { who: 'sprocket', text: 'Building takes scrap, and a little brain power. Pick whatever you like!' },
       ], () => markSeen('engineering-intro'));
+    } else if (bot === 'titan' && !hasSeen('engineering-titan')) {
+      dialog(this, [
+        { who: 'sprocket', text: 'TITAN\'s benches! Its armor isn\'t plates, it\'s BRICK WALLS.' },
+        { who: 'sprocket', text: 'Walls are built in rows. Rows of bricks are where multiplying comes in!' },
+      ], () => markSeen('engineering-titan'));
     } else if (twoBots && !hasSeen('engineering-jet')) {
       dialog(this, [
         { who: 'sprocket', text: 'STRIKER has its own benches: hull armor, wing cannons and afterburners!' },
@@ -86,11 +101,10 @@ export class EngineeringScene extends Phaser.Scene {
   private botMenu(bot: BotId) {
     const lab = superLabUnlocked();
     const tabs: { id: BotId | 'lab'; label: string; fill: number; edge: number }[] = [
-      { id: 'jet', label: `✈ ${botName('jet')}`, fill: 0xd4a800, edge: 0xfff3a0 },
-      { id: 'bolt', label: `🤖 ${botName('bolt')}`, fill: 0x1f6feb, edge: 0x9ad1ff },
+      ...botsUnlocked().map((b) => ({ id: b, label: `${TAB[b].icon} ${botName(b)}`, fill: TAB[b].fill, edge: TAB[b].edge })),
       ...(lab ? [{ id: 'lab' as const, label: '⚡ SUPER LAB', fill: 0x7b2cbf, edge: 0xe0aaff }] : []),
     ];
-    const w = 220;
+    const w = tabs.length > 3 ? 200 : 220;
     tabs.forEach((t, i) => {
       const x = W / 2 + (i - (tabs.length - 1) / 2) * (w + 20);
       const on = this.lab ? t.id === 'lab' : t.id === bot;
@@ -172,7 +186,7 @@ export class EngineeringScene extends Phaser.Scene {
     const card = this.add.graphics();
     card.fillStyle(0x0b0f1a, 0.55).fillRoundedRect(x - 190, 140, 380, 520, 20);
     card.fillStyle(0x0b0f1a, 0.85).fillRoundedRect(x - 190, 410, 380, 250, { tl: 0, tr: 0, bl: 20, br: 20 });
-    card.lineStyle(4, maxed ? 0x06d6a0 : bot === 'jet' ? 0xffd60a : 0xf77f00, 1).strokeRoundedRect(x - 190, 140, 380, 520, 20);
+    card.lineStyle(4, maxed ? 0x06d6a0 : TAB[bot].card, 1).strokeRoundedRect(x - 190, 140, 380, 520, 20);
     text(this, x, 170, `${info.title.toUpperCase()} BENCH`, info.title.length > 10 ? 26 : 30, '#ffffff').setStroke('#000000', 6);
 
     // Mark pips.
@@ -197,8 +211,9 @@ export class EngineeringScene extends Phaser.Scene {
     const b = button(this, x, 600, 320, 80, label, () => {
       // Armor is built plate by plate in the forge.
       // First buy the power core from the junk trader (money), then build.
+      // TITAN's armor is brick walls, built in the wall yard.
       const then = gear === 'armor'
-        ? { key: 'ArmorForge', data: { mode: 'build', mark: next } }
+        ? { key: bot === 'titan' ? 'WallForge' : 'ArmorForge', data: { mode: 'build', mark: next } }
         : { key: BENCH_SCENE[gear], data: { gear, mark: next, practice: false } };
       if (egyptUnlocked()) this.scene.start('Trader', { gear, mark: next, then });
       else this.scene.start(then.key, then.data);

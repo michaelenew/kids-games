@@ -1,5 +1,5 @@
 import { LEVELS } from './levels';
-import { MISSION_IDS, missionBot, missionById } from './three/missions';
+import { MISSION_IDS, isHandOver, startBot } from './three/missions';
 import { BUILD_COST, GADGETS, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save, superLabUnlocked } from './state';
 
 /**
@@ -84,13 +84,19 @@ export const FAILS_BEFORE_HINT = 1;
  */
 function botFor(id: string): BotId {
   if (!MISSION_IDS.includes(id)) return 'bolt';
-  if (isHandOver(id)) return 'bolt';
-  return missionBot(id);
+  return startBot(id);
 }
 
-/** The mission where STRIKER takes over from BOLT. */
-function isHandOver(id: string): boolean {
-  return missionById(id).steps.some((st) => st.kind === 'swap');
+/** Each robot's upgrade count when each mission was first beaten. */
+function clearedFor(s: SaveData, bot: BotId): Record<string, number> {
+  if (bot === 'jet') return (s.clearedAtJet ??= {});
+  if (bot === 'titan') return (s.clearedAtTitan ??= {});
+  return (s.clearedAt ??= {});
+}
+
+/** Upgrades that count for a robot's missions (BOLT's count everything, from before the jet). */
+function upgradesFor(s: SaveData, bot: BotId): number {
+  return bot === 'bolt' ? (s.upgradeCount ?? 0) : (s.upgradesBy?.[bot] ?? 0);
 }
 
 function allMaxed(s: SaveData, bot: BotId) {
@@ -109,15 +115,9 @@ export function needsUpgrade(id: string, s: SaveData = save()): boolean {
   const i = MISSION_IDS.indexOf(id);
   const bot = botFor(id);
   if (i <= 0 || s.levelsDone.includes(id) || allMaxed(s, bot) || isHandOver(id)) return false;
-  const prev = MISSION_IDS[i - 1];
-  if (bot === 'jet') {
-    const before = s.clearedAtJet?.[prev];
-    if (before === undefined) return false;
-    return (s.upgradesBy?.jet ?? 0) <= before;
-  }
-  const before = s.clearedAt?.[prev];
+  const before = clearedFor(s, bot)[MISSION_IDS[i - 1]];
   if (before === undefined) return false;
-  return (s.upgradeCount ?? 0) <= before;
+  return upgradesFor(s, bot) <= before;
 }
 
 /** Settings for an attempt at an arcade mission. Call once per attempt. */
@@ -136,10 +136,10 @@ export function onMissionFailed(id: string, s: SaveData = save()): number {
 
 /** A mission is beaten: remember the upgrade count, and the next mission's help starts fresh. */
 export function onMissionCleared(id: string, s: SaveData = save()) {
-  s.clearedAt ??= {};
-  if (s.clearedAt[id] === undefined) s.clearedAt[id] = s.upgradeCount ?? 0;
-  s.clearedAtJet ??= {};
-  if (s.clearedAtJet[id] === undefined) s.clearedAtJet[id] = s.upgradesBy?.jet ?? 0;
+  for (const bot of ['bolt', 'jet', 'titan'] as BotId[]) {
+    const rec = clearedFor(s, bot);
+    if (rec[id] === undefined) rec[id] = upgradesFor(s, bot);
+  }
   onLevelCleared(id, s);
   const next = MISSION_IDS[MISSION_IDS.indexOf(id) + 1];
   if (next && !s.levelsDone.includes(next)) {

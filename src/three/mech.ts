@@ -1,12 +1,13 @@
 import type * as THREE from 'three';
 import type { RobotLook } from '../art';
 import { Jet } from './jet';
+import { Titan } from './titan';
 import { type Region, Robot } from './robot';
 
 /**
  * What every playable robot can do, so the showroom, the forge and the
  * arcade missions work the same with BOLT (the walking robot) and STRIKER
- * (the fighter jet).
+ * (the fighter jet) and TITAN (the construction robot).
  */
 export interface Mech {
   readonly holder: THREE.Group;
@@ -38,5 +39,7 @@ export interface Mech {
 }
 
 export function makeMech(look: RobotLook): Mech {
-  return look.kind === 'jet' ? new Jet(look) : new Robot(look);
+  if (look.kind === 'jet') return new Jet(look);
+  if (look.kind === 'titan') return new Titan(look);
+  return new Robot(look);
 }

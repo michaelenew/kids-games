@@ -1,7 +1,7 @@
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
-/** The robots he can build up: BOLT (his first) and STRIKER, the yellow fighter jet. */
-export type BotId = 'bolt' | 'jet';
+/** The robots he can build up: BOLT (his first), STRIKER (the yellow fighter jet) and TITAN (the construction robot). */
+export type BotId = 'bolt' | 'jet' | 'titan';
 
 /** One robot's upgrades and armor plates. */
 export interface BotData {
@@ -43,11 +43,14 @@ export interface SaveData {
   upgradesBy?: Partial<Record<BotId, number>>;
   /** The jet's upgrade count when each jet mission was first beaten. */
   clearedAtJet?: Record<string, number>;
+  clearedAtTitan?: Record<string, number>;
   /**
    * The jet's gear and plates. BOLT's live at the top level (`gear`, `armor`)
    * so saves from before the jet keep working.
    */
   jet?: BotData;
+  /** TITAN's gear and plates (its plates are brick walls). */
+  titan?: BotData;
   /** Which robot the Engineering Zone, benches and forge are working on. */
   bot?: BotId;
   /**
@@ -220,15 +223,38 @@ export function jetUnlocked(s: SaveData = save()): boolean {
   return s.levelsDone.includes('egy-drop');
 }
 
+/** TITAN's paint: construction orange. */
+export const TITAN_COLOR = 0xff8c1a;
+
+/** TITAN joins in the first Grand Canyon mission (it takes over from STRIKER). */
+export function titanUnlocked(s: SaveData = save()): boolean {
+  return s.levelsDone.includes('cyn-drop');
+}
+
+/** The robots built so far, newest first. */
+export function botsUnlocked(s: SaveData = save()): BotId[] {
+  const out: BotId[] = [];
+  if (titanUnlocked(s)) out.push('titan');
+  if (jetUnlocked(s)) out.push('jet');
+  out.push('bolt');
+  return out;
+}
+
 /** A robot's gear and plates. BOLT's are the save's own fields. */
 export function botData(bot: BotId, s: SaveData = save()): BotData {
   if (bot === 'jet') return (s.jet ??= { gear: { armor: 0, blaster: 0, boots: 0 } });
+  if (bot === 'titan') return (s.titan ??= { gear: { armor: 0, blaster: 0, boots: 0 } });
   return s;
 }
 
 /** The robot the workshop screens are working on. */
 export function activeBot(s: SaveData = save()): BotId {
-  return s.bot === 'jet' && jetUnlocked(s) ? 'jet' : 'bolt';
+  return s.bot && botsUnlocked(s).includes(s.bot) ? s.bot : 'bolt';
+}
+
+/** Each robot's paint. */
+export function botColor(bot: BotId, s: SaveData = save()): number {
+  return bot === 'jet' ? JET_COLOR : bot === 'titan' ? TITAN_COLOR : s.color;
 }
 
 export function setActiveBot(bot: BotId, s: SaveData = save()): void {
@@ -241,10 +267,10 @@ export function rig(s: SaveData = save()): BotData {
   return botData(activeBot(s), s);
 }
 
-export const BOT_NAMES: Record<BotId, string> = { bolt: 'BOLT', jet: 'STRIKER' };
+export const BOT_NAMES: Record<BotId, string> = { bolt: 'BOLT', jet: 'STRIKER', titan: 'TITAN' };
 
 export function botName(bot: BotId, s: SaveData = save()): string {
-  return bot === 'bolt' ? s.name : BOT_NAMES.jet;
+  return bot === 'bolt' ? s.name : BOT_NAMES[bot];
 }
 
 /** The jet's cannon damage by mark (it joins late, so it starts stronger than BOLT did). */
@@ -270,8 +296,31 @@ export const JET_GEAR_INFO: Record<GearId, { title: string; skill: string; perks
   },
 };
 
+/** TITAN hits hard but slowly: rivets, then a jackhammer drill. */
+export const TITAN_DAMAGE = [3, 4, 6, 8];
+/** Chance TITAN's digger arm swats an incoming shot away, by treads mark. */
+export const TITAN_BLOCK = [0, 0.12, 0.22, 0.32];
+
+export const TITAN_GEAR_INFO: Record<GearId, { title: string; skill: string; perks: string[] }> = {
+  armor: {
+    title: 'Brick Walls',
+    skill: 'Multiplying',
+    perks: ['No walls', 'Brick wall armor', 'Steel-framed walls', 'Gold-framed walls + spikes'],
+  },
+  blaster: {
+    title: 'Rivet Cannon',
+    skill: 'Measuring',
+    perks: ['Nail gun, damage 3', 'Rivet cannon, damage 4', 'Twin rivets + rock launcher, damage 6', 'Plasma jackhammer, damage 8'],
+  },
+  boots: {
+    title: 'Treads',
+    skill: 'Adding & subtracting',
+    perks: ['Plain feet', 'Treads: swats some shots away', 'Hydraulic treads: swats more', 'Power treads + jump jets: swats lots'],
+  },
+};
+
 export function gearInfo(bot: BotId): Record<GearId, { title: string; skill: string; perks: string[] }> {
-  return bot === 'jet' ? JET_GEAR_INFO : GEAR_INFO;
+  return bot === 'jet' ? JET_GEAR_INFO : bot === 'titan' ? TITAN_GEAR_INFO : GEAR_INFO;
 }
 
 // ---- Super gadgets ------------------------------------------------------------
@@ -352,6 +401,11 @@ export function amazonUnlocked(s: SaveData = save()): boolean {
   return s.levelsDone.includes('egy-pyramid');
 }
 
+/** The Grand Canyon (multiplication, with TITAN) starts after the Amazon. */
+export function canyonUnlocked(s: SaveData = save()): boolean {
+  return s.levelsDone.includes('amz-hive');
+}
+
 /**
  * Which kind of written subtraction the next repairs should be, easiest
  * first: no borrowing (the first two), then borrowing (the next three),
@@ -361,6 +415,11 @@ export function writtenStage(s: SaveData = save()): 0 | 1 | null {
   if (!amazonUnlocked(s)) return null;
   const n = s.guide?.written ?? 0;
   return n < 2 ? 0 : n < 5 ? 1 : null;
+}
+
+/** TITAN's wall repairs: whole rows only for the first two, then rows plus loose bricks. */
+export function wallStage(s: SaveData = save()): 0 | 1 {
+  return (s.guide?.['wall-fix'] ?? 0) < 2 ? 0 : 1;
 }
 
 /** How many times he has done a kind of problem with a walk-through. */

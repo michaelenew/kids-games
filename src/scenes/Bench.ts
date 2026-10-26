@@ -77,7 +77,7 @@ export abstract class BenchScene extends Phaser.Scene {
     g.fillStyle(0xf77f00, 1).fillRect(0, 100, W, 6);
 
     const bot = activeBot();
-    const who = bot === 'jet' ? `${botName(bot)} · ` : '';
+    const who = bot !== 'bolt' ? `${botName(bot)} · ` : '';
     const title = this.gadget
       ? `SUPER LAB · ${GADGETS[this.gadget].title.toUpperCase()}`
       : `${who}${gearInfo(bot)[this.gear].title.toUpperCase()} BENCH · Mark ${ROMAN[this.mark]}${this.practice ? ' (practice)' : ''}`;

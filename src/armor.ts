@@ -1,6 +1,6 @@
 import { randInt, type Rng } from './skills/rng';
 import { borrowKind } from './skills/steps';
-import { type BotData, type BotId, JET_COLOR, type Mark, type SaveData, activeBot, botData } from './state';
+import { type BotData, type BotId, type Mark, type SaveData, activeBot, botColor, botData } from './state';
 
 /**
  * The robot's armor is five plates. Each plate is worth a number of armor
@@ -31,15 +31,30 @@ export const JET_REGION_NAMES: Record<Region, string> = {
   legR: 'Right tail plate',
 };
 
+/** TITAN's plates are brick walls. */
+export const TITAN_REGION_NAMES: Record<Region, string> = {
+  chest: 'Chest wall',
+  armL: 'Left arm wall',
+  armR: 'Right arm wall',
+  legL: 'Left leg wall',
+  legR: 'Right leg wall',
+};
+
 export function regionName(r: Region, bot: BotId): string {
-  return (bot === 'jet' ? JET_REGION_NAMES : REGION_NAMES)[r];
+  return (bot === 'jet' ? JET_REGION_NAMES : bot === 'titan' ? TITAN_REGION_NAMES : REGION_NAMES)[r];
 }
 
 export interface Plate {
   mark: Mark;
   max: number;
   hp: number;
+  /** TITAN's brick walls: rows of bricks, each brick worth BRICK points. */
+  rows?: number;
+  cols?: number;
 }
+
+/** Armor points per brick in TITAN's walls. */
+export const BRICK = 100;
 
 export type ArmorState = Partial<Record<Region, Plate>>;
 
@@ -142,7 +157,7 @@ export class MissionArmor {
    * fully stripped (that would always be the same number), and the missing
    * amount gets a little jitter so the ones digit varies.
    */
-  commit(s: BotData, rng: Rng = Math.random, stage: 0 | 1 | null = null) {
+  commit(s: BotData, rng: Rng = Math.random, stage: 0 | 1 | null = null, wallStage: 0 | 1 = 0) {
     const a = s.armor ?? {};
     // At most two plates need repairs after a mission, so the math between
     // missions stays short: the two most damaged keep their damage.
@@ -164,6 +179,11 @@ export class MissionArmor {
       // Cap heavy damage somewhere between 40% and 85% of the plate.
       const cap = Math.round(p.max * (0.4 + rng() * 0.45));
       missing = Math.min(missing, cap);
+      if (p.rows && p.cols) {
+        // A brick wall loses whole rows (and later a few extra bricks).
+        p.hp = p.max - wallDamage(p.rows, p.cols, missing, wallStage, rng) * BRICK;
+        continue;
+      }
       missing += randInt(rng, -4, 4);
       missing = Math.max(1, Math.min(p.max - 1, missing, MAX_PLATE_DAMAGE));
       p.hp = p.max - missing;
@@ -181,7 +201,7 @@ export function lookFromSave(s: SaveData, bot: BotId = activeBot(s)): import('./
     if (p) plates[r] = { mark: p.mark, damage: p.max ? 1 - p.hp / p.max : 0 };
   }
   return {
-    kind: bot, color: bot === 'jet' ? JET_COLOR : s.color,
+    kind: bot, color: botColor(bot, s),
     armor: armorMark(d.armor ?? {}), blaster: d.gear.blaster, boots: d.gear.boots, plates,
     gadget: bot === 'jet' ? s.gadget : undefined,
   };
@@ -204,3 +224,39 @@ export function shapeHp(max: number, hp: number, stage: 0 | 1): number {
   return hp;
 }
 
+
+/**
+ * Bricks knocked out of a wall, from the points lost: whole rows first
+ * (stage 0: "2 rows of 5"), then whole rows plus a few loose bricks
+ * (stage 1: "2 rows of 5, and 3 more"). At least one row always stays.
+ */
+export function wallDamage(rows: number, cols: number, lostPoints: number, stage: 0 | 1, rng: Rng = Math.random): number {
+  const bricks = Math.max(1, Math.round(lostPoints / BRICK));
+  const full = Math.max(1, Math.min(rows - 1, Math.floor(bricks / cols)));
+  if (stage === 0 || cols < 3 || full >= rows - 1) return full * cols;
+  return full * cols + randInt(rng, 1, cols - 1);
+}
+
+/**
+ * A wall blueprint for a new mark: rows × bricks per row. Mark I uses the
+ * easiest facts (2s, 5s and 10s, short walls); Mark II adds 3s and 4s;
+ * Mark III gets taller.
+ */
+export function wallTarget(rng: Rng, mark: 1 | 2 | 3, region: Region, index: number): { rows: number; cols: number } {
+  const big = region === 'chest';
+  if (mark === 1) {
+    const cols = [5, 2, 10, 5, 2][index % 5];
+    return { rows: cols === 10 ? 2 : big ? 4 : randInt(rng, 2, 3), cols };
+  }
+  if (mark === 2) {
+    const cols = [5, 3, 4, 10, 2][index % 5];
+    return { rows: cols === 10 ? 3 : big ? randInt(rng, 5, 6) : randInt(rng, 3, 4), cols };
+  }
+  const cols = [5, 4, 3, 10, 2][index % 5];
+  return { rows: cols === 10 ? randInt(rng, 3, 4) : big ? randInt(rng, 6, 7) : randInt(rng, 4, 6), cols };
+}
+
+/** Where a robot's armor is built and fixed: TITAN's brick walls have their own yard. */
+export function forgeScene(bot: BotId): 'ArmorForge' | 'WallForge' {
+  return bot === 'titan' ? 'WallForge' : 'ArmorForge';
+}

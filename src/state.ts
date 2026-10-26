@@ -347,6 +347,22 @@ export function egyptUnlocked(s: SaveData = save()): boolean {
   return s.levelsDone.includes('inv-queen');
 }
 
+/** The Amazon (written subtraction, picture graphs, estimating) starts after Egypt. */
+export function amazonUnlocked(s: SaveData = save()): boolean {
+  return s.levelsDone.includes('egy-pyramid');
+}
+
+/**
+ * Which kind of written subtraction the next repairs should be, easiest
+ * first: no borrowing (the first two), then borrowing (the next three),
+ * then whatever the damage happens to be (often borrowing across a zero).
+ */
+export function writtenStage(s: SaveData = save()): 0 | 1 | null {
+  if (!amazonUnlocked(s)) return null;
+  const n = s.guide?.written ?? 0;
+  return n < 2 ? 0 : n < 5 ? 1 : null;
+}
+
 /** How many times he has done a kind of problem with a walk-through. */
 export function guideCount(kind: string, s: SaveData = save()): number {
   return s.guide?.[kind] ?? 0;

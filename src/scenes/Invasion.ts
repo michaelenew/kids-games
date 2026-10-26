@@ -4,6 +4,7 @@ import { MissionArmor, REGIONS, type Region, lookFromSave, repairsNeeded, totalM
 import { music, sfx } from '../audio';
 import {
   type BotId, GADGETS, JET_COLOR, JET_DODGE, actionDone, alerts, botData, earnAlert, persist, save, setActiveBot, wantsRecap,
+  writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, alertMission, missionBot, missionById } from '../three/missions';
@@ -413,7 +414,8 @@ export class InvasionScene extends Phaser.Scene {
    */
   private bank(won: boolean) {
     const s = save();
-    if (won) this.armor.commit(botData(this.bot, s));
+    // From the Amazon on, the damage is shaped so repairs ramp up: no borrowing, then borrowing.
+    if (won) this.armor.commit(botData(this.bot, s), Math.random, writtenStage(s));
     s.scrap += this.scrap;
     // A super gadget only lasts one mission.
     if (missionBot(this.mission.id) === 'jet' && s.gadget) {
@@ -482,9 +484,9 @@ export class InvasionScene extends Phaser.Scene {
       const after = () => {
         // The mission report (graphs and adding) starts in Egypt, and takes
         // turns with mission control so the math between missions stays short.
-        const report = this.mission.env === 'desert' && wantsRecap();
+        const report = (this.mission.env ?? 'city') !== 'city' && wantsRecap();
         const b = button(this, W / 2, H / 2 + 120, 320, 84, report ? 'Mission report ▶' : next.label, () => {
-          if (report) this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data } });
+          if (report) this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data }, env: this.mission.env });
           else this.scene.start(next.key, next.data);
         }, {
           fill: 0x2a9d8f, edge: 0x9ff0e3, size: 32,
@@ -505,8 +507,19 @@ export class InvasionScene extends Phaser.Scene {
         ], after);
       } else if (this.mission.id === 'egy-pyramid' && firstWin) {
         dialog(this, [
-          { who: 'volt', text: 'The Pyramid Walker is scrap! Their whole fleet is fleeing back into space!' },
-          { who: 'sprocket', text: 'YOU SAVED THE WORLD! Best. Robot. Ever.' },
+          { who: 'volt', text: 'The Pyramid Walker is scrap! Egypt is safe!' },
+          { who: 'volt', text: 'But the rest of their fleet just dove into the Amazon jungle, under the giant trees. Get ready, STRIKER.' },
+        ], after);
+      } else if (this.mission.id === 'amz-landing' && firstWin) {
+        dialog(this, [
+          { who: 'sprocket', text: 'Look what the aliens were guarding in those ruins... alien tech! Glowing, buzzing, AMAZING alien tech!' },
+          { who: 'sprocket', text: 'I can use it to build SUPER gadgets for STRIKER: a mega cannon, an energy shield, drones...' },
+          { who: 'sprocket', text: 'Come find the SUPER LAB in the Engineering Zone!' },
+        ], after);
+      } else if (this.mission.id === 'amz-hive' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Hive Tree is down! The jungle is free!' },
+          { who: 'volt', text: 'Their last mothership is heading for the Grand Canyon. Whatever they\'re building there, it\'s BIG.' },
         ], after);
       } else if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {
         dialog(this, [

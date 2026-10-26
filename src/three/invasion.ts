@@ -6,6 +6,7 @@ import { type AlienModel, type AlienState, type BossModel, hiveWalker, krawler, 
 import { skyTexture } from './backdrop';
 import { type City, buildCity } from './city';
 import { DESERT_FOG, buildDesert, desertSky } from './desert';
+import { JUNGLE_FOG, buildJungle, jungleSky } from './jungle';
 import { type Dropship, dropship } from './dropship';
 import { FX } from './fx';
 import type { AlienKind, Mission, Spawn, Step, Vehicle } from './missions';
@@ -194,8 +195,9 @@ export class Invasion {
     }
 
     const desert = mission.env === 'desert';
+    const jungle = mission.env === 'jungle';
     const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas };
-    this.city = desert ? buildDesert(this.curve, where) : buildCity(this.curve, where);
+    this.city = desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where) : buildCity(this.curve, where);
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
@@ -225,7 +227,12 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    if (desert) {
+    if (jungle) {
+      stage.activate(jungleSky(), new THREE.Fog(JUNGLE_FOG, 45, 360));
+      // Green-gold light through the canopy.
+      stage.key.color.setHex(0xe8f0b0);
+      stage.key.intensity = 2.6;
+    } else if (desert) {
       stage.activate(desertSky(), new THREE.Fog(DESERT_FOG, 60, 520));
       // Low, warm desert sun.
       stage.key.color.setHex(0xffc98a);

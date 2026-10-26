@@ -1,4 +1,5 @@
 import { randInt, type Rng } from './skills/rng';
+import { borrowKind } from './skills/steps';
 import { type BotData, type BotId, JET_COLOR, type Mark, type SaveData, activeBot, botData } from './state';
 
 /**
@@ -141,7 +142,7 @@ export class MissionArmor {
    * fully stripped (that would always be the same number), and the missing
    * amount gets a little jitter so the ones digit varies.
    */
-  commit(s: BotData, rng: Rng = Math.random) {
+  commit(s: BotData, rng: Rng = Math.random, stage: 0 | 1 | null = null) {
     const a = s.armor ?? {};
     // At most two plates need repairs after a mission, so the math between
     // missions stays short: the two most damaged keep their damage.
@@ -166,6 +167,7 @@ export class MissionArmor {
       missing += randInt(rng, -4, 4);
       missing = Math.max(1, Math.min(p.max - 1, missing, MAX_PLATE_DAMAGE));
       p.hp = p.max - missing;
+      if (stage !== null) p.hp = shapeHp(p.max, p.hp, stage);
     }
   }
 }
@@ -184,3 +186,21 @@ export function lookFromSave(s: SaveData, bot: BotId = activeBot(s)): import('./
     gadget: bot === 'jet' ? s.gadget : undefined,
   };
 }
+
+/**
+ * Nudge what's left on a plate so the repair (full − left) is the kind of
+ * written subtraction he's ready for: 0 = no borrowing, 1 = borrowing. Picks
+ * the closest such number that still leaves a sensible amount of damage.
+ */
+export function shapeHp(max: number, hp: number, stage: 0 | 1): number {
+  const lo = Math.max(1, Math.round(max * 0.15));
+  const hi = Math.min(max - 10, MAX_PLATE_DAMAGE >= max ? max - 10 : max);
+  for (let d = 0; d <= 400; d++) {
+    for (const v of [hp - d, hp + d]) {
+      if (v < lo || v > hi || max - v > MAX_PLATE_DAMAGE) continue;
+      if (borrowKind(max, v) === stage) return v;
+    }
+  }
+  return hp;
+}
+

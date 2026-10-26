@@ -217,3 +217,24 @@ describe('patrol alerts', () => {
     expect(alerts(s).count).toBe(2);
   });
 });
+
+describe('written subtraction', () => {
+  it('borrows, and borrows across a zero', async () => {
+    const { writtenSubtraction, borrowKind } = await import('../src/skills/steps');
+    const cols = writtenSubtraction(500, 237);
+    expect(cols.map((c) => c.result)).toEqual([3, 6, 2]);
+    expect(cols[0].borrow).toEqual({ from: 2, through: [1] });
+    expect(borrowKind(586, 243)).toBe(0);
+    expect(borrowKind(852, 237)).toBe(1);
+    expect(borrowKind(500, 237)).toBe(2);
+  });
+
+  it('shapes repair damage to the kind he is ready for', async () => {
+    const { shapeHp } = await import('../src/armor');
+    const { borrowKind } = await import('../src/skills/steps');
+    for (const [max, hp] of [[850, 437], [1347, 802], [560, 129]]) {
+      expect(borrowKind(max, shapeHp(max, hp, 0))).toBe(0);
+      expect(borrowKind(max, shapeHp(max, hp, 1))).toBe(1);
+    }
+  });
+});

@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
-import { hitBars, makeGraphQuestion, type Bar } from '../skills/recap';
+import { hitBars, makeGraphQuestion, pickAddPair, type Bar } from '../skills/recap';
 import { addColumns } from '../skills/steps';
-import { bumpGuide, guideCount, persist, recordSkill, save } from '../state';
+import { bumpGuide, guideCount, mathDone, persist, recordSkill, save } from '../state';
 import { getStage } from '../three/stage';
 import { numpad } from '../ui/numpad';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
@@ -52,6 +52,7 @@ export class RecapScene extends Phaser.Scene {
     this.add.rectangle(W / 2, H / 2, W, H, 0x0b0f1a, 1);
     text(this, W / 2, 50, 'MISSION REPORT', 48, '#ffd166').setStroke('#000000', 6);
     this.layer = this.add.container(0, 0);
+    mathDone('recap');
     this.bars = hitBars(this.hits, NAMES);
     if (!this.bars.length) {
       text(this, W / 2, 300, 'NO HITS TAKEN!\nFlawless mission!', 56, '#06d6a0');
@@ -70,10 +71,9 @@ export class RecapScene extends Phaser.Scene {
     }
   }
 
-  /** Two of his hits that are two-digit numbers (the biggest such). */
+  /** Two of his hits that are two-digit numbers: no carrying the first time, carrying after. */
   private twoHits(): [number, number] | null {
-    const ok = this.hits.map((h) => h.amount).filter((a) => a >= 10 && a <= 99).sort((a, b) => b - a);
-    return ok.length >= 2 ? [ok[0], ok[1]] : null;
+    return pickAddPair(this.hits.map((h) => h.amount), guideCount('add') > 0);
   }
 
   // ---- Adding two hits ----------------------------------------------------------
@@ -283,7 +283,8 @@ export class RecapScene extends Phaser.Scene {
   }
 
   private graphQuestion() {
-    const q = makeGraphQuestion(Math.random, this.bars);
+    // The first couple of graphs ask the easier "who hit you most".
+    const q = makeGraphQuestion(Math.random, this.bars, guideCount('graph') < 2);
     if (!q) {
       this.finish();
       return;

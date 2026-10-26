@@ -138,7 +138,7 @@ export class LevelScene extends Phaser.Scene {
 
     // Everything you see in the level is drawn by the 3D layer; the game
     // objects here are invisible and only handle movement and collisions.
-    this.view = new WorldView(getStage(this.game.canvas), map, lookFromSave(s));
+    this.view = new WorldView(getStage(this.game.canvas), map, lookFromSave(s, 'bolt'));
     this.view.blasterMark = s.gear.blaster;
 
     this.solids = this.physics.add.staticGroup();

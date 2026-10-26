@@ -244,7 +244,15 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 
 ---
 
-## 11. Open questions
+## 11. Robot roster
+
+- **BOLT**: his first robot, transforms into a car. Flies the city missions.
+- **STRIKER** (built): a yellow fighter jet. Takes over halfway through the first Egypt mission and flies all of Egypt. Same three benches, its own flashy parts.
+- **Planned**: a submarine robot, a robot with invisibility powers, and a construction vehicle robot. Each gets its own missions and an Engineering Zone tab, and may use different kinds of problems on its benches.
+
+---
+
+## 12. Open questions
 
 - **Device:** laptop with keyboard, or tablet with touch? This changes the action controls a lot.
 - **Reading:** can he read word problems on his own, or should everything be voiced?

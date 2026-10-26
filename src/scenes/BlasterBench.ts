@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { RULER_INCHES, formatInches, makeBarrelProblem, snapLength, type BarrelProblem } from '../skills/measure';
 import { sfx } from '../audio';
-import { save } from '../state';
+import { JET_COLOR, activeBot, save } from '../state';
 import { button, sparks, text } from '../ui/widgets';
 import { BenchScene } from './Bench';
 import { needsIntro } from '../ui/howto';
@@ -214,7 +214,7 @@ export class BlasterBench extends BenchScene {
   private drawBody() {
     const g = this.body;
     const e = ENERGY[this.mark];
-    const paint = save().color;
+    const paint = activeBot() === 'jet' ? JET_COLOR : save().color;
     const y = BARREL_Y;
     const right = X0 + 2;
     // Grip and trigger guard.

@@ -24,12 +24,15 @@ export function hitBars(hits: { from: string }[], names: Record<string, string>)
   return [...counts.entries()].map(([k, v]) => ({ label: names[k] ?? k, value: v }));
 }
 
-/** A question about the graph: who hit the most, or how many more. */
-export function makeGraphQuestion(rng: Rng, bars: Bar[]): GraphQuestion | null {
+/**
+ * A question about the graph: who hit the most, or how many more. `easy`
+ * asks the simpler "who hit the most" whenever the bars allow it.
+ */
+export function makeGraphQuestion(rng: Rng, bars: Bar[], easy = false): GraphQuestion | null {
   if (bars.length === 0) return null;
   const sorted = [...bars].sort((a, b) => b.value - a.value);
   const tie = sorted.length > 1 && sorted[0].value === sorted[1].value;
-  if (bars.length >= 2 && (tie || rng() < 0.5)) {
+  if (bars.length >= 2 && (tie || (!easy && rng() < 0.5))) {
     // "How many more" between two bars with different values.
     const pairs: [Bar, Bar][] = [];
     for (const a of bars) for (const b of bars) if (a.value > b.value) pairs.push([a, b]);
@@ -50,6 +53,21 @@ export function makeGraphQuestion(rng: Rng, bars: Bar[]): GraphQuestion | null {
     answer: sorted[0].label,
     choices: bars.map((b) => b.label),
   };
+}
+
+/**
+ * Two two-digit hits to add. The first time, a pair whose ones don't make a
+ * new ten (no carrying); after that, a pair that does, when he took such hits.
+ */
+export function pickAddPair(amounts: number[], carry: boolean): [number, number] | null {
+  const ok = amounts.filter((a) => a >= 10 && a <= 99).sort((a, b) => b - a);
+  if (ok.length < 2) return null;
+  for (let i = 0; i < ok.length; i++) {
+    for (let j = i + 1; j < ok.length; j++) {
+      if (((ok[i] % 10) + (ok[j] % 10) >= 10) === carry) return [ok[i], ok[j]];
+    }
+  }
+  return [ok[0], ok[1]];
 }
 
 /** The biggest hits to add up (up to three). */

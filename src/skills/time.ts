@@ -46,12 +46,18 @@ function withChoices(answer: string, wrong: string[]): string[] {
   return [...set];
 }
 
-/** Read the clock: `step` 5 for 5-minute marks, 1 for to the minute. */
-export function makeReadClock(rng: Rng, step: 5 | 1): TimeQuestion {
-  const t = randomTime(rng, step);
+/**
+ * Read the clock: `step` 5 for 5-minute marks, 1 for to the minute. `minute`
+ * picks the minutes exactly (for the easy-to-hard start: :20, :40, then :55).
+ */
+export function makeReadClock(rng: Rng, step: 5 | 1, minute?: number): TimeQuestion {
+  // With a set minute, keep the hour away from 12 so "the next number" is plain.
+  const t = minute === undefined ? randomTime(rng, step) : { h: randInt(rng, 2, 10), m: minute };
   const answer = clockText(t.h, t.m);
   // Typical mix-ups: hour and minute hands swapped, an hour off, reading the minute number as written.
   const wrong = [
+    // Late in the hour, the hour hand is nearly at the next number: the classic mix-up.
+    ...(t.m >= 30 ? [clockText(addMinutes(t.h, t.m, 60).h, t.m)] : []),
     clockText(addMinutes(t.h, t.m, -60).h, t.m),
     clockText(t.h, (t.m + 5 * randInt(rng, 1, 3)) % 60),
     clockText(addMinutes(t.h, t.m, 60).h, t.m),
@@ -66,10 +72,20 @@ export function makeReadClock(rng: Rng, step: 5 | 1): TimeQuestion {
   };
 }
 
-/** How many minutes until the aliens arrive? */
-export function makeUntil(rng: Rng, step: 5 | 1): TimeQuestion {
-  const now = randomTime(rng, step === 5 ? 5 : 1);
-  const gap = step === 5 ? randInt(rng, 3, 11) * 5 : randInt(rng, 12, 55);
+/**
+ * How many minutes until the aliens arrive? `cross` false keeps both times
+ * inside one hour (easier); true makes it pass the top of the hour.
+ */
+export function makeUntil(rng: Rng, step: 5 | 1, cross?: boolean): TimeQuestion {
+  let now = randomTime(rng, step === 5 ? 5 : 1);
+  let gap = step === 5 ? randInt(rng, 3, 11) * 5 : randInt(rng, 12, 55);
+  if (cross === false) {
+    now = { h: randInt(rng, 1, 11), m: randInt(rng, 1, 5) * 5 };
+    gap = randInt(rng, 2, Math.min(7, (55 - now.m) / 5)) * 5;
+  } else if (cross === true) {
+    now = { h: randInt(rng, 1, 11), m: randInt(rng, 7, 11) * 5 };
+    gap = randInt(rng, (65 - now.m) / 5, Math.min(11, (60 - now.m) / 5 + 5)) * 5;
+  }
   const land = addMinutes(now.h, now.m, gap);
   const answer = `${gap} minutes`;
   const wrong = [gap + 10, gap - 5, gap + 5, Math.abs(land.m - now.m)].filter((v) => v > 0 && v !== gap).map((v) => `${v} minutes`);
@@ -84,10 +100,17 @@ export function makeUntil(rng: Rng, step: 5 | 1): TimeQuestion {
   };
 }
 
-/** When does the flight (or the shield) end? */
-export function makeEnds(rng: Rng, step: 5 | 1): TimeQuestion {
-  const start = randomTime(rng, 5);
-  const dur = step === 5 ? randInt(rng, 2, 9) * 5 : randInt(rng, 11, 48);
+/** When does the flight (or the shield) end? `cross` as for `makeUntil`. */
+export function makeEnds(rng: Rng, step: 5 | 1, cross?: boolean): TimeQuestion {
+  let start = randomTime(rng, 5);
+  let dur = step === 5 ? randInt(rng, 2, 9) * 5 : randInt(rng, 11, 48);
+  if (cross === false) {
+    start = { h: randInt(rng, 1, 11), m: randInt(rng, 0, 4) * 5 };
+    dur = randInt(rng, 2, Math.min(7, (55 - start.m) / 5)) * 5;
+  } else if (cross === true) {
+    start = { h: randInt(rng, 1, 11), m: randInt(rng, 8, 10) * 5 };
+    dur = randInt(rng, (65 - start.m) / 5, 9) * 5;
+  }
   const end = addMinutes(start.h, start.m, dur);
   const answer = clockText(end.h, end.m);
   const thing = pick(rng, ['The dropship flight takes', 'The shield charge lasts', 'The trip to the drop zone takes']);
@@ -116,6 +139,40 @@ export function makeDay(rng: Rng): TimeQuestion {
     answer,
     choices: shuffle(rng, withChoices(answer, wrong)),
   };
+}
+
+/**
+ * Mission control's questions for one visit, easy to hard. The first visit
+ * reads three clocks: :20, then :40 (the hour hand is nearly at the next
+ * number, but it's still the same hour), then :55. Later visits ask one
+ * question each: minutes until (inside the hour, then across it), when a
+ * trip ends (the same way), reading to the minute, then a mix.
+ */
+export function controlQuestions(rng: Rng, visit: number): TimeQuestion[] {
+  switch (visit) {
+    case 0:
+      return [makeReadClock(rng, 5, 20), makeReadClock(rng, 5, 40), makeReadClock(rng, 5, 55)];
+    case 1:
+      return [makeUntil(rng, 5, false)];
+    case 2:
+      return [makeEnds(rng, 5, false)];
+    case 3:
+      return [makeUntil(rng, 5, true)];
+    case 4:
+      return [makeEnds(rng, 5, true)];
+    case 5:
+      return [makeReadClock(rng, 1)];
+  }
+  switch (visit % 4) {
+    case 0:
+      return [makeReadClock(rng, 1)];
+    case 1:
+      return [makeUntil(rng, 5, rng() < 0.6)];
+    case 2:
+      return [makeEnds(rng, 5, rng() < 0.6)];
+    default:
+      return [makeDay(rng)];
+  }
 }
 
 /**

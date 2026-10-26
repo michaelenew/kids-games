@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
 import { COINS, type Coin, coinsTotal, makePriceProblem, moneyText, type PriceProblem } from '../skills/money';
-import { GEAR_INFO, type GearId, bumpGuide, guideCount, recordSkill } from '../state';
+import { type GearId, activeBot, bumpGuide, gearInfo, guideCount, recordSkill } from '../state';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
 
@@ -57,7 +57,7 @@ export class TraderScene extends Phaser.Scene {
   create() {
     getStage(this.game.canvas).clear();
     this.makeCoinTextures();
-    this.problem = makePriceProblem(Math.random, this.job.mark);
+    this.problem = makePriceProblem(Math.random, this.job.mark, guideCount('money'));
     this.add.rectangle(W / 2, H / 2, W, H, 0x2a1d14, 1);
     // A cluttered junk stall.
     const g = this.add.graphics();
@@ -69,7 +69,7 @@ export class TraderScene extends Phaser.Scene {
     this.drawTrader(200, 300);
 
     // The item and its price tag.
-    const info = GEAR_INFO[this.job.gear];
+    const info = gearInfo(activeBot())[this.job.gear];
     panel(this, 570, 210, 440, 230, 0x1d1410, 0xffd166);
     text(this, 570, 130, `POWER CORE`, 30, '#4cf0ff');
     text(this, 570, 170, `for ${info.title} Mark ${ROMAN[this.job.mark]}`, 22, '#ffffff');

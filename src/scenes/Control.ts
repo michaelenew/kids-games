@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
-import { DAYS, addMinutes, clockText, missionControlQuestion, type TimeQuestion } from '../skills/time';
-import { bumpGuide, guideCount, recordSkill } from '../state';
-import { MISSION_IDS, missionById } from '../three/missions';
+import { DAYS, addMinutes, clockText, controlQuestions, type TimeQuestion } from '../skills/time';
+import { bumpGuide, guideCount, mathDone, recordSkill } from '../state';
+import { missionById } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 
@@ -45,9 +45,10 @@ export class ControlScene extends Phaser.Scene {
     this.add.image(90, 650, 'volt').setScale(0.9);
     this.shieldText = text(this, W - 170, 40, 'SHIELD +0', 28, '#06d6a0');
     this.layer = this.add.container(0, 0);
-    // One question per mission, so it's quick; it gets harder through Egypt.
-    const idx = Math.max(0, MISSION_IDS.indexOf(this.missionId) - MISSION_IDS.indexOf('egy-drop'));
-    this.questions = [missionControlQuestion(Math.random, idx)];
+    // Usually one question, so it's quick; it starts easy and gets harder
+    // each visit (the first visit reads three clocks: :20, :40, :55).
+    this.questions = controlQuestions(Math.random, guideCount('control'));
+    mathDone('control');
     this.ask();
   }
 
@@ -58,10 +59,12 @@ export class ControlScene extends Phaser.Scene {
       this.launch();
       return;
     }
+    let setHands: ((h: number, m: number) => void) | null = null;
     if (q.kind === 'day') this.drawWeek();
-    else if (q.clock) this.drawClock(300, 380, 190, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
-    // The first couple of times for each kind, walk him through it step by step.
-    const guided = guideCount(`time-${q.kind}`) < 2;
+    else if (q.clock) setHands = this.drawClock(300, 380, 190, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
+    // The first few times for each kind, walk him through it step by step
+    // (clock reading three times: the whole first visit).
+    const guided = guideCount(`time-${q.kind}`) < (q.kind === 'read' ? 3 : 2);
     const steps = guided ? this.guideSteps(q) : [];
     const prompt = text(this, 900, 190, '', 28, '#ffffff', { wordWrap: { width: 620 } });
     this.layer.add(prompt);
@@ -103,13 +106,29 @@ export class ControlScene extends Phaser.Scene {
             this.index++;
             this.time.delayedCall(1800, () => this.ask());
           } else {
-            toast(this, 900, 300, q.kind === 'read' ? 'Look again: the short hand is the hour.' : 'Not quite. Count it out!', '#ff9f9f', 26);
+            const late = q.kind === 'read' && (q.clock?.m ?? 0) >= 30;
+            toast(this, 900, 300, q.kind !== 'read' ? 'Not quite. Count it out!'
+              : late ? 'Careful: the short hand hasn\'t reached the next number yet!' : 'Look again: the short hand is the hour.', '#ff9f9f', 26);
           }
         }, { fill: 0x1f6feb, size: 34 });
         this.layer.add(b);
         buttons.push(b);
       });
     };
+    // Late in the hour (like :40), first watch the hands move from the top of
+    // the hour, so he sees the short hand creep toward the next number.
+    const t = q.clock;
+    if (guided && q.kind === 'read' && t && t.m >= 30 && setHands) {
+      prompt.setText(`Watch the clock go from ${t.h}:00 to ${clockText(t.h, t.m)}. The long hand goes around, and the SHORT hand slowly creeps toward the ${(t.h % 12) + 1}...`);
+      const anim = { m: 0 };
+      setHands(t.h, 0);
+      this.tweens.add({
+        targets: anim, m: t.m, delay: 600, duration: 3200, ease: 'Sine.easeInOut',
+        onUpdate: () => setHands?.(t.h, anim.m),
+        onComplete: () => this.time.delayedCall(700, () => show(0)),
+      });
+      return;
+    }
     show(0);
   }
 
@@ -120,10 +139,16 @@ export class ControlScene extends Phaser.Scene {
     const out: { prompt: string; answer: string; choices: string[]; praise?: string }[] = [];
     const t = q.clock!;
     if (q.kind === 'read') {
-      out.push({
+      const nextH = (t.h % 12) + 1;
+      out.push(t.m >= 30 ? {
+        prompt: `The SHORT black hand shows the hour. It's between the ${t.h} and the ${nextH}, and getting close to the ${nextH}... but it hasn't reached it yet! What hour is it still?`,
+        answer: `${t.h}`,
+        choices: mix(`${t.h}`, [`${nextH}`, `${((t.h + 10) % 12) + 1}`]),
+        praise: `Yes! It's still ${t.h} until the long hand gets back to the 12.`,
+      } : {
         prompt: `The SHORT black hand shows the hour. It points at the ${t.h} (or just past it). What hour is it?`,
         answer: `${t.h}`,
-        choices: mix(`${t.h}`, [`${(t.h % 12) + 1}`, `${((t.h + 10) % 12) + 1}`]),
+        choices: mix(`${t.h}`, [`${nextH}`, `${((t.h + 10) % 12) + 1}`]),
         praise: `Yes, ${t.h} o'clock and a bit!`,
       });
       if (t.m > 0) {
@@ -192,8 +217,8 @@ export class ControlScene extends Phaser.Scene {
     return out;
   }
 
-  /** An analog clock with hour numbers and minute ticks. */
-  private drawClock(cx: number, cy: number, r: number, h: number, m: number, label: string) {
+  /** An analog clock with hour numbers and minute ticks. Returns a way to move the hands. */
+  private drawClock(cx: number, cy: number, r: number, h: number, m: number, label: string): (h: number, m: number) => void {
     const g = this.add.graphics();
     g.fillStyle(0x000000, 0.4).fillCircle(cx + 6, cy + 8, r + 14);
     g.fillStyle(0xf8f4e8, 1).fillCircle(cx, cy, r + 10);
@@ -209,13 +234,18 @@ export class ControlScene extends Phaser.Scene {
       this.layer.add(text(this, cx + Math.cos(a) * (r - 48), cy + Math.sin(a) * (r - 48), `${n}`, 34, '#1a1423'));
     }
     const hands = this.add.graphics();
-    const ma = (m / 60) * Math.PI * 2 - Math.PI / 2;
-    const ha = (((h % 12) + m / 60) / 12) * Math.PI * 2 - Math.PI / 2;
-    hands.lineStyle(14, 0x1a1423, 1).lineBetween(cx, cy, cx + Math.cos(ha) * r * 0.5, cy + Math.sin(ha) * r * 0.5);
-    hands.lineStyle(8, 0xef476f, 1).lineBetween(cx, cy, cx + Math.cos(ma) * r * 0.82, cy + Math.sin(ma) * r * 0.82);
-    hands.fillStyle(0x1a1423, 1).fillCircle(cx, cy, 12);
+    const draw = (hh: number, mm: number) => {
+      const ma = (mm / 60) * Math.PI * 2 - Math.PI / 2;
+      const ha = (((hh % 12) + mm / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+      hands.clear();
+      hands.lineStyle(14, 0x1a1423, 1).lineBetween(cx, cy, cx + Math.cos(ha) * r * 0.5, cy + Math.sin(ha) * r * 0.5);
+      hands.lineStyle(8, 0xef476f, 1).lineBetween(cx, cy, cx + Math.cos(ma) * r * 0.82, cy + Math.sin(ma) * r * 0.82);
+      hands.fillStyle(0x1a1423, 1).fillCircle(cx, cy, 12);
+    };
+    draw(h, m);
     this.layer.add(hands);
     if (label) this.layer.add(text(this, cx, cy + r + 40, label, 26, '#ffd166'));
+    return draw;
   }
 
   /** The week as a strip of days, for "what day is it in 3 days". */
@@ -231,6 +261,7 @@ export class ControlScene extends Phaser.Scene {
 
   private launch() {
     this.layer.removeAll(true);
+    bumpGuide('control');
     text(this, 640, 260, this.shield ? `Great timing! Shield +${this.shield} for this mission.` : 'Timing is tricky. Let\'s go anyway!', 34, '#ffffff');
     const b = button(this, 640, 400, 360, 100, 'LAUNCH! 🚀', () => this.scene.start('Invasion', { missionId: this.missionId, shield: this.shield }), {
       fill: 0xf77f00, edge: 0xffd166, size: 40,

@@ -115,18 +115,42 @@ export class ControlScene extends Phaser.Scene {
         buttons.push(b);
       });
     };
-    // Late in the hour (like :40), first watch the hands move from the top of
-    // the hour, so he sees the short hand creep toward the next number.
+    // The clock can play its hands moving: for "what time is it", from the
+    // top of the hour (so he sees the short hand creep toward the next
+    // number); for "how long until", from now to when they land. A button
+    // replays it as often as he likes.
     const t = q.clock;
-    if (guided && q.kind === 'read' && t && t.m >= 30 && setHands) {
-      prompt.setText(`Watch the clock go from ${t.h}:00 to ${clockText(t.h, t.m)}. The long hand goes around, and the SHORT hand slowly creeps toward the ${(t.h % 12) + 1}...`);
-      const anim = { m: 0 };
-      setHands(t.h, 0);
-      this.tweens.add({
-        targets: anim, m: t.m, delay: 600, duration: 3200, ease: 'Sine.easeInOut',
-        onUpdate: () => setHands?.(t.h, anim.m),
-        onComplete: () => this.time.delayedCall(700, () => show(0)),
+    const to = q.kind === 'until' ? q.clock2 : q.kind === 'read' ? t : undefined;
+    let sweepTween: Phaser.Tweens.Tween | null = null;
+    const sweep = (delay: number, onDone?: () => void) => {
+      if (!t || !to || !setHands) return;
+      sweepTween?.stop();
+      const start = q.kind === 'read' ? { h: t.h, m: 0 } : t;
+      const span = ((to.h % 12) * 60 + to.m - ((start.h % 12) * 60 + start.m) + 720) % 720;
+      const anim = { k: 0 };
+      setHands(start.h, start.m);
+      sweepTween = this.tweens.add({
+        targets: anim, k: 1, delay, duration: 1200 + span * 40, ease: 'Sine.easeInOut',
+        onUpdate: () => {
+          const now = addMinutes(start.h, start.m, 0);
+          const total = (now.h % 12) * 60 + now.m + span * anim.k;
+          setHands?.(Math.floor(total / 60) || 12, total % 60);
+        },
+        onComplete: () => {
+          sweepTween = null;
+          // "How long until" goes back to showing now.
+          if (q.kind === 'until') this.time.delayedCall(900, () => setHands?.(t.h, t.m));
+          onDone?.();
+        },
       });
+    };
+    if (t && to && setHands) {
+      this.layer.add(button(this, 330, 668, 280, 58, '↻ Watch the clock', () => sweep(0), { fill: 0x3d4458, size: 24 }));
+    }
+    if (guided && q.kind === 'read' && t && t.m >= 30 && setHands) {
+      // Late in the hour (like :40): watch it first, then answer.
+      prompt.setText(`Watch the clock go from ${t.h}:00 to ${clockText(t.h, t.m)}. The long hand goes around, and the SHORT hand slowly creeps toward the ${(t.h % 12) + 1}...`);
+      sweep(600, () => this.time.delayedCall(700, () => show(0)));
       return;
     }
     show(0);

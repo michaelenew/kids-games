@@ -131,13 +131,20 @@ export class ArmorForge extends Phaser.Scene {
     button(this, 95, 46, 160, 60, '◀ Garage', () => this.scene.start('Garage'), { size: 24, fill: 0x3d4458 });
 
     if (this.mode === 'build') {
-      this.jobs = REGIONS.map((region, i) => {
+      // Plates already built at this mark (e.g. before leaving the forge) are skipped.
+      const todo = REGIONS.filter((r) => (s.armor?.[r]?.mark ?? 0) < this.mark);
+      this.jobs = todo.map((region) => {
+        const i = REGIONS.indexOf(region);
         const target = plateTarget(Math.random, this.mark, region);
         const format = this.mark === 1 ? 'digits' : this.mark === 2 ? (i % 2 ? 'words' : 'digits') : (['digits', 'expanded', 'words'] as const)[i % 3];
         return { region, target, spec: specText(target, format), format, misses: 0 };
       });
       this.places = this.mark === 3 ? [0, 1, 2, 3] : [1, 2, 3];
       text(this, (LEFT + RIGHT) / 2, 46, `ARMOR FORGE · MARK ${ROMAN[this.mark]}`, 40, '#ffd166').setStroke('#000000', 8);
+      if (!this.jobs.length) {
+        this.allDone();
+        return;
+      }
     } else {
       this.jobs = repairsNeeded(s.armor ?? {}).map(({ region, missing }) => ({ region, target: missing, spec: formatNumber(missing), format: 'digits' as SpecFormat, misses: 0 }));
       this.places = [1, 2, 3];
@@ -797,13 +804,13 @@ export class ArmorForge extends Phaser.Scene {
     this.guideLine = null;
     this.pips.forEach((p) => p.setFillStyle(0x06d6a0));
     let title = 'ALL PATCHED UP!';
-    if (this.mode === 'build' && this.jobs.length) {
+    if (this.mode === 'build') {
       const before = s.gear.armor;
       s.gear.armor = armorMark(s.armor ?? {});
       // Mark I is the story gift after the first mission; later marks cost scrap.
       if (this.mark > 1 && s.gear.armor > before) s.scrap = Math.max(0, s.scrap - BUILD_COST[this.mark]);
       persist();
-      onUpgradeBuilt();
+      if (s.gear.armor > before) onUpgradeBuilt();
       title = `MARK ${ROMAN[this.mark]} ARMOR COMPLETE!`;
     }
     sfx.success();

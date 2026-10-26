@@ -20,7 +20,8 @@ export class TitleScene extends Phaser.Scene {
     title.setStroke('#6a040f', 12).setShadow(0, 6, '#000000', 12, true, true);
     this.tweens.add({ targets: title, scale: { from: 1.15, to: 1 }, alpha: { from: 0, to: 1 }, duration: 700, ease: 'Back.easeOut' });
 
-    const first = !hasSeen('intro');
+    // The opening story only plays on a brand-new save (never after progress).
+    const first = !hasSeen('intro') && s.levelsDone.length === 0;
     button(this, W / 2, 665, 320, 84, 'PLAY', () => {
       sfx.ui();
       if (!first) {

@@ -324,7 +324,7 @@ export const MISSIONS: Mission[] = [
   // ---- The Amazon: STRIKER follows the fleet into the jungle --------------------
   {
     id: 'amz-landing',
-    dmg: 0.7, hp: 1.3, fire: 0.8, extra: 0.8,
+    dmg: 1.4, hp: 1.3, fire: 0.8, extra: 0.8,
     env: 'jungle',
     bot: 'jet',
     title: 'Invasion 11: River Landing',
@@ -348,7 +348,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'amz-canopy',
-    dmg: 0.75, hp: 1.4, fire: 0.8, extra: 0.9,
+    dmg: 0.92, hp: 1.4, fire: 0.8, extra: 0.9,
     env: 'jungle',
     bot: 'jet',
     title: 'Invasion 12: Canopy Chase',
@@ -369,7 +369,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'amz-falls',
-    dmg: 0.75, hp: 1.6, fire: 0.75, extra: 1,
+    dmg: 1.0, hp: 1.6, fire: 0.75, extra: 1,
     env: 'jungle',
     bot: 'jet',
     title: 'Invasion 13: Thunder Falls',
@@ -397,7 +397,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'amz-ruins',
-    dmg: 0.8, hp: 1.7, fire: 0.75, extra: 1.1,
+    dmg: 1.3, hp: 1.7, fire: 0.75, extra: 1.1,
     env: 'jungle',
     bot: 'jet',
     title: 'Invasion 14: The Lost City',
@@ -425,7 +425,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'amz-hive',
-    dmg: 0.8, hp: 1.9, fire: 0.72, extra: 1.2,
+    dmg: 2.2, hp: 2.6, fire: 0.72, extra: 1.6,
     env: 'jungle',
     bot: 'jet',
     title: 'Invasion 15: The Hive Tree',
@@ -434,7 +434,7 @@ export const MISSIONS: Mission[] = [
     path: [[0, 10, 20], [0, 10, -20], [14, 9, -120], [-12, 9, -230], [10, 8, -340], [0, 0, -400], [0, 0, -450], [0, 0, -490]],
     plazas: [[0.85, 1]],
     boss: [0, -8, -560],
-    bossHp: 2.2,
+    bossHp: 3.5,
     steps: [
       { kind: 'move', to: 1, speed: 8, vehicle: 'jet' },
       { kind: 'say', lines: [{ who: 'volt', text: 'Their hive walker is guarding the giant Hive Tree. This is it, STRIKER!' }] },

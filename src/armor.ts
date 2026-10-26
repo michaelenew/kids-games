@@ -181,5 +181,6 @@ export function lookFromSave(s: SaveData, bot: BotId = activeBot(s)): import('./
   return {
     kind: bot, color: bot === 'jet' ? JET_COLOR : s.color,
     armor: armorMark(d.armor ?? {}), blaster: d.gear.blaster, boots: d.gear.boots, plates,
+    gadget: bot === 'jet' ? s.gadget : undefined,
   };
 }

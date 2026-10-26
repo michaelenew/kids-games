@@ -192,3 +192,28 @@ describe('grown-up preview', () => {
     expect(again.save().levelsDone).toContain('egy-drop');
   });
 });
+
+describe('patrol alerts', () => {
+  it('send an older robot to a past map, never the hand-over mission', async () => {
+    const { alertMission } = await import('../src/three/missions');
+    const done = ['inv-drop', 'inv-chase', 'inv-streets', 'inv-sky', 'inv-queen', 'egy-drop', 'egy-nile'];
+    for (let i = 0; i < 30; i++) {
+      const id = alertMission(done, rng(i + 1))!;
+      expect(id.startsWith('inv-')).toBe(true);
+    }
+    // Before STRIKER there's no older robot to send.
+    expect(alertMission(['inv-drop'], rng(1))).toBeUndefined();
+  });
+
+  it('one per mission beaten, two waiting at most', async () => {
+    const { earnAlert, alerts } = await import('../src/state');
+    const s = freshSave();
+    earnAlert(s);
+    expect(alerts(s).count).toBe(0);
+    s.levelsDone.push('egy-drop');
+    earnAlert(s);
+    earnAlert(s);
+    earnAlert(s);
+    expect(alerts(s).count).toBe(2);
+  });
+});

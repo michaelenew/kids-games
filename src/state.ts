@@ -50,6 +50,14 @@ export interface SaveData {
   jet?: BotData;
   /** Which robot the Engineering Zone, benches and forge are working on. */
   bot?: BotId;
+  /**
+   * Patrol alerts: a past map replayed with an older robot. One is earned
+   * per new mission beaten (two can wait at most). `next` is which kind of
+   * pre-launch check comes up: practice from earlier, or the current focus.
+   */
+  alerts?: { count: number; next: 'practice' | 'focus'; mission?: string };
+  /** A super gadget built for STRIKER's next mission (it breaks at the end of it). */
+  gadget?: GadgetId;
   /** Forced math between missions (see `pace` below). */
   pace?: { run: number; next: 'control' | 'recap' };
   skills: Record<string, SkillStat>;
@@ -264,6 +272,44 @@ export const JET_GEAR_INFO: Record<GearId, { title: string; skill: string; perks
 
 export function gearInfo(bot: BotId): Record<GearId, { title: string; skill: string; perks: string[] }> {
   return bot === 'jet' ? JET_GEAR_INFO : GEAR_INFO;
+}
+
+// ---- Super gadgets ------------------------------------------------------------
+
+/**
+ * Over-the-top, one-mission gadgets for STRIKER, from the alien tech in the
+ * Amazon ruins. One at a time; it's built in the Super Lab (the junk trader,
+ * then a short two-problem bench job), shows on STRIKER right away, and burns
+ * out at the end of the next mission, win or lose. Then he can build another.
+ */
+export type GadgetId = 'mega' | 'shield' | 'drones' | 'hyper';
+
+export const GADGETS: Record<GadgetId, { title: string; perk: string; story: string; bench: 'BlasterBench' | 'ArmorBench' | 'BootsBench'; cost: number }> = {
+  mega: { title: 'Mega Cannon', perk: 'Double damage, giant beam shots', story: 'Cut the mega-barrel to the exact length.', bench: 'BlasterBench', cost: 15 },
+  shield: { title: 'Energy Armor', perk: '+1,500 armor from a glowing force field', story: 'Build the field generator\'s power number.', bench: 'ArmorBench', cost: 15 },
+  drones: { title: 'Drone Wingmen', perk: 'Two drones that blast aliens for you', story: 'Charge both drones with energy cells.', bench: 'BootsBench', cost: 15 },
+  hyper: { title: 'Hyper Boosters', perk: 'Rainbow flames: dodges most shots', story: 'Pump the hyper fuel to the exact pressure.', bench: 'BootsBench', cost: 15 },
+};
+
+export const GADGET_IDS = Object.keys(GADGETS) as GadgetId[];
+
+/** The Super Lab opens after the first Amazon mission (alien tech found in the ruins). */
+export function superLabUnlocked(s: SaveData = save()): boolean {
+  return s.levelsDone.includes('amz-landing');
+}
+
+// ---- Patrol alerts ----------------------------------------------------------------
+
+export function alerts(s: SaveData = save()): { count: number; next: 'practice' | 'focus'; mission?: string } {
+  return (s.alerts ??= { count: 0, next: 'practice' });
+}
+
+/** A new mission was beaten: if there's an older robot to send, an alert comes up. */
+export function earnAlert(s: SaveData = save()): void {
+  if (!jetUnlocked(s)) return;
+  const a = alerts(s);
+  a.count = Math.min(2, a.count + 1);
+  persist();
 }
 
 /** Count an upgrade for a robot. */

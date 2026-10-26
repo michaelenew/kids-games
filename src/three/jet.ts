@@ -126,6 +126,11 @@ export class Jet implements Mech {
   private robotTarget = 0;
   private phase = 0;
   private air = 0;
+  /** Pieces shown only in one mode (inside parts, so the part's own on/off still applies). */
+  private readonly jetOnly: THREE.Object3D[] = [];
+  private readonly robotOnly: THREE.Object3D[] = [];
+  private readonly drones: THREE.Object3D[] = [];
+  private readonly shieldMats: THREE.MeshBasicMaterial[] = [];
   /** Size of the jet in flight (missions draw it a bit bigger); the robot stays normal size. */
   flightScale = 1;
   private readonly flames: { obj: THREE.Object3D; mark: number }[] = [];
@@ -238,6 +243,7 @@ export class Jet implements Mech {
     this.buildCannons();
     this.buildEngines();
     this.buildRobot();
+    this.buildGadgets();
     this.applyLook();
   }
 
@@ -612,6 +618,71 @@ export class Jet implements Mech {
     }
   }
 
+  /** The super gadgets (see GADGETS in state.ts). Each one shows in both modes. */
+  private buildGadgets() {
+    const M = METAL;
+    const RX = Math.PI / 2;
+    const violet = glow(0xc77dff, 2.6);
+    const ring = (parent: THREE.Object3D, x: number, y: number, z: number, r: number) =>
+      mesh(parent, torusGeo(r, 0.03, 20), violet, x, y, z, { shadow: false });
+    // Mega Cannon: a huge barrel along the spine; on the robot, over the right shoulder.
+    const mega = this.part('gadget:mega', this.frame);
+    const mj = group(mega);
+    // Drawn extra big: it's the MEGA cannon.
+    mj.scale.setScalar(1.45);
+    mj.position.y = -0.2;
+    this.jetOnly.push(mj);
+    mesh(mj, cylGeo(0.13, 0.15, 1.5, 20), M.gunmetal, 0, 0.42, 0.05, { rx: RX });
+    mesh(mj, cylGeo(0.17, 0.17, 0.3, 20), this.mats.trim, 0, 0.42, -0.6, { rx: RX });
+    for (let i = 0; i < 4; i++) ring(mj, 0, 0.42, -0.3 + i * 0.3, 0.16);
+    mesh(mj, sphereGeo(0.1, 14), violet, 0, 0.42, 0.82, { shadow: false });
+    const megaR = this.part('gadget:mega', this.bj.torso);
+    mesh(megaR, rboxGeo(0.26, 0.2, 0.3, 0.05), this.mats.trim, -0.3, 0.98, -0.12);
+    mesh(megaR, cylGeo(0.11, 0.13, 1.2, 20), M.gunmetal, -0.3, 1.12, 0.25, { rx: RX });
+    for (let i = 0; i < 3; i++) ring(megaR, -0.3, 1.12, 0.0 + i * 0.3, 0.14);
+    mesh(megaR, sphereGeo(0.09, 14), violet, -0.3, 1.12, 0.86, { shadow: false });
+
+    // Energy Armor: a glowing force field around the whole robot.
+    const fieldMat = () => {
+      const m = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0x4cf0ff).multiplyScalar(1.4), transparent: true, opacity: 0.22,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+      });
+      m.userData.disposable = true;
+      this.shieldMats.push(m);
+      return m;
+    };
+    const shield = this.part('gadget:shield', this.aimGroup);
+    const sj = mesh(shield, sphereGeo(1, 24), fieldMat(), 0, 0.05, -0.1, { shadow: false });
+    sj.scale.set(1.45, 0.6, 1.75);
+    this.jetOnly.push(sj);
+    const sr = mesh(shield, sphereGeo(1, 24), fieldMat(), 0, 1.15, 0, { shadow: false });
+    sr.scale.set(0.95, 1.35, 0.75);
+    this.robotOnly.push(sr);
+
+    // Drone Wingmen: two little drones that circle him.
+    const dr = this.part('gadget:drones', this.lift);
+    for (let i = 0; i < 2; i++) {
+      const d = group(dr);
+      mesh(d, sphereGeo(0.14, 14), this.mats.hull, 0, 0, 0);
+      mesh(d, torusGeo(0.22, 0.03, 18), this.mats.trim, 0, 0, 0, { rx: RX });
+      mesh(d, sphereGeo(0.06, 10), this.mats.visor, 0, 0, 0.13, { shadow: false });
+      const g = glowSprite(0x4cf0ff, 0.5, 2);
+      d.add(g);
+      this.drones.push(d);
+    }
+
+    // Hyper Boosters: two extra booster pods with rainbow-violet flames.
+    const hy = this.part('gadget:hyper', this.frame);
+    for (const sx of [-1, 1]) {
+      mesh(hy, cylGeo(0.1, 0.12, 0.8, 16), M.chrome, sx * 0.3, 0.2, -0.9, { rx: RX });
+      ring(hy, sx * 0.3, 0.2, -1.28, 0.12);
+      const g = group(hy, sx * 0.3, 0.2, -1.32);
+      mesh(g, coneGeo(0.11, 1.2, 14), violet, 0, 0, -0.6, { rx: -RX, shadow: false });
+      this.flames.push({ obj: g, mark: 3 });
+    }
+  }
+
   // ---- Look --------------------------------------------------------------------
 
   plateSize(r: Region): [number, number] {
@@ -655,6 +726,8 @@ export class Jet implements Mech {
         on = L.blaster === Number(key.slice(-1));
       } else if (key.startsWith('engine')) {
         on = L.boots === Number(key.slice(-1));
+      } else if (key.startsWith('gadget:')) {
+        on = L.gadget === key.slice(7);
       }
       for (const o of list) {
         o.visible = on;
@@ -843,6 +916,17 @@ export class Jet implements Mech {
     this.aimGroup.rotation.set(-this.aimPitch * fly, this.aimYaw, 0);
     this.poseRobot(dt, aiming);
     this.placePieces(win);
+    // Mode-only pieces, and the gadgets' animation.
+    const robotNow = rt >= 0.5;
+    for (const o of this.jetOnly) o.visible = !robotNow;
+    for (const o of this.robotOnly) o.visible = robotNow;
+    this.drones.forEach((d, i) => {
+      const a = t * 1.6 + i * Math.PI;
+      const r = lerp(1.0, 1.7, fly);
+      d.position.set(Math.cos(a) * r, lerp(1.9, 0.6, fly) + Math.sin(t * 3 + i) * 0.12, Math.sin(a) * r * 0.6 - 0.3);
+      d.rotation.y = -a;
+    });
+    for (const m of this.shieldMats) m.opacity = 0.16 + Math.sin(t * 4) * 0.06 + this.hitFlash * 0.25;
 
     this.hitFlash = Math.max(0, this.hitFlash - dt * 6);
     this.gatlingSpeed = Math.max(0, this.gatlingSpeed - dt * 40);
@@ -961,6 +1045,13 @@ export class Jet implements Mech {
       tmpM.decompose(tmpP, tmpQ, tmpS);
       placeAt(g, CANNON_PIVOT[side], tmpP, tmpQ, 0.8, kc);
     }
+  }
+
+  /** Where the drone wingmen are (world space), for their shots. */
+  droneWorld(): THREE.Vector3[] {
+    if (this.look.gadget !== 'drones') return [];
+    this.holder.updateMatrixWorld(true);
+    return this.drones.map((d) => d.getWorldPosition(new THREE.Vector3()));
   }
 
   dispose() {

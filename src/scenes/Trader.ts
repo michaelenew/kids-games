@@ -15,6 +15,8 @@ interface TraderData {
   mark: 1 | 2 | 3;
   /** Where to go once the core is bought. */
   then: { key: string; data?: object };
+  /** What it's for, when it isn't a gear mark (a super gadget). */
+  label?: string;
 }
 
 const ROMAN = ['', 'I', 'II', 'III'];
@@ -72,7 +74,7 @@ export class TraderScene extends Phaser.Scene {
     const info = gearInfo(activeBot())[this.job.gear];
     panel(this, 570, 210, 440, 230, 0x1d1410, 0xffd166);
     text(this, 570, 130, `POWER CORE`, 30, '#4cf0ff');
-    text(this, 570, 170, `for ${info.title} Mark ${ROMAN[this.job.mark]}`, 22, '#ffffff');
+    text(this, 570, 170, this.job.label ? `for the ${this.job.label}` : `for ${info.title} Mark ${ROMAN[this.job.mark]}`, 22, '#ffffff');
     const core = this.add.graphics();
     core.fillStyle(0x4cf0ff, 0.3).fillCircle(450, 245, 40).fillStyle(0x4cf0ff, 1).fillCircle(450, 245, 22);
     this.tweens.add({ targets: core, alpha: 0.6, duration: 600, yoyo: true, repeat: -1 });

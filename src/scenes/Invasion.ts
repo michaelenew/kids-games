@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import { type Tuning, botForMission, cheapestUpgrade, missionStart, onMissionCleared, onMissionFailed, upgradeRequired } from '../assist';
+import { type Tuning, botForMission, cheapestUpgrade, missionStart, tuning, onMissionCleared, onMissionFailed, upgradeRequired } from '../assist';
 import { MissionArmor, REGIONS, type Region, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
-import { type BotId, JET_COLOR, JET_DODGE, actionDone, botData, persist, save, setActiveBot, wantsRecap } from '../state';
+import {
+  type BotId, GADGETS, JET_COLOR, JET_DODGE, actionDone, alerts, botData, earnAlert, persist, save, setActiveBot, wantsRecap,
+} from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
-import { type Mission, missionBot, missionById } from '../three/missions';
+import { type Mission, alertMission, missionBot, missionById } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
@@ -48,8 +50,12 @@ export class InvasionScene extends Phaser.Scene {
     super('Invasion');
   }
 
-  init(data: { missionId?: string; shield?: number }) {
+  /** A patrol alert: a past mission with an older robot, just for fun (and a little scrap). */
+  private alert = false;
+
+  init(data: { missionId?: string; shield?: number; alert?: boolean }) {
     this.mission = missionById(data.missionId ?? 'inv-drop');
+    this.alert = !!data.alert;
     this.shieldBonus = data.shield ?? 0;
     this.over = false;
     this.paused = false;
@@ -60,11 +66,13 @@ export class InvasionScene extends Phaser.Scene {
     this.regionFlash = {};
     this.bannerParts = [];
     this.hitLog = [];
+    this.brokenGadget = null;
   }
 
   create() {
     const s = save();
-    const start = missionStart(this.mission.id);
+    // Alerts play easy and never touch the real missions' help settings.
+    const start = this.alert ? { tune: tuning(2) } : missionStart(this.mission.id);
     this.tune = start.tune;
     // The very first mission is the story opener: he can't lose it.
     const opener = this.mission.id === 'inv-drop' && !s.levelsDone.includes('inv-drop');
@@ -73,6 +81,8 @@ export class InvasionScene extends Phaser.Scene {
     actionDone(s);
     const hasSwap = this.mission.steps.some((st) => st.kind === 'swap');
     this.bot = hasSwap ? 'bolt' : missionBot(this.mission.id);
+    // The Energy Armor gadget: a big force field on top of the plates, this mission only.
+    if (missionBot(this.mission.id) === 'jet' && s.gadget === 'shield') this.shieldBonus += 1500;
     this.useArmor(this.bot);
 
     const look = lookFromSave(s, this.bot);
@@ -87,6 +97,11 @@ export class InvasionScene extends Phaser.Scene {
       kill: (k) => this.onKill(k),
       banner: (t, c) => this.banner(t, c),
       say: (lines, done) => {
+        // Alerts skip the story talk: he's heard it.
+        if (this.alert) {
+          done();
+          return;
+        }
         this.game3d.paused = true;
         dialog(this, lines, () => {
           this.game3d.paused = false;
@@ -400,7 +415,20 @@ export class InvasionScene extends Phaser.Scene {
     const s = save();
     if (won) this.armor.commit(botData(this.bot, s));
     s.scrap += this.scrap;
+    // A super gadget only lasts one mission.
+    if (missionBot(this.mission.id) === 'jet' && s.gadget) {
+      this.brokenGadget = GADGETS[s.gadget].title;
+      s.gadget = undefined;
+    }
     persist();
+  }
+
+  /** The gadget that burned out this mission, to say so on the results panel. */
+  private brokenGadget: string | null = null;
+
+  private gadgetNote(y: number) {
+    if (!this.brokenGadget) return;
+    text(this, W / 2, y, `Your ${this.brokenGadget} burned out! Build a new one in the Super Lab.`, 20, '#e0aaff').setDepth(61);
   }
 
   /** Where to go after a mission: build armor the first time, otherwise repair if needed. */
@@ -419,10 +447,20 @@ export class InvasionScene extends Phaser.Scene {
     if (this.over) return;
     this.over = true;
     this.game3d.pointer.down = false;
+    if (this.alert) {
+      this.alertDone(true);
+      return;
+    }
     const s = save();
     const firstWin = !s.levelsDone.includes(this.mission.id);
     if (firstWin) s.levelsDone.push(this.mission.id);
     onMissionCleared(this.mission.id);
+    if (firstWin) {
+      // A new mission beaten: an older robot gets a patrol alert.
+      earnAlert(s);
+      const a = alerts(s);
+      if (a.count > 0 && !a.mission) a.mission = alertMission(s.levelsDone);
+    }
     this.bank(true);
     music('calm');
     sfx.success();
@@ -439,6 +477,7 @@ export class InvasionScene extends Phaser.Scene {
         },
       });
       text(this, W / 2, H / 2 + 10, `+${this.scrap} scrap`, 36, '#ffd166').setDepth(61);
+      this.gadgetNote(H / 2 + 60);
       const next = this.nextScene();
       const after = () => {
         // The mission report (graphs and adding) starts in Egypt, and takes
@@ -487,6 +526,10 @@ export class InvasionScene extends Phaser.Scene {
     this.over = true;
     this.game3d.pointer.down = false;
     this.game3d.paused = true;
+    if (this.alert) {
+      this.alertDone(false);
+      return;
+    }
     this.bank(false);
     onMissionFailed(this.mission.id);
     music('calm');
@@ -500,12 +543,36 @@ export class InvasionScene extends Phaser.Scene {
     text(this, W / 2, H / 2 - 140, 'EMERGENCY RETREAT!', 50, '#ef476f').setStroke('#000000', 6).setDepth(61);
     text(this, W / 2, H / 2 - 50, 'Your armor ran out. Patch up and try again!\nThicker plates from the forge help a lot.', 28, '#ffffff')
       .setDepth(61);
+    this.gadgetNote(H / 2 + 30);
     const next = this.nextScene();
     button(this, W / 2 - 180, H / 2 + 100, 300, 84, next.key === 'Garage' ? 'Try again' : next.label, () => {
       if (next.key === 'Garage') this.scene.restart({ missionId: this.mission.id });
       else this.scene.start(next.key, { ...next.data, then: this.mission.id });
     }, { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
     button(this, W / 2 + 180, H / 2 + 100, 300, 84, 'Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 }).setDepth(62);
+  }
+
+  /** End of a patrol alert. Plates aren't damaged and nothing locks; a win pays half scrap. */
+  private alertDone(won: boolean) {
+    const s = save();
+    const a = alerts(s);
+    const earned = won ? Math.ceil(this.scrap / 2) : 0;
+    if (won) {
+      s.scrap += earned;
+      a.count = Math.max(0, a.count - 1);
+      a.mission = a.count > 0 ? alertMission(s.levelsDone) : undefined;
+    }
+    persist();
+    music('calm');
+    if (won) sfx.success();
+    else sfx.alarm();
+    this.time.delayedCall(700, () => {
+      panel(this, W / 2, H / 2, 700, 380).setDepth(60);
+      text(this, W / 2, H / 2 - 120, won ? 'ALERT CLEARED!' : 'RETREAT!', 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
+      text(this, W / 2, H / 2 - 30, won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!', 30, '#ffffff').setDepth(61);
+      const b = button(this, W / 2, H / 2 + 100, 320, 84, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
+      this.tweens.add({ targets: b, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });
+    });
   }
 
   /** After two losses without upgrading: say plainly that it's time to upgrade. */

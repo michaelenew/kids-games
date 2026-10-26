@@ -43,7 +43,7 @@ export interface Mission {
   /** Where the boss stands (boss missions). */
   boss?: [number, number, number];
   /** Where it happens (default the city). */
-  env?: 'city' | 'desert';
+  env?: 'city' | 'desert' | 'jungle' | 'canyon';
   /** Who flies it (default BOLT). A mission with a swap starts with BOLT and ends with this one. */
   bot?: 'bolt' | 'jet';
   /** Skip mission control before it (the jet's story mission opens straight into the action). */
@@ -328,6 +328,17 @@ export function missionById(id: string): Mission {
 }
 
 export const MISSION_IDS = MISSIONS.map((m) => m.id);
+
+/**
+ * A past mission for a patrol alert: one flown by an older robot (not the
+ * one the current missions use), never a hand-over mission.
+ */
+export function alertMission(done: string[], rng: () => number = Math.random): string | undefined {
+  const next = MISSIONS.find((m) => !done.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
+  const current = next.bot ?? 'bolt';
+  const pool = MISSIONS.filter((m) => done.includes(m.id) && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
+  return pool.length ? pool[Math.floor(rng() * pool.length)].id : undefined;
+}
 
 /** Who flies a mission (by the end of it). */
 export function missionBot(id: string): 'bolt' | 'jet' {

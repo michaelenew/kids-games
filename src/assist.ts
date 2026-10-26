@@ -1,6 +1,6 @@
 import { LEVELS } from './levels';
 import { MISSION_IDS, missionBot, missionById } from './three/missions';
-import { BUILD_COST, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save } from './state';
+import { BUILD_COST, GADGETS, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save, superLabUnlocked } from './state';
 
 /**
  * Behind-the-scenes help. Building an upgrade should always make the next
@@ -94,6 +94,8 @@ function isHandOver(id: string): boolean {
 }
 
 function allMaxed(s: SaveData, bot: BotId) {
+  // With the Super Lab open there's always a gadget to build.
+  if (bot === 'jet' && superLabUnlocked(s)) return false;
   const g = botData(bot, s).gear;
   return (Object.keys(g) as GearId[]).every((k) => g[k] >= 3);
 }
@@ -159,6 +161,7 @@ export function upgradeRequired(id: string, s: SaveData = save()): boolean {
 export function cheapestUpgrade(s: SaveData = save(), bot: BotId = 'bolt'): number {
   const g = botData(bot, s).gear;
   const costs = (Object.keys(g) as GearId[]).filter((k) => g[k] < 3).map((k) => BUILD_COST[g[k] + 1]);
+  if (bot === 'jet' && superLabUnlocked(s)) costs.push(GADGETS.mega.cost);
   return costs.length ? Math.min(...costs) : 0;
 }
 

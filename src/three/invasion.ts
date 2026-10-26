@@ -862,7 +862,9 @@ export class Invasion {
       if (jet && !b.dodgeChecked && b.obj.position.distanceTo(cam) < 6) {
         // The afterburners roll the jet out of the way of some shots.
         b.dodgeChecked = true;
-        if (jet.rolling || Math.random() < (this.opts.dodge ?? 0)) {
+        // Hyper Boosters gadget: dodges most shots.
+        const dodge = (this.opts.dodge ?? 0) + (this.opts.look.gadget === 'hyper' ? 0.4 : 0);
+        if (jet.rolling || Math.random() < Math.min(0.75, dodge)) {
           b.dodged = true;
           jet.roll();
           sfx.whoosh();
@@ -960,13 +962,44 @@ export class Invasion {
     const muzzle = this.robot.muzzleWorld();
     const jitter = target ? new THREE.Vector3(this.rand(-0.25, 0.25), this.rand(-0.25, 0.25), this.rand(-0.25, 0.25)) : new THREE.Vector3();
     const hitPoint = aim.clone().add(jitter);
-    this.fx.tracer(muzzle, hitPoint, BOLT_COLOR[mark], 0.05 + mark * 0.02);
-    this.fx.flash(muzzle, BOLT_COLOR[mark], 0.8 + mark * 0.3, 0.06);
+    // The Mega Cannon gadget: fat violet beams, double damage.
+    const mega = jet && this.opts.look.gadget === 'mega';
+    this.fx.tracer(muzzle, hitPoint, mega ? 0xc77dff : BOLT_COLOR[mark], mega ? 0.22 : 0.05 + mark * 0.02);
+    this.fx.flash(muzzle, mega ? 0xe0aaff : BOLT_COLOR[mark], mega ? 2.4 : 0.8 + mark * 0.3, 0.06);
     if (!target) return;
-    const dmg = (jet ? JET_DAMAGE : DAMAGE)[mark];
+    const dmg = (jet ? JET_DAMAGE : DAMAGE)[mark] * (mega ? 2 : 1);
+    if (mega) this.shake = Math.max(this.shake, 0.15);
     if (target.kind === 'enemy') this.damageEnemy(target.ref as Enemy, dmg, hitPoint);
     else if (target.kind === 'bolt') this.popBolt(target.ref as Bolt);
     else this.damageBoss(target.kind, target.pod, dmg, hitPoint);
+  }
+
+  /** Drone Wingmen gadget: each drone zaps the nearest alien now and then. */
+  private droneCooldown = 0;
+
+  private updateDrones(dt: number) {
+    if (!(this.robot instanceof Jet) || this.opts.look.gadget !== 'drones') return;
+    this.droneCooldown -= dt;
+    if (this.droneCooldown > 0) return;
+    this.droneCooldown = 0.55;
+    for (const from of this.robot.droneWorld()) {
+      const list = this.enemies
+        .map((e) => ({ e, at: this.enemyCenter(e) }))
+        .filter((x) => x.at.distanceTo(from) < 70 && !this.project(x.at).behind)
+        .sort((a, b) => a.at.distanceTo(from) - b.at.distanceTo(from));
+      // The two drones don't always pick the same alien.
+      const near = list[Math.min(list.length - 1, Math.random() < 0.5 ? 0 : 1)];
+      if (near) {
+        this.fx.tracer(from, near.at, 0x4cf0ff, 0.06);
+        this.damageEnemy(near.e, 3, near.at);
+      } else if (this.boss && this.boss.dying === 0) {
+        const bb = this.boss;
+        const i = bb.podHp.findIndex((h) => h > 0);
+        const at = i >= 0 ? model3dWorld(bb.model.pods[i]) : model3dWorld(bb.model.core);
+        this.fx.tracer(from, at, 0x4cf0ff, 0.06);
+        this.damageBoss(i >= 0 ? 'pod' : 'core', i, 3, at);
+      }
+    }
   }
 
   private damageEnemy(e: Enemy, dmg: number, at: THREE.Vector3) {
@@ -1071,6 +1104,7 @@ export class Invasion {
     this.updateBolts(dt);
     this.updateBoss(dt);
     this.updateShooting(dt);
+    this.updateDrones(dt);
     this.city.update(dt);
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {

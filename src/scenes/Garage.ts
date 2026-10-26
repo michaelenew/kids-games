@@ -3,10 +3,10 @@ import { COLORS, FONT } from '../art';
 import { LEVELS } from '../levels';
 import {
   BLASTER_DAMAGE, BUILD_COST, type BotId, type GearId, JET_DAMAGE, JET_DODGE, activeBot, botData, botName, endPreview, gearInfo,
-  hasSeen, inPreview, jetUnlocked, markSeen, persist, resetSave, save, setActiveBot, startPreview,
+  alerts, hasSeen, inPreview, jetUnlocked, markSeen, persist, resetSave, save, setActiveBot, startPreview,
 } from '../state';
 import { REGIONS, lookFromSave, repairsNeeded, totalHp, totalMax } from '../armor';
-import { MISSIONS, missionBot } from '../three/missions';
+import { MISSIONS, alertMission, missionBot, missionById } from '../three/missions';
 import { launchMission } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
 import { onMissionCleared } from '../assist';
@@ -148,33 +148,59 @@ export class GarageScene extends Phaser.Scene {
       else this.scene.start(key, data);
     };
     text(this, 880, 44, 'MISSIONS', 36);
-    // Two columns: the city, then Egypt.
-    const cols = { city: { x: 735, n: 0 }, desert: { x: 1025, n: 0 } };
-    text(this, cols.city.x, 84, 'CITY', 18, '#9ad1ff');
-    text(this, cols.desert.x, 84, 'EGYPT', 18, '#ffc98a');
-    MISSIONS.forEach((m, i) => {
-      const unlocked = i === 0 || s.levelsDone.includes(MISSIONS[i - 1].id);
-      const done = s.levelsDone.includes(m.id);
-      const col = cols[m.env === 'desert' ? 'desert' : 'city'];
-      const y = 134 + col.n++ * 64;
-      const name = `${i + 1}. ${m.title.replace(/^Invasion \d+: /, '')}`;
-      // Beaten missions can't be replayed, so the only way forward is the next one.
-      const b = button(this, col.x, y, 280, 56, '', () => go('Invasion', { missionId: m.id }, m.id), {
-        fill: m.env === 'desert' ? 0xb5651d : 0x7b2cbf, edge: m.env === 'desert' ? 0xffc98a : 0xd0a7ff, disabled: !unlocked || done,
+    // Two columns: the area he's in now, and the one before it.
+    const AREAS: { env: string; label: string; color: string; fill: number; edge: number }[] = [
+      { env: 'city', label: 'CITY', color: '#9ad1ff', fill: 0x7b2cbf, edge: 0xd0a7ff },
+      { env: 'desert', label: 'EGYPT', color: '#ffc98a', fill: 0xb5651d, edge: 0xffc98a },
+      { env: 'jungle', label: 'AMAZON', color: '#8ef0a0', fill: 0x2d8a4e, edge: 0x9ff0b8 },
+      { env: 'canyon', label: 'GRAND CANYON', color: '#ffb38a', fill: 0xb5482a, edge: 0xffb38a },
+    ];
+    const envOf = (m: (typeof MISSIONS)[number]) => m.env ?? 'city';
+    const nextMission = MISSIONS.find((m) => !s.levelsDone.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
+    const cur = Math.max(0, AREAS.findIndex((a) => a.env === envOf(nextMission)));
+    const shown = cur === 0 ? [0, 1] : [cur - 1, cur];
+    shown.forEach((ai, ci) => {
+      const area = AREAS[ai];
+      const x = ci === 0 ? 735 : 1025;
+      text(this, x, 84, area.label, 18, area.color);
+      MISSIONS.forEach((m, i) => {
+        if (envOf(m) !== area.env) return;
+        const row = MISSIONS.filter((o, k) => envOf(o) === area.env && k < i).length;
+        const unlocked = i === 0 || s.levelsDone.includes(MISSIONS[i - 1].id);
+        const done = s.levelsDone.includes(m.id);
+        const y = 134 + row * 64;
+        const name = `${i + 1}. ${m.title.replace(/^Invasion \d+: /, '')}`;
+        // Beaten missions can't be replayed, so the only way forward is the next one.
+        const b = button(this, x, y, 280, 56, '', () => go('Invasion', { missionId: m.id }, m.id), {
+          fill: area.fill, edge: area.edge, disabled: !unlocked || done,
+        });
+        b.label.setText(done ? `${name} ✓` : unlocked ? name : '🔒').setY(unlocked && !done ? -9 : 0).setFontSize(19);
+        if (done) b.label.setColor('#7ee2b8');
+        const locked = unlocked && !done && upgradeRequired(m.id);
+        const lockText = m.bot === 'jet' && jetUnlocked(s) ? '🔧 Upgrade STRIKER first!' : '🔧 Build an upgrade first!';
+        if (unlocked && !done) b.add(this.add.text(0, 14, locked ? lockText : m.blurb, { fontFamily: FONT, fontSize: '12px', color: '#f1e6ff', wordWrap: { width: 264 } }).setOrigin(0.5));
       });
-      b.label.setText(done ? `${name} ✓` : unlocked ? name : '🔒').setY(unlocked && !done ? -9 : 0).setFontSize(19);
-      if (done) b.label.setColor('#7ee2b8');
-      const locked = unlocked && !done && upgradeRequired(m.id);
-      const lockText = m.bot === 'jet' && jetUnlocked(s) ? '🔧 Upgrade STRIKER first!' : '🔧 Build an upgrade first!';
-      if (unlocked && !done) b.add(this.add.text(0, 14, locked ? lockText : m.blurb, { fontFamily: FONT, fontSize: '12px', color: '#f1e6ff', wordWrap: { width: 264 } }).setOrigin(0.5));
     });
+    // A patrol alert: an older robot goes back to a past map.
+    const al = alerts(s);
+    if (al.count > 0 && !al.mission) {
+      al.mission = alertMission(s.levelsDone);
+      persist();
+    }
+    if (al.count > 0 && al.mission) {
+      const am = missionById(al.mission);
+      const who: BotId = am.bot ?? 'bolt';
+      const ab = button(this, 880, 566, 560, 46, `🚨 ALERT: aliens back at ${am.title.replace(/^Invasion \d+: /, '')}! Send ${botName(who, s)}`, () =>
+        this.scene.start('PreLaunch', { missionId: am.id, bot: who }), { fill: 0xc1121f, edge: 0xffb3b3, size: 19 });
+      this.tweens.add({ targets: ab, scale: 1.03, duration: 450, yoyo: true, repeat: -1 });
+    }
     // The side-scrolling patrols open up after the first invasion.
-    text(this, 880, 476, 'PATROLS', 22, '#9ad1ff');
+    text(this, 880, 462, 'PATROLS', 22, '#9ad1ff');
     LEVELS.forEach((lvl, i) => {
       const unlocked = s.levelsDone.includes('inv-drop') && (i === 0 || s.levelsDone.includes(LEVELS[i - 1].id));
       const done = s.levelsDone.includes(lvl.id);
       const x = 880 + (i - 1) * 188;
-      const b = button(this, x, 522, 178, 60, unlocked ? `${lvl.title.replace(/^\d+\.\s*/, '')}${done ? ' ✓' : ''}` : '🔒', () =>
+      const b = button(this, x, 506, 178, 56, unlocked ? `${lvl.title.replace(/^\d+\.\s*/, '')}${done ? ' ✓' : ''}` : '🔒', () =>
         go('Level', { levelId: lvl.id }, '', lvl.id), { fill: 0x1f6feb, disabled: !unlocked || done, size: 20 });
       if (done) b.label.setColor('#7ee2b8');
     });

@@ -94,6 +94,8 @@ export class Showcase {
     }
 
     stage.content.add(root);
+    // For test scripts on the dev server.
+    if (import.meta.env.DEV) (window as unknown as { mechs: Mech[] }).mechs = this.robots;
     stage.activate(skyTexture(), new THREE.Fog(0x1a1030, 30, 110));
     stage.setCameraPx(0, 0);
     stage.onUpdate((dt) => this.update(dt));

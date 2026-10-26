@@ -1,3 +1,4 @@
+import type { BotId } from '../state';
 import type { Line } from '../ui/widgets';
 
 /**
@@ -26,8 +27,11 @@ export type Step =
   | { kind: 'wave'; banner: string; spawns: Spawn[] }
   | { kind: 'say'; lines: Line[] }
   | { kind: 'drop'; to: number }
-  | { kind: 'transform'; to: 'car' | 'robot' }
-  /** STRIKER swoops in and takes over from BOLT (the first Egypt mission). */
+  | { kind: 'transform'; to: 'car' | 'robot' | 'jet' }
+  /**
+   * The next robot takes over: STRIKER swoops in for BOLT (the first Egypt
+   * mission); TITAN drops in for STRIKER (the first canyon mission).
+   */
   | { kind: 'swap' }
   | { kind: 'boss'; banner: string };
 
@@ -43,9 +47,11 @@ export interface Mission {
   /** Where the boss stands (boss missions). */
   boss?: [number, number, number];
   /** Where it happens (default the city). */
-  env?: 'city' | 'desert';
-  /** Who flies it (default BOLT). A mission with a swap starts with BOLT and ends with this one. */
-  bot?: 'bolt' | 'jet';
+  env?: 'city' | 'desert' | 'jungle' | 'canyon';
+  /** Who flies it (default BOLT). A mission with a swap starts with `swapFrom` and ends with this one. */
+  bot?: BotId;
+  /** Who starts a hand-over mission (default BOLT). */
+  swapFrom?: BotId;
   /** Skip mission control before it (the jet's story mission opens straight into the action). */
   noControl?: boolean;
   /** Boss health multiplier (default 1). */
@@ -252,23 +258,30 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'egy-temple',
-    dmg: 0.56, hp: 1.1, fire: 0.85, extra: 0.7,
+    dmg: 0.62, hp: 1.1, fire: 0.85, extra: 0.7,
     env: 'desert',
     bot: 'jet',
     title: 'Invasion 8: Temple Run',
-    blurb: 'Weave through the temple of columns.',
+    blurb: 'Land in the temple and fight on foot!',
     seed: 71,
-    path: [[0, 5, 40], [0, 5, 0], [10, 5, -70], [-8, 5, -150], [8, 5, -230], [-6, 5, -300], [0, 5, -360], [0, 5, -400]],
-    plazas: [[0.1, 0.3], [0.45, 0.6], [0.8, 1]],
+    path: [[0, 5, 40], [0, 5, 0], [10, 5, -70], [-6, 0, -130], [6, 0, -190], [-4, 0, -240], [4, 6, -300], [0, 6, -360], [0, 6, -400]],
+    plazas: [[0.1, 0.3], [0.4, 0.6], [0.8, 1]],
     steps: [
       { kind: 'move', to: 1, speed: 10, vehicle: 'jet' },
       { kind: 'wave', banner: 'AMBUSH!', spawns: [kr(0, 'roofL'), kr(0.6, 'roofR'), sk(1.5, 'left'), sk(2, 'right'), kr(3, 'ahead')] },
-      { kind: 'move', to: 3, speed: 14, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3.5, 'above')] },
+      { kind: 'move', to: 2, speed: 14, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(2, 'right')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their guards are hiding between the columns. Transform and take them on foot!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'drop', to: 3 },
       { kind: 'wave', banner: 'TEMPLE GUARDS!', spawns: [kr(0, 'roofR', true), kr(0.5, 'roofL'), kr(1.5, 'ahead'), sk(2.5, 'above', true), sk(3, 'left'), kr(4.5, 'roofR')] },
-      { kind: 'say', lines: [{ who: 'volt', text: 'The power lines run toward the Great Pyramid. One more temple!' }] },
-      { kind: 'move', to: 5, speed: 14, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left', true), sk(3, 'above', true)] },
-      { kind: 'wave', banner: 'LAST TEMPLE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR'), kr(1, 'ahead', true), sk(2, 'above', true), sk(2.5, 'left'), sk(3, 'right'), kr(5, 'roofL')] },
-      { kind: 'move', to: 7, speed: 10, vehicle: 'jet' },
+      { kind: 'move', to: 4, speed: 6, vehicle: 'foot', spawns: [sk(1, 'right'), kr(2.5, 'roofL')] },
+      { kind: 'wave', banner: 'HOLD THE TEMPLE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR'), kr(1, 'ahead', true), sk(2, 'above'), sk(3, 'right')] },
+      { kind: 'move', to: 5, speed: 6, vehicle: 'foot' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Temple clear! Back in the air, STRIKER!' }] },
+      { kind: 'transform', to: 'jet' },
+      { kind: 'move', to: 6, speed: 14, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left'), sk(3, 'above', true)] },
+      { kind: 'wave', banner: 'LAST SQUADRON!', spawns: [sk(0, 'left'), sk(0.5, 'right', true), sk(1.5, 'above'), sk(2.5, 'left', true), sk(3.5, 'right')] },
+      { kind: 'move', to: 8, speed: 12, vehicle: 'jet' },
     ],
   },
   {
@@ -314,6 +327,267 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'PYRAMID WALKER!' },
     ],
   },
+  // ---- The Amazon: STRIKER follows the fleet into the jungle --------------------
+  {
+    id: 'amz-landing',
+    dmg: 1.4, hp: 1.3, fire: 0.8, extra: 0.8,
+    env: 'jungle',
+    bot: 'jet',
+    title: 'Invasion 11: River Landing',
+    blurb: 'Follow the fleet up the Amazon river.',
+    seed: 101,
+    path: [[0, 14, 60], [0, 14, 0], [16, 12, -100], [-14, 10, -210], [10, 8, -320], [0, 0, -370], [-6, 0, -420], [4, 0, -470], [0, 0, -520]],
+    plazas: [[0.7, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'The fleet ran off into the Amazon jungle. They\'re hiding under the giant trees. Follow the river!' }] },
+      { kind: 'move', to: 2, speed: 16, vehicle: 'jet', spawns: [sk(1.5, 'left'), sk(2.5, 'right'), sk(4, 'above'), sk(5.5, 'left', true)] },
+      { kind: 'wave', banner: 'RIVER PATROL!', spawns: [sk(0, 'left'), sk(0.5, 'right'), sk(1.5, 'above', true), kr(2.5, 'roofL'), sk(3.5, 'right'), kr(4.5, 'roofR')] },
+      { kind: 'move', to: 4, speed: 16, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2.5, 'left'), sk(4, 'above')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Something is glowing in those ruins. Land on the old stone causeway and check it out!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'drop', to: 5 },
+      { kind: 'wave', banner: 'RUIN GUARDS!', spawns: [kr(0, 'roofL'), kr(0.7, 'roofR', true), kr(1.8, 'ahead'), sk(2.5, 'above'), kr(4, 'roofL')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2, 'roofR')] },
+      { kind: 'wave', banner: 'THEY\'RE GUARDING SOMETHING!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), kr(1.2, 'roofR', true), sk(2, 'above', true), sk(3, 'left'), kr(4.5, 'ahead')] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'amz-canopy',
+    dmg: 0.92, hp: 1.4, fire: 0.8, extra: 0.9,
+    env: 'jungle',
+    bot: 'jet',
+    title: 'Invasion 12: Canopy Chase',
+    blurb: 'Fly low and fast under the giant trees!',
+    seed: 107,
+    path: [[0, 8, 40], [0, 8, 0], [18, 8, -110], [-16, 8, -220], [14, 9, -330], [-12, 8, -440], [8, 8, -550], [0, 8, -640], [0, 8, -680]],
+    plazas: [[0.45, 0.55]],
+    steps: [
+      { kind: 'move', to: 2, speed: 20, vehicle: 'jet', spawns: [sk(1, 'left'), sk(1.8, 'right'), sk(3, 'above', true), sk(4.5, 'left'), sk(5.5, 'right', true)] },
+      { kind: 'wave', banner: 'SWARM IN THE TREES!', spawns: [sk(0, 'left', true), sk(0.4, 'right'), sk(1, 'above'), sk(2, 'left'), sk(2.8, 'right', true), sk(3.5, 'above', true), kr(4.5, 'ahead')] },
+      { kind: 'move', to: 4, speed: 20, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left', true), sk(3.5, 'above'), sk(5, 'right')] },
+      { kind: 'wave', banner: 'WALKERS ON THE CAUSEWAY!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR', true), kr(1.5, 'ahead'), sk(2.5, 'above', true), sk(3, 'left'), kr(4, 'roofR')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re fleeing upriver. Full speed, stay under the canopy!' }] },
+      { kind: 'move', to: 7, speed: 22, vehicle: 'jet', spawns: [sk(0.8, 'left'), sk(1.4, 'right', true), sk(3, 'above', true), sk(4, 'left', true), sk(5, 'right'), sk(6.5, 'above', true)] },
+      { kind: 'wave', banner: 'CORNERED!', spawns: [sk(0, 'left', true), sk(0.5, 'right', true), sk(1.5, 'above', true), kr(2, 'ahead', true), sk(3, 'left'), sk(3.5, 'right', true)] },
+      { kind: 'move', to: 8, speed: 12, vehicle: 'jet' },
+    ],
+  },
+  {
+    id: 'amz-falls',
+    dmg: 1.0, hp: 1.6, fire: 0.75, extra: 1,
+    env: 'jungle',
+    bot: 'jet',
+    title: 'Invasion 13: Thunder Falls',
+    blurb: 'Battle by the waterfalls, in the air and on foot.',
+    seed: 113,
+    path: [[0, 16, 60], [0, 16, 0], [14, 14, -100], [-10, 10, -190], [0, 0, -230], [8, 0, -280], [-6, 0, -330], [4, 12, -400], [-8, 16, -480], [0, 14, -560], [0, 14, -600]],
+    plazas: [[0.35, 0.6]],
+    steps: [
+      { kind: 'move', to: 2, speed: 17, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(2, 'right'), sk(3, 'above', true), sk(4.5, 'left')] },
+      { kind: 'wave', banner: 'MIST RAIDERS!', spawns: [sk(0, 'left', true), sk(0.5, 'right', true), sk(1.5, 'above'), sk(2.5, 'left', true), sk(3.5, 'right'), sk(4.5, 'above', true)] },
+      { kind: 'move', to: 3, speed: 14, vehicle: 'jet' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Walkers are digging in at the bottom of the falls. Transform and stomp them!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'drop', to: 4 },
+      { kind: 'wave', banner: 'BOTTOM OF THE FALLS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.5, 'ahead', true), sk(2.5, 'above'), kr(3.5, 'roofL'), sk(4.5, 'right', true)] },
+      { kind: 'move', to: 5, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofR'), sk(2, 'left', true)] },
+      { kind: 'wave', banner: 'HOLD THE LINE!', spawns: [kr(0, 'ahead', true), kr(0.8, 'roofL', true), kr(1.4, 'roofR'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their ships are getting away up the falls. Back in the air!' }] },
+      { kind: 'transform', to: 'jet' },
+      { kind: 'move', to: 8, speed: 16, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left', true), sk(3.5, 'above', true), sk(5, 'right')] },
+      { kind: 'wave', banner: 'TOP OF THE FALLS!', spawns: [sk(0, 'left', true), sk(0.4, 'right', true), sk(1.2, 'above', true), sk(2.2, 'left', true), sk(3, 'right', true), sk(4, 'above'), sk(5, 'left', true)] },
+      { kind: 'move', to: 10, speed: 12, vehicle: 'jet' },
+    ],
+  },
+  {
+    id: 'amz-ruins',
+    dmg: 1.3, hp: 1.7, fire: 0.75, extra: 1.1,
+    env: 'jungle',
+    bot: 'jet',
+    title: 'Invasion 14: The Lost City',
+    blurb: 'Stomp through the ruins of a lost city.',
+    seed: 127,
+    path: [[0, 10, 50], [0, 10, 0], [10, 8, -80], [0, 0, -120], [-8, 0, -170], [8, 0, -220], [-6, 0, -270], [6, 10, -340], [-8, 12, -420], [0, 0, -470], [6, 0, -520], [0, 0, -560]],
+    plazas: [[0.15, 0.55], [0.75, 1]],
+    steps: [
+      { kind: 'move', to: 2, speed: 14, vehicle: 'jet', spawns: [sk(1, 'left'), sk(2, 'right', true), sk(3.5, 'above')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'The lost city! Their walkers are everywhere. Down you go, STRIKER!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'drop', to: 3 },
+      { kind: 'wave', banner: 'CITY GATES!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR'), kr(1.2, 'ahead', true), sk(2, 'above'), kr(3, 'roofR', true), sk(4, 'left')] },
+      { kind: 'move', to: 5, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL'), sk(2, 'right', true), kr(3.5, 'roofR')] },
+      { kind: 'wave', banner: 'TEMPLE SQUARE!', spawns: [kr(0, 'ahead', true), kr(0.5, 'roofL', true), kr(1, 'roofR', true), sk(2, 'above', true), sk(2.8, 'left'), kr(4, 'ahead'), sk(5, 'right', true)] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot' },
+      { kind: 'transform', to: 'jet' },
+      { kind: 'move', to: 8, speed: 16, vehicle: 'jet', spawns: [sk(0.8, 'left', true), sk(1.6, 'right', true), sk(3, 'above', true), sk(4.5, 'left')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'One more square. Land and finish it!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'drop', to: 9 },
+      { kind: 'wave', banner: 'LAST STAND!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true), kr(3.5, 'roofR', true), sk(4.5, 'right', true)] },
+      { kind: 'move', to: 11, speed: 6, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'amz-hive',
+    dmg: 2.2, hp: 2.6, fire: 0.72, extra: 1.6,
+    env: 'jungle',
+    bot: 'jet',
+    title: 'Invasion 15: The Hive Tree',
+    blurb: 'Their hive is in the biggest tree. Boss!',
+    seed: 131,
+    path: [[0, 10, 20], [0, 10, -20], [14, 9, -120], [-12, 9, -230], [10, 8, -340], [0, 0, -400], [0, 0, -450], [0, 0, -490]],
+    plazas: [[0.85, 1]],
+    boss: [0, -8, -560],
+    bossHp: 3.5,
+    steps: [
+      { kind: 'move', to: 1, speed: 8, vehicle: 'jet' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their hive walker is guarding the giant Hive Tree. This is it, STRIKER!' }] },
+      { kind: 'move', to: 4, speed: 20, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(1.8, 'right', true), sk(3, 'above', true), sk(4.5, 'left'), sk(5.5, 'right', true), sk(7, 'above', true)] },
+      { kind: 'wave', banner: 'HIVE SWARM!', spawns: [sk(0, 'left', true), sk(0.4, 'right', true), sk(1, 'above', true), kr(2, 'ahead', true), sk(3, 'left', true), sk(3.6, 'right', true)] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'drop', to: 5 },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'HIVE TREE WALKER!' },
+    ],
+  },
+  // ---- The Grand Canyon: TITAN, the construction robot, takes over -----------------
+  {
+    id: 'cyn-drop',
+    // Meant to be easy: STRIKER flies in, then TITAN drops in and takes over on the ground.
+    dmg: 0.45, hp: 1, fire: 0.9, extra: 0.4,
+    env: 'canyon',
+    bot: 'titan',
+    swapFrom: 'jet',
+    noControl: true,
+    title: 'Invasion 16: Canyon Drop',
+    blurb: 'Follow the mothership to the Grand Canyon.',
+    seed: 151,
+    path: [[0, 14, 60], [0, 14, 0], [12, 12, -90], [-8, 6, -170], [0, 0, -220], [6, 0, -265], [-6, 0, -310], [4, 0, -360], [0, 0, -410], [0, 0, -440]],
+    plazas: [[0.45, 0.6]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'The mothership is parked over the Grand Canyon. They\'re drilling into the rock! Fly in low, STRIKER.' }] },
+      { kind: 'move', to: 2, speed: 16, vehicle: 'jet', spawns: [sk(1.5, 'left'), sk(3, 'right'), sk(4.5, 'above')] },
+      { kind: 'wave', banner: 'CANYON PATROL!', spawns: [sk(0, 'left'), sk(0.6, 'right'), sk(2, 'above'), sk(3.5, 'left')] },
+      { kind: 'move', to: 4, speed: 12, vehicle: 'jet' },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Their walkers are dug into the rock down there. Lasers just bounce off!' },
+          { who: 'sprocket', text: 'Then we need something HEAVY. I built one more robot... TITAN, DROP!' },
+        ],
+      },
+      { kind: 'swap' },
+      {
+        kind: 'say', lines: [
+          { who: 'sprocket', text: 'Meet TITAN, the construction robot! Slow, tough, and its rivet cannon hits HARD. STRIKER, go refuel!' },
+        ],
+      },
+      { kind: 'wave', banner: 'ROCK WALKERS!', spawns: [kr(0, 'roofL'), kr(1.2, 'roofR'), sk(2.5, 'above')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR')] },
+      { kind: 'wave', banner: 'DUG IN!', spawns: [kr(0, 'ahead'), kr(0.8, 'roofL'), sk(2, 'right'), kr(3, 'roofR')] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [sk(1.5, 'right'), kr(3, 'roofL')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofR'), sk(0.8, 'left'), kr(2, 'ahead'), sk(3, 'above')] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'cyn-river',
+    dmg: 1.95, hp: 1.2, fire: 0.85, extra: 0.7,
+    env: 'canyon',
+    bot: 'titan',
+    title: 'Invasion 17: River Road',
+    blurb: 'Bulldoze down the river road!',
+    seed: 157,
+    path: [[0, 0, 20], [0, 0, -20], [6, 0, -70], [-10, 0, -150], [12, 0, -240], [-8, 0, -330], [6, 0, -400], [-4, 0, -450], [0, 0, -500], [0, 0, -530]],
+    plazas: [[0, 0.12], [0.85, 1]],
+    steps: [
+      { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
+      { kind: 'wave', banner: 'ROADBLOCK!', spawns: [kr(0, 'roofL'), kr(0.8, 'roofR'), sk(2, 'above'), kr(3, 'ahead')] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Raiders are coming up the river road behind you! DOZER MODE, TITAN!' }] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1.5, 'behindL'), rd(3, 'behindR'), sk(4.5, 'above'), rd(6, 'behindL'), rd(7.5, 'behindR')] },
+      { kind: 'move', to: 6, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2, 'behindL'), sk(3, 'above')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Walkers at the end of the road. Stand up and fight!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'RIVER WALKERS!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), sk(1.8, 'above'), kr(3, 'ahead'), sk(4, 'right', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL'), sk(2, 'left')] },
+      { kind: 'wave', banner: 'END OF THE ROAD!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), kr(1.2, 'roofR', true), sk(2.5, 'above', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'cyn-bridge',
+    dmg: 0.54, hp: 1.35, fire: 0.8, extra: 0.9,
+    env: 'canyon',
+    bot: 'titan',
+    title: 'Invasion 18: Under the Bridges',
+    blurb: 'Aliens are dropping from the old bridges!',
+    seed: 163,
+    path: [[0, 0, 20], [0, 0, -20], [-8, 0, -90], [10, 0, -170], [-6, 0, -250], [8, 0, -320], [-10, 0, -400], [6, 0, -470], [0, 0, -530], [0, 0, -560]],
+    plazas: [[0.3, 0.45], [0.8, 1]],
+    steps: [
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR'), sk(4, 'above', true)] },
+      { kind: 'wave', banner: 'FROM THE BRIDGE!', spawns: [sk(0, 'above'), sk(0.5, 'above', true), kr(1.5, 'roofL'), kr(2.2, 'roofR'), sk(3.5, 'left')] },
+      { kind: 'move', to: 3, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right')] },
+      { kind: 'wave', banner: 'WALKER SQUAD!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), kr(1.2, 'roofR', true), sk(2.4, 'above'), kr(3.6, 'ahead')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Raiders on your tail! Dozer mode, and floor it!' }] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 6, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2, 'behindR'), sk(3.5, 'above', true), rd(5, 'behindL'), rd(6, 'behindR'), rd(7.5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'BRIDGE GUARDS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.5, 'above', true), kr(2.5, 'ahead'), sk(3.5, 'left', true), kr(4.5, 'roofR')] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [sk(1, 'right', true), kr(2.5, 'roofL')] },
+      { kind: 'wave', banner: 'LAST BRIDGE!', spawns: [kr(0, 'ahead', true), sk(0.6, 'above', true), kr(1.2, 'roofL', true), sk(2, 'left'), kr(3, 'roofR', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'cyn-rigs',
+    dmg: 0.55, hp: 1.5, fire: 0.78, extra: 1.1,
+    env: 'canyon',
+    bot: 'titan',
+    title: 'Invasion 19: The Drill Rigs',
+    blurb: 'Smash the alien drill rigs!',
+    seed: 167,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.2, 0.35], [0.55, 0.7], [0.9, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Those drill rigs are digging for the canyon\'s power crystals. Stop them!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'RIG ONE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'RIG TWO!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true), sk(4.5, 'right')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead')] },
+      { kind: 'wave', banner: 'RIG THREE!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true), kr(3.5, 'ahead', true), sk(4.5, 'right', true)] },
+      { kind: 'move', to: 9, speed: 6, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'cyn-core',
+    dmg: 1.2, hp: 2.2, fire: 0.74, extra: 1.4,
+    env: 'canyon',
+    bot: 'titan',
+    title: 'Invasion 20: The Drill Walker',
+    blurb: 'Their biggest machine. Final boss!',
+    seed: 173,
+    path: [[0, 0, 20], [0, 0, -20], [10, 0, -110], [-10, 0, -200], [8, 0, -290], [0, 0, -360], [0, 0, -410], [0, 0, -450]],
+    plazas: [[0.8, 1]],
+    boss: [0, -8, -520],
+    bossHp: 3,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'The mothership dropped its giant Drill Walker at the bottom of the canyon. This is it, TITAN!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'OUTER GUARD!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(2, 'above', true), sk(3, 'left', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'DRILL WALKER!' },
+    ],
+  },
 ];
 
 export function missionById(id: string): Mission {
@@ -322,7 +596,30 @@ export function missionById(id: string): Mission {
 
 export const MISSION_IDS = MISSIONS.map((m) => m.id);
 
+/**
+ * A past mission for a patrol alert: one flown by an older robot (not the
+ * one the current missions use), never a hand-over mission.
+ */
+export function alertMission(done: string[], rng: () => number = Math.random): string | undefined {
+  const next = MISSIONS.find((m) => !done.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
+  const current = next.bot ?? 'bolt';
+  const pool = MISSIONS.filter((m) => done.includes(m.id) && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
+  return pool.length ? pool[Math.floor(rng() * pool.length)].id : undefined;
+}
+
 /** Who flies a mission (by the end of it). */
-export function missionBot(id: string): 'bolt' | 'jet' {
+export function missionBot(id: string): BotId {
   return MISSIONS.find((m) => m.id === id)?.bot ?? 'bolt';
+}
+
+/** A mission where the next robot takes over partway through. */
+export function isHandOver(id: string): boolean {
+  return !!MISSIONS.find((m) => m.id === id)?.steps.some((st) => st.kind === 'swap');
+}
+
+/** Who starts a mission: the old robot on a hand-over, otherwise whoever flies it. */
+export function startBot(id: string): BotId {
+  const m = MISSIONS.find((x) => x.id === id);
+  if (!m) return 'bolt';
+  return isHandOver(id) ? (m.swapFrom ?? 'bolt') : (m.bot ?? 'bolt');
 }

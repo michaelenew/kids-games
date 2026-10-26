@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
-import { type Tuning, botForMission, cheapestUpgrade, missionStart, onMissionCleared, onMissionFailed, upgradeRequired } from '../assist';
-import { MissionArmor, REGIONS, type Region, lookFromSave, repairsNeeded, totalMax } from '../armor';
+import { type Tuning, botForMission, cheapestUpgrade, missionStart, tuning, onMissionCleared, onMissionFailed, upgradeRequired } from '../assist';
+import { MissionArmor, REGIONS, type Region, forgeScene, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
-import { type BotId, JET_COLOR, JET_DODGE, actionDone, botData, persist, save, setActiveBot, wantsRecap } from '../state';
+import {
+  type BotId, GADGETS, JET_DODGE, TITAN_BLOCK, actionDone, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
+  wallStage, wantsRecap, writtenStage,
+} from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
-import { type Mission, missionBot, missionById } from '../three/missions';
+import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
@@ -48,8 +51,12 @@ export class InvasionScene extends Phaser.Scene {
     super('Invasion');
   }
 
-  init(data: { missionId?: string; shield?: number }) {
+  /** A patrol alert: a past mission with an older robot, just for fun (and a little scrap). */
+  private alert = false;
+
+  init(data: { missionId?: string; shield?: number; alert?: boolean }) {
     this.mission = missionById(data.missionId ?? 'inv-drop');
+    this.alert = !!data.alert;
     this.shieldBonus = data.shield ?? 0;
     this.over = false;
     this.paused = false;
@@ -60,33 +67,46 @@ export class InvasionScene extends Phaser.Scene {
     this.regionFlash = {};
     this.bannerParts = [];
     this.hitLog = [];
+    this.brokenGadget = null;
   }
 
   create() {
     const s = save();
-    const start = missionStart(this.mission.id);
+    // Alerts play easy and never touch the real missions' help settings.
+    const start = this.alert ? { tune: tuning(2) } : missionStart(this.mission.id);
     this.tune = start.tune;
     // The very first mission is the story opener: he can't lose it.
     const opener = this.mission.id === 'inv-drop' && !s.levelsDone.includes('inv-drop');
     this.mercies = opener ? 99 : this.tune.mercies;
     // Playing a mission counts as action, so the math between missions starts over.
     actionDone(s);
-    const hasSwap = this.mission.steps.some((st) => st.kind === 'swap');
-    this.bot = hasSwap ? 'bolt' : missionBot(this.mission.id);
+    const hasSwap = isHandOver(this.mission.id);
+    const ender = missionBot(this.mission.id);
+    this.bot = startBot(this.mission.id);
+    // Each robot's own way of beating shots: the jet rolls past them, TITAN swats them.
+    const dodgeOf = (b: BotId) => (b === 'jet' ? JET_DODGE : b === 'titan' ? TITAN_BLOCK : [0, 0, 0, 0])[botData(b, s).gear.boots];
+    // The Energy Armor gadget: a big force field on top of the plates, this mission only.
+    if (missionBot(this.mission.id) === 'jet' && s.gadget === 'shield') this.shieldBonus += 1500;
     this.useArmor(this.bot);
 
     const look = lookFromSave(s, this.bot);
     this.game3d = new Invasion(getStage(this.game.canvas), this.mission, {
       look,
-      swapLook: hasSwap ? lookFromSave(s, 'jet') : undefined,
+      swapLook: hasSwap ? lookFromSave(s, ender) : undefined,
       enemyHp: this.tune.enemyHp,
       fireDelay: this.tune.fireDelay,
-      dodge: JET_DODGE[botData('jet', s).gear.boots],
+      dodge: dodgeOf(this.bot),
+      swapDodge: dodgeOf(ender),
     }, {
       hit: (raw, from) => this.onHit(raw, from),
       kill: (k) => this.onKill(k),
       banner: (t, c) => this.banner(t, c),
       say: (lines, done) => {
+        // Alerts skip the story talk: he's heard it.
+        if (this.alert) {
+          done();
+          return;
+        }
         this.game3d.paused = true;
         dialog(this, lines, () => {
           this.game3d.paused = false;
@@ -101,13 +121,13 @@ export class InvasionScene extends Phaser.Scene {
       bossBar: (f) => (this.bossFrac = f),
       complete: () => this.win(),
       swapped: () => {
-        // STRIKER flies the rest with its own armor.
-        this.bot = 'jet';
-        this.useArmor('jet');
-        this.banner('STRIKER!', '#ffd60a');
+        // The new robot does the rest with its own armor.
+        this.bot = ender;
+        this.useArmor(ender);
+        this.banner(`${botName(ender)}!`, ender === 'titan' ? '#ffb347' : '#ffd60a');
       },
-      dodged: () => {
-        const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, 'DODGE!', 40, '#ffd60a').setStroke('#000000', 6).setDepth(25);
+      dodged: (how) => {
+        const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, how === 'swat' ? 'SWAT!' : 'DODGE!', 40, how === 'swat' ? '#ffb347' : '#ffd60a').setStroke('#000000', 6).setDepth(25);
         this.tweens.add({ targets: t, y: 320, alpha: 0, duration: 800, onComplete: () => t.destroy() });
       },
     });
@@ -331,6 +351,7 @@ export class InvasionScene extends Phaser.Scene {
     const cx = 70;
     const cy = 64;
     const jet = this.bot === 'jet';
+    // TITAN's diagram is a robot, like BOLT's.
     // BOLT's body, or STRIKER from above (nose up, wings out, tail fins).
     const parts: Record<Region | 'frame', [number, number, number, number]> = jet ? {
       frame: [cx - 8, cy - 54, 16, 20], // cockpit
@@ -358,7 +379,7 @@ export class InvasionScene extends Phaser.Scene {
         const p = this.armor.plates[key];
         if (p) {
           const f = p.hp / p.max;
-          color = f > 0.66 ? (jet ? JET_COLOR : save().color) : f > 0.33 ? 0xffd166 : 0xff5d5d;
+          color = f > 0.66 ? botColor(this.bot) : f > 0.33 ? 0xffd166 : 0xff5d5d;
         }
       }
       const flash = this.regionFlash[key] ?? 0;
@@ -398,9 +419,23 @@ export class InvasionScene extends Phaser.Scene {
    */
   private bank(won: boolean) {
     const s = save();
-    if (won) this.armor.commit(botData(this.bot, s));
+    // From the Amazon on, the damage is shaped so repairs ramp up: no borrowing, then borrowing.
+    if (won) this.armor.commit(botData(this.bot, s), Math.random, writtenStage(s), wallStage(s));
     s.scrap += this.scrap;
+    // A super gadget only lasts one mission.
+    if (missionBot(this.mission.id) === 'jet' && s.gadget) {
+      this.brokenGadget = GADGETS[s.gadget].title;
+      s.gadget = undefined;
+    }
     persist();
+  }
+
+  /** The gadget that burned out this mission, to say so on the results panel. */
+  private brokenGadget: string | null = null;
+
+  private gadgetNote(y: number) {
+    if (!this.brokenGadget) return;
+    text(this, W / 2, y, `Your ${this.brokenGadget} burned out! Build a new one in the Super Lab.`, 20, '#e0aaff').setDepth(61);
   }
 
   /** Where to go after a mission: build armor the first time, otherwise repair if needed. */
@@ -410,8 +445,9 @@ export class InvasionScene extends Phaser.Scene {
     const built = REGIONS.some((r) => d.armor?.[r]);
     // The forge works on whoever flew the mission.
     setActiveBot(this.bot, s);
-    if (!built) return { key: 'ArmorForge', data: { mode: 'build', mark: 1 }, label: 'Build armor!' };
-    if (repairsNeeded(d.armor ?? {}).length) return { key: 'ArmorForge', data: { mode: 'repair' }, label: 'Repair bay' };
+    const forge = forgeScene(this.bot);
+    if (!built) return { key: forge, data: { mode: 'build', mark: 1 }, label: this.bot === 'titan' ? 'Build walls!' : 'Build armor!' };
+    if (repairsNeeded(d.armor ?? {}).length) return { key: forge, data: { mode: 'repair' }, label: 'Repair bay' };
     return { key: 'Garage', label: 'Back to Garage' };
   }
 
@@ -419,10 +455,20 @@ export class InvasionScene extends Phaser.Scene {
     if (this.over) return;
     this.over = true;
     this.game3d.pointer.down = false;
+    if (this.alert) {
+      this.alertDone(true);
+      return;
+    }
     const s = save();
     const firstWin = !s.levelsDone.includes(this.mission.id);
     if (firstWin) s.levelsDone.push(this.mission.id);
     onMissionCleared(this.mission.id);
+    if (firstWin) {
+      // A new mission beaten: an older robot gets a patrol alert.
+      earnAlert(s);
+      const a = alerts(s);
+      if (a.count > 0 && !a.mission) a.mission = alertMission(s.levelsDone);
+    }
     this.bank(true);
     music('calm');
     sfx.success();
@@ -439,13 +485,14 @@ export class InvasionScene extends Phaser.Scene {
         },
       });
       text(this, W / 2, H / 2 + 10, `+${this.scrap} scrap`, 36, '#ffd166').setDepth(61);
+      this.gadgetNote(H / 2 + 60);
       const next = this.nextScene();
       const after = () => {
         // The mission report (graphs and adding) starts in Egypt, and takes
         // turns with mission control so the math between missions stays short.
-        const report = this.mission.env === 'desert' && wantsRecap();
+        const report = (this.mission.env ?? 'city') !== 'city' && wantsRecap();
         const b = button(this, W / 2, H / 2 + 120, 320, 84, report ? 'Mission report ▶' : next.label, () => {
-          if (report) this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data } });
+          if (report) this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data }, env: this.mission.env });
           else this.scene.start(next.key, next.data);
         }, {
           fill: 0x2a9d8f, edge: 0x9ff0e3, size: 32,
@@ -466,9 +513,33 @@ export class InvasionScene extends Phaser.Scene {
         ], after);
       } else if (this.mission.id === 'egy-pyramid' && firstWin) {
         dialog(this, [
-          { who: 'volt', text: 'The Pyramid Walker is scrap! Their whole fleet is fleeing back into space!' },
-          { who: 'sprocket', text: 'YOU SAVED THE WORLD! Best. Robot. Ever.' },
+          { who: 'volt', text: 'The Pyramid Walker is scrap! Egypt is safe!' },
+          { who: 'volt', text: 'But the rest of their fleet just dove into the Amazon jungle, under the giant trees. Get ready, STRIKER.' },
         ], after);
+      } else if (this.mission.id === 'amz-landing' && firstWin) {
+        dialog(this, [
+          { who: 'sprocket', text: 'Look what the aliens were guarding in those ruins... alien tech! Glowing, buzzing, AMAZING alien tech!' },
+          { who: 'sprocket', text: 'I can use it to build SUPER gadgets for STRIKER: a mega cannon, an energy shield, drones...' },
+          { who: 'sprocket', text: 'Come find the SUPER LAB in the Engineering Zone!' },
+        ], after);
+      } else if (this.mission.id === 'amz-hive' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Hive Tree is down! The jungle is free!' },
+          { who: 'volt', text: 'Their last mothership is heading for the Grand Canyon. Whatever they\'re building there, it\'s BIG.' },
+        ], after);
+      } else if (this.mission.id === 'cyn-drop' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'TITAN! Our construction robot made it to the canyon!' },
+          { who: 'sprocket', text: 'TITAN does the canyon missions now. It\'s slow, but it hits like a wrecking ball.' },
+          { who: 'sprocket', text: 'Its armor is brick walls. Let\'s go build TITAN its first walls, row by row!' },
+        ], after);
+      } else if (this.mission.id === 'cyn-core' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Drill Walker is down! The mothership\'s last machine is scrap!' },
+          { who: 'volt', text: 'BOLT, STRIKER and TITAN... you saved the whole planet. Best. Team. Ever.' },
+        ], after);
+      } else if (next.key === 'WallForge') {
+        dialog(this, [{ who: 'sprocket', text: 'TITAN\'s walls lost some bricks. Let\'s rebuild them, row by row!' }], after);
       } else if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {
         dialog(this, [
           { who: 'sprocket', text: 'You did it! But look at you... a bare frame. Those hits went right through!' },
@@ -487,6 +558,10 @@ export class InvasionScene extends Phaser.Scene {
     this.over = true;
     this.game3d.pointer.down = false;
     this.game3d.paused = true;
+    if (this.alert) {
+      this.alertDone(false);
+      return;
+    }
     this.bank(false);
     onMissionFailed(this.mission.id);
     music('calm');
@@ -500,12 +575,36 @@ export class InvasionScene extends Phaser.Scene {
     text(this, W / 2, H / 2 - 140, 'EMERGENCY RETREAT!', 50, '#ef476f').setStroke('#000000', 6).setDepth(61);
     text(this, W / 2, H / 2 - 50, 'Your armor ran out. Patch up and try again!\nThicker plates from the forge help a lot.', 28, '#ffffff')
       .setDepth(61);
+    this.gadgetNote(H / 2 + 30);
     const next = this.nextScene();
     button(this, W / 2 - 180, H / 2 + 100, 300, 84, next.key === 'Garage' ? 'Try again' : next.label, () => {
       if (next.key === 'Garage') this.scene.restart({ missionId: this.mission.id });
       else this.scene.start(next.key, { ...next.data, then: this.mission.id });
     }, { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
     button(this, W / 2 + 180, H / 2 + 100, 300, 84, 'Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 }).setDepth(62);
+  }
+
+  /** End of a patrol alert. Plates aren't damaged and nothing locks; a win pays half scrap. */
+  private alertDone(won: boolean) {
+    const s = save();
+    const a = alerts(s);
+    const earned = won ? Math.ceil(this.scrap / 2) : 0;
+    if (won) {
+      s.scrap += earned;
+      a.count = Math.max(0, a.count - 1);
+      a.mission = a.count > 0 ? alertMission(s.levelsDone) : undefined;
+    }
+    persist();
+    music('calm');
+    if (won) sfx.success();
+    else sfx.alarm();
+    this.time.delayedCall(700, () => {
+      panel(this, W / 2, H / 2, 700, 380).setDepth(60);
+      text(this, W / 2, H / 2 - 120, won ? 'ALERT CLEARED!' : 'RETREAT!', 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
+      text(this, W / 2, H / 2 - 30, won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!', 30, '#ffffff').setDepth(61);
+      const b = button(this, W / 2, H / 2 + 100, 320, 84, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
+      this.tweens.add({ targets: b, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });
+    });
   }
 
   /** After two losses without upgrading: say plainly that it's time to upgrade. */
@@ -525,8 +624,8 @@ export class InvasionScene extends Phaser.Scene {
       { who: 'sprocket' as const, text: 'These aliens are way too tough for us right now. Their shots are tearing right through!' },
       {
         who: 'sprocket' as const,
-        text: who === 'jet'
-          ? 'STRIKER needs an upgrade to get stronger. Let\'s build something new for it in the Engineering Zone!'
+        text: who !== 'bolt'
+          ? `${botName(who)} needs an upgrade to get stronger. Let's build something new for it in the Engineering Zone!`
           : 'We need to upgrade to get stronger. Let\'s build something new in the Engineering Zone!',
       },
     ];
@@ -537,7 +636,7 @@ export class InvasionScene extends Phaser.Scene {
       text(this, W / 2, H / 2 - 40, 'Build a new upgrade, then come back\nand blast them!', 28, '#ffffff').setDepth(61);
       const repair = this.nextScene();
       const b = button(this, W / 2 - 170, H / 2 + 90, 320, 84, 'Engineering Zone', () => {
-        if (repair.key === 'ArmorForge') this.scene.start('ArmorForge', { ...repair.data, then: 'engineering' });
+        if (repair.key !== 'Garage') this.scene.start(repair.key, { ...repair.data, then: 'engineering' });
         else this.scene.start('Engineering');
       }, { fill: 0xf77f00, edge: 0xffd166, size: 28 }).setDepth(62);
       this.tweens.add({ targets: b, scale: 1.06, duration: 500, yoyo: true, repeat: -1 });

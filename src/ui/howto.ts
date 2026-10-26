@@ -47,7 +47,10 @@ export function howTo(
     g.fillStyle(0x0b1022, 0.97).fillRoundedRect(x - w / 2, y - h / 2, w, h, 18);
     g.lineStyle(4, 0x06d6a0, 1).strokeRoundedRect(x - w / 2, y - h / 2, w, h, 18);
     items.push(g);
-    items.push(text(scene, x, y - h / 2 + 30, `HOW TO: ${card.title}`, 26, '#06d6a0').setDepth(901));
+    const title = text(scene, x, y - h / 2 + 30, `HOW TO: ${card.title}`, 26, '#06d6a0').setDepth(901);
+    // Narrow cards shrink the title to fit.
+    if (title.width > w - 30) title.setScale((w - 30) / title.width);
+    items.push(title);
     // Steps so far stay on the card, the newest one highlighted.
     const shown = card.steps.slice(0, si + 1);
     const body = shown.map((s, i) => `${i + 1}. ${s}`).join('\n');

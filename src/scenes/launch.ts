@@ -9,6 +9,6 @@ import { missionById } from '../three/missions';
  */
 export function launchMission(scene: Phaser.Scene, id: string) {
   const m = missionById(id);
-  if (m.env === 'desert' && !m.noControl && wantsControl()) scene.scene.start('Control', { missionId: id });
+  if ((m.env ?? 'city') !== 'city' && !m.noControl && wantsControl()) scene.scene.start('Control', { missionId: id });
   else scene.scene.start('Invasion', { missionId: id });
 }

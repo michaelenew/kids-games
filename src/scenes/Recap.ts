@@ -16,6 +16,8 @@ import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 interface RecapData {
   hits: { from: string; amount: number }[];
   next: { key: string; data?: object };
+  /** Where the mission was: Egypt asks adding and bar graphs; the Amazon, picture graphs and estimating. */
+  env?: string;
 }
 
 const NAMES: Record<string, string> = { skimmer: 'saucers', krawler: 'walkers', raider: 'bikes', boss: 'boss' };
@@ -40,6 +42,7 @@ export class RecapScene extends Phaser.Scene {
 
   init(data: RecapData) {
     this.hits = data.hits ?? [];
+    this.env = data.env ?? 'desert';
     this.next = data.next ?? { key: 'Garage' };
     this.earned = 0;
     this.barZones = [];
@@ -64,6 +67,28 @@ export class RecapScene extends Phaser.Scene {
     const turn = (s.guide?.recap ?? 0) % 2;
     bumpGuide('recap', s);
     const pair = this.twoHits();
+    // Estimating starts with small hits (under 50), so the sum stays small too.
+    const ok = this.hits.map((h) => h.amount).filter((a) => a >= 11 && a <= 99 && a % 10 !== 5);
+    const small = ok.filter((a) => a < 50).sort((a, b) => a - b);
+    const est = guideCount('estimate') < 2 && small.length >= 2 ? small : ok.sort((a, b) => b - a);
+    if (this.env === 'jungle') {
+      // The Amazon: picture graphs, then estimating, taking turns.
+      if (turn === 1 && est.length >= 2) this.estimate(est[0], est[1]);
+      else this.pictureGraph();
+      return;
+    }
+    if (this.env === 'canyon') {
+      // The canyon is about multiplying, so the report is review: each kind in turn.
+      const k = (s.guide?.recap ?? 1) % 4;
+      if (k === 1 && pair) this.addition(pair[0], pair[1]);
+      else if (k === 2) this.pictureGraph();
+      else if (k === 3 && est.length >= 2) this.estimate(est[0], est[1]);
+      else {
+        this.drawGraph();
+        this.graphQuestion();
+      }
+      return;
+    }
     if (turn === 0 && pair) this.addition(pair[0], pair[1]);
     else {
       this.drawGraph();
@@ -377,6 +402,205 @@ export class RecapScene extends Phaser.Scene {
     s.scrap += BONUS;
     persist();
     toast(this, x, y, `Right! +${BONUS} scrap`, '#06d6a0', 36);
+  }
+
+  private env = 'desert';
+
+  // ---- Picture graph (the Amazon) -------------------------------------------------
+
+  /**
+   * The same hits as a picture graph: each picture stands for 2 hits (half
+   * a picture for 1). The first time, the key is explained and the pictures
+   * light up as he counts by 2s.
+   */
+  private pictureGraph() {
+    const PER = 2;
+    const rows = [...this.bars].sort((a, b) => b.value - a.value).slice(0, 3);
+    const x0 = 120;
+    const y0 = 200;
+    panel(this, 330, 380, 520, 440);
+    text(this, 330, 185, 'HITS TAKEN', 26, '#9ad1ff');
+    const icon = (x: number, y: number, label: string, half: boolean) => {
+      const g = this.add.graphics();
+      const c = COLORS[label] ?? 0xffffff;
+      g.fillStyle(c, 1);
+      if (label === 'walkers') g.fillRoundedRect(-14, -12, 28, 18, 5).fillRect(-12, 6, 6, 10).fillRect(6, 6, 6, 10);
+      else if (label === 'boss') g.fillTriangle(0, -16, 15, 14, -15, 14);
+      else g.fillEllipse(0, 2, 34, 14).fillCircle(0, -4, 8);
+      g.setPosition(x, y);
+      if (half) {
+        const mask = this.make.graphics({}).fillRect(x - 20, y - 20, 20, 40);
+        g.setMask(mask.createGeometryMask());
+      }
+      return g;
+    };
+    const icons: Phaser.GameObjects.Graphics[][] = [];
+    rows.forEach((b, r) => {
+      const y = y0 + 60 + r * 90;
+      text(this, x0, y, b.label.toUpperCase(), 20, '#ffffff').setOrigin(0, 0.5);
+      const list: Phaser.GameObjects.Graphics[] = [];
+      const n = Math.ceil(b.value / PER);
+      for (let i = 0; i < n; i++) list.push(icon(x0 + 140 + i * 42, y, b.label, i === n - 1 && b.value % PER === 1));
+      icons.push(list);
+    });
+    // The key.
+    this.add.graphics().fillStyle(0x24305a, 1).fillRoundedRect(x0, 525, 420, 50, 10);
+    icon(x0 + 34, 550, rows[0].label, false);
+    text(this, x0 + 70, 550, `= ${PER} hits   (half = 1 hit)`, 22, '#ffd166').setOrigin(0, 0.5);
+
+    const first = guideCount('picgraph') < 1;
+    const even = rows.find((b) => b.value % 2 === 0 && b.value >= 4) ?? rows[0];
+    const ask = (q: string, answer: string, choices: string[], hint: string) => {
+      let misses = 0;
+      const prompt = text(this, 930, 170, q, 28, '#ffffff', { wordWrap: { width: 560 } });
+      this.layer.add(prompt);
+      [...new Set(choices)].slice(0, 3).sort(() => Math.random() - 0.5).forEach((c, i) => {
+        const btn = button(this, 930, 300 + i * 100, 340, 80, c, () => {
+          if (c === answer) {
+            recordSkill('graphs', misses === 0);
+            bumpGuide('picgraph');
+            this.reward(930, 260);
+            this.time.delayedCall(900, () => {
+              this.layer.removeAll(true);
+              this.finish();
+            });
+            return;
+          }
+          misses++;
+          sfx.buzz();
+          this.tweens.add({ targets: btn, x: btn.x + 8, duration: 50, yoyo: true, repeat: 3 });
+          toast(this, 930, 620, misses >= 2 ? `It's ${answer}.` : hint, '#ff9f9f', 24);
+          if (misses >= 2) this.time.delayedCall(1600, () => this.finish());
+        }, { fill: 0x1f6feb, size: 30 });
+        this.layer.add(btn);
+      });
+    };
+    const howMany = () => ask(
+      `Each picture means ${PER} hits. How many times did the ${even.label} hit you?`,
+      String(even.value),
+      [String(even.value), String(Math.ceil(even.value / PER)), String(even.value + PER)],
+      'Count by 2s for each picture: 2, 4, 6...',
+    );
+    if (first) {
+      // Light the pictures up one by one while counting by 2s.
+      const r = rows.indexOf(even);
+      const t = text(this, 930, 200, `Each picture means ${PER} hits. Watch: count the ${even.label} by 2s!`, 26, '#ffffff', { wordWrap: { width: 560 } });
+      const count = text(this, 930, 330, '', 64, '#ffd166');
+      icons[r].forEach((ic, i) => {
+        this.time.delayedCall(800 + i * 700, () => {
+          this.tweens.add({ targets: ic, scale: 1.4, duration: 150, yoyo: true });
+          sfx.tick();
+          count.setText(String(Math.min(even.value, (i + 1) * PER)));
+        });
+      });
+      const ok = button(this, 930, 470, 240, 70, 'Got it ▶', () => {
+        t.destroy();
+        count.destroy();
+        ok.destroy();
+        this.layer.removeAll(true);
+        this.layer.add(text(this, 930, 120, '', 10));
+        // Then a different row to try on his own.
+        const other = rows.find((b) => b !== even) ?? even;
+        ask(`Now you: how many times did the ${other.label} hit you?`, String(other.value),
+          [String(other.value), String(Math.ceil(other.value / PER)), String(other.value + 1)], 'Count by 2s, and a half picture is 1 more.');
+      }, { fill: 0x2a9d8f, edge: 0x9ff0e3, size: 26 });
+      ok.setAlpha(0);
+      this.time.delayedCall(900 + icons[r].length * 700, () => ok.setAlpha(1));
+      return;
+    }
+    // Later: how many, or how many more, or "twice as many".
+    const twice = rows.find((a) => rows.some((b) => a !== b && a.value === b.value * 2));
+    if (twice && guideCount('picgraph') >= 2) {
+      const half = rows.find((b) => b.value * 2 === twice.value)!;
+      ask(`Which alien hit you TWICE as many times as the ${half.label}?`, twice.label.toUpperCase(),
+        rows.map((b) => b.label.toUpperCase()), `Twice as many means double: ${half.value} + ${half.value}.`);
+    } else if (rows.length >= 2 && rows[0].value !== rows[1].value && guideCount('picgraph') >= 1) {
+      const diff = rows[0].value - rows[1].value;
+      ask(`How many MORE times did the ${rows[0].label} hit you than the ${rows[1].label}?`, String(diff),
+        [String(diff), String(rows[0].value), String(diff + 2)], 'Work out each row by 2s, then take away.');
+    } else howMany();
+  }
+
+  // ---- Estimating (the Amazon) --------------------------------------------------------
+
+  /**
+   * "About how much damage?": round each hit to the nearest ten, then add.
+   * The first time, it's walked through one number at a time.
+   */
+  private estimate(a: number, b: number) {
+    const ra = Math.round(a / 10) * 10;
+    const rb = Math.round(b / 10) * 10;
+    const est = ra + rb;
+    this.add.text(W / 2, 110, `Two of the hits you took: ${a} and ${b}. About how much damage is that? You don't need the exact answer.`, {
+      fontFamily: 'Arial', fontSize: '24px', color: '#ffffff', align: 'center', wordWrap: { width: 1100 },
+    }).setOrigin(0.5);
+    // A number line to show "closest ten".
+    const line = this.add.graphics();
+    // A big number line from one ten to the next, centered, with every one marked.
+    let base = 0;
+    const lx = (v: number) => W / 2 - 300 + ((v - base) / 10) * 600;
+    const drawLine = (v: number) => {
+      line.clear();
+      base = Math.floor(v / 10) * 10;
+      line.lineStyle(5, 0xffffff, 0.8).lineBetween(lx(base) - 30, 330, lx(base + 10) + 30, 330);
+      for (let t = base; t <= base + 10; t++) line.lineStyle(t % 10 === 0 ? 5 : 2, t % 10 === 0 ? 0xffd166 : 0xffffff, 1).lineBetween(lx(t), t % 10 ? 320 : 312, lx(t), t % 10 ? 340 : 348);
+      line.lineStyle(3, 0xef476f, 0.6).lineBetween(lx(base + 5), 300, lx(base + 5), 360);
+      line.fillStyle(0xef476f, 1).fillCircle(lx(v), 330, 12);
+    };
+    const labels: Phaser.GameObjects.Text[] = [];
+    const showLine = (v: number) => {
+      labels.forEach((l) => l.destroy());
+      labels.length = 0;
+      drawLine(v);
+      const lo = Math.floor(v / 10) * 10;
+      labels.push(text(this, lx(lo), 370, String(lo), 26, '#ffd166'), text(this, lx(lo + 10), 370, String(lo + 10), 26, '#ffd166'), text(this, lx(v), 292, String(v), 24, '#ff9f9f'));
+    };
+    const steps: { q: string; answer: number; choices: number[]; show?: number }[] = guideCount('estimate') < 1 ? [
+      { q: `${a} is between ${Math.floor(a / 10) * 10} and ${Math.floor(a / 10) * 10 + 10}. Which ten is it closer to?`, answer: ra, choices: [Math.floor(a / 10) * 10, Math.floor(a / 10) * 10 + 10], show: a },
+      { q: `And ${b}? Which ten is it closer to?`, answer: rb, choices: [Math.floor(b / 10) * 10, Math.floor(b / 10) * 10 + 10], show: b },
+      { q: `So it's about ${ra} + ${rb}. How much is that?`, answer: est, choices: [est, est + 10, est - 10] },
+    ] : [
+      { q: 'About how much damage? Round each hit to the nearest ten, then add.', answer: est, choices: [est, est + 20, est - 20] },
+    ];
+    let k = 0;
+    let misses = 0;
+    let buttons: Phaser.GameObjects.GameObject[] = [];
+    const prompt = text(this, W / 2, 200, '', 28, '#ffd166', { wordWrap: { width: 1100 } });
+    const ask = () => {
+      buttons.forEach((bb) => bb.destroy());
+      buttons = [];
+      const st = steps[k];
+      if (!st) {
+        recordSkill('estimate', misses === 0);
+        bumpGuide('estimate');
+        this.reward(W / 2, 450);
+        this.time.delayedCall(900, () => this.finish());
+        return;
+      }
+      prompt.setText(st.q);
+      if (st.show !== undefined) showLine(st.show);
+      else {
+        line.clear();
+        labels.forEach((l) => l.destroy());
+        labels.length = 0;
+      }
+      [...new Set(st.choices)].sort(() => Math.random() - 0.5).forEach((c, i, arr) => {
+        const btn = button(this, W / 2 + (i - (arr.length - 1) / 2) * 230, 500, 200, 84, `about ${c}`.replace('about ', st.show !== undefined ? '' : 'about '), () => {
+          if (c === st.answer) {
+            sfx.success();
+            k++;
+            this.time.delayedCall(500, ask);
+            return;
+          }
+          misses++;
+          sfx.buzz();
+          this.tweens.add({ targets: btn, x: btn.x + 8, duration: 50, yoyo: true, repeat: 3 });
+          toast(this, W / 2, 620, st.show !== undefined ? 'Look at the line: which ten is the dot nearer?' : `Round them: ${a} is about ${ra}, ${b} is about ${rb}.`, '#ff9f9f', 24);
+        }, { fill: 0x1f6feb, size: 30 });
+        buttons.push(btn);
+      });
+    };
+    ask();
   }
 
   private finished = false;

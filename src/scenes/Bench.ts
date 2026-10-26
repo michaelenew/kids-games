@@ -3,7 +3,9 @@ import { FONT } from '../art';
 import { lookFromSave } from '../armor';
 import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
-import { BUILD_COST, type GearId, actionDone, activeBot, botName, gearInfo, persist, recordSkill, rig, save } from '../state';
+import {
+  BUILD_COST, GADGETS, type GadgetId, type GearId, actionDone, activeBot, botName, gearInfo, persist, recordSkill, rig, save,
+} from '../state';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 import { type HowTo, howTo, needsIntro } from '../ui/howto';
 
@@ -13,6 +15,8 @@ export interface BenchData {
   gear: GearId;
   mark: BenchMark;
   practice: boolean;
+  /** Building a super gadget instead of a gear mark: a short job, no timer. */
+  gadget?: GadgetId;
 }
 
 const ROMAN = ['', 'I', 'II', 'III'];
@@ -40,6 +44,11 @@ export abstract class BenchScene extends Phaser.Scene {
   private static bonusTime: Record<string, number> = {};
 
   protected abstract readonly jobSize: number;
+  protected gadget?: GadgetId;
+  /** Problems in this job (a gadget is a quick two). */
+  protected get jobTotal() {
+    return this.gadget ? 2 : this.jobSize;
+  }
   protected abstract readonly timeLimit: number;
   /** Pause between solving one problem and showing the next, in ms. */
   protected get nextDelay() {
@@ -51,6 +60,7 @@ export abstract class BenchScene extends Phaser.Scene {
     this.gear = data.gear;
     this.mark = data.mark;
     this.practice = data.practice;
+    this.gadget = data.gadget;
     this.index = 0;
     this.misses = 0;
     this.pips = [];
@@ -67,14 +77,16 @@ export abstract class BenchScene extends Phaser.Scene {
     g.fillStyle(0xf77f00, 1).fillRect(0, 100, W, 6);
 
     const bot = activeBot();
-    const who = bot === 'jet' ? `${botName(bot)} · ` : '';
-    const title = `${who}${gearInfo(bot)[this.gear].title.toUpperCase()} BENCH · Mark ${ROMAN[this.mark]}${this.practice ? ' (practice)' : ''}`;
+    const who = bot !== 'bolt' ? `${botName(bot)} · ` : '';
+    const title = this.gadget
+      ? `SUPER LAB · ${GADGETS[this.gadget].title.toUpperCase()}`
+      : `${who}${gearInfo(bot)[this.gear].title.toUpperCase()} BENCH · Mark ${ROMAN[this.mark]}${this.practice ? ' (practice)' : ''}`;
     text(this, W / 2, 50, title, 36, '#ffd166');
     button(this, 80, 50, 120, 60, '◀ Exit', () => this.exit(), { size: 24, fill: 0x3d4458 });
 
-    const gap = this.jobSize > 5 ? 26 : 40;
-    for (let i = 0; i < this.jobSize; i++) {
-      this.pips.push(this.add.circle(W - 50 - (this.jobSize - 1 - i) * gap, 50, gap / 3, 0x3d4458).setStrokeStyle(3, 0xffffff, 0.6));
+    const gap = this.jobTotal > 5 ? 26 : 40;
+    for (let i = 0; i < this.jobTotal; i++) {
+      this.pips.push(this.add.circle(W - 50 - (this.jobTotal - 1 - i) * gap, 50, gap / 3, 0x3d4458).setStrokeStyle(3, 0xffffff, 0.6));
     }
 
     // Sprocket and his hint bubble.
@@ -86,7 +98,7 @@ export abstract class BenchScene extends Phaser.Scene {
 
     this.layer = this.add.container(0, 0);
 
-    if (this.timeLimit > 0) {
+    if (this.timeLimit > 0 && !this.gadget) {
       const key = `${this.gear}-${this.mark}`;
       this.timeTotal = this.timeLimit + (BenchScene.bonusTime[key] ?? 0);
       this.timeLeft = this.timeTotal;
@@ -144,7 +156,7 @@ export abstract class BenchScene extends Phaser.Scene {
     this.pips[this.index]?.setFillStyle(0x06d6a0);
     this.index++;
     this.misses = 0;
-    if (this.index >= this.jobSize) {
+    if (this.index >= this.jobTotal) {
       this.timerRunning = false;
       this.time.delayedCall(900, () => this.complete());
     } else {
@@ -177,6 +189,16 @@ export abstract class BenchScene extends Phaser.Scene {
     this.clearLayer();
     const s = save();
     const before = lookFromSave(s);
+    if (this.gadget) {
+      // A super gadget: fitted now, good for the next mission.
+      s.scrap = Math.max(0, s.scrap - GADGETS[this.gadget].cost);
+      s.gadget = this.gadget;
+      persist();
+      onUpgradeBuilt('jet');
+      actionDone(s);
+      this.scene.start('Install', { gear: this.gear, mark: this.mark, before, gadget: this.gadget });
+      return;
+    }
     if (!this.practice) {
       s.scrap -= BUILD_COST[this.mark];
       rig(s).gear[this.gear] = this.mark;

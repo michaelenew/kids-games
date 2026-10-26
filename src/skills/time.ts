@@ -10,7 +10,7 @@ import { pick, randInt, shuffle, type Rng } from './rng';
 export const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export interface TimeQuestion {
-  kind: 'read' | 'until' | 'ends' | 'day';
+  kind: 'read' | 'until' | 'ends' | 'day' | 'groups';
   /** Story text above the clock. */
   prompt: string;
   /** Clock to draw (h, m), if any. */
@@ -19,6 +19,8 @@ export interface TimeQuestion {
   clock2?: { h: number; m: number };
   /** The minutes between the two times. */
   minutes?: number;
+  /** Equal groups (the canyon's supply problems): how many groups, and how many in each. */
+  groups?: { n: number; each: number; box: string; boxes: string; thing: string };
   answer: string;
   choices: string[];
 }
@@ -189,4 +191,31 @@ export function missionControlQuestion(rng: Rng, egyptIndex: number): TimeQuesti
     default:
       return makeEnds(rng, 5);
   }
+}
+
+const SUPPLIES: { box: string; boxes: string; thing: string }[] = [
+  { box: 'crate', boxes: 'crates', thing: 'bricks' },
+  { box: 'box', boxes: 'boxes', thing: 'rivets' },
+  { box: 'barrel', boxes: 'barrels', thing: 'bolts' },
+  { box: 'pallet', boxes: 'pallets', thing: 'steel beams' },
+];
+
+/**
+ * Equal groups, as a supply drop for TITAN (the canyon's mission control):
+ * "4 crates, 5 bricks in each: how many bricks?" The first ones use the
+ * easiest facts (2s, 5s, 10s); `n` is how many he has done.
+ */
+export function makeGroups(rng: Rng, n: number): TimeQuestion {
+  const easy = n < 3;
+  const each = pick(rng, easy ? [2, 5, 10] : [2, 3, 4, 5, 10]);
+  const groups = each === 10 ? randInt(rng, 2, 3) : randInt(rng, 2, easy ? 4 : 5);
+  const s = pick(rng, SUPPLIES);
+  const total = groups * each;
+  return {
+    kind: 'groups',
+    prompt: `A supply drop for TITAN: ${groups} ${s.boxes}, with ${each} ${s.thing} in each ${s.box}. How many ${s.thing} in all?`,
+    groups: { n: groups, each, box: s.box, boxes: s.boxes, thing: s.thing },
+    answer: `${total}`,
+    choices: shuffle(rng, withChoices(`${total}`, [`${groups + each}`, `${total + each}`, `${total - each}`])),
+  };
 }

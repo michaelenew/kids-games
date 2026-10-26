@@ -5,11 +5,12 @@ import { REGIONS, type Region, armorMark, lookFromSave, plateTarget, regionName,
 import { music, sfx } from '../audio';
 import { type PlaceCounts, type SpecFormat, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
 import {
-  BUILD_COST, JET_COLOR, actionDone, activeBot, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, persist, recordSkill, rig, save,
+  BUILD_COST, JET_COLOR, actionDone, activeBot, amazonUnlocked, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, persist, recordSkill, rig, save,
 } from '../state';
 import { Jet } from '../three/jet';
 import { launchMission } from './launch';
-import { RAMP, rampProblem } from '../skills/steps';
+import { RAMP, borrowKind, rampProblem } from '../skills/steps';
+import { writtenSubtractPanel } from '../ui/written';
 import { countUpPanel } from '../ui/countup';
 import { placeValueCards } from '../skills/concepts';
 import { howTo, needsIntro } from '../ui/howto';
@@ -294,7 +295,9 @@ export class ArmorForge extends Phaser.Scene {
     this.refresh();
     // The first few subtraction repairs walk him through counting up.
     if (this.mode === 'repair' && this.subtracting) {
-      this.countUpFlow();
+      // From the Amazon on, repairs are written (column) subtraction.
+      if (amazonUnlocked()) this.writtenFlow();
+      else this.countUpFlow();
       return;
     }
     // Every place-value idea gets a "how to" the first time it shows up, and
@@ -316,6 +319,41 @@ export class ArmorForge extends Phaser.Scene {
    * guided and then on his own). The repair itself is walked through on the
    * number line until he has done numbers that size on his own.
    */
+  /** Written subtraction for the missing points, introduced with a HOW TO card. */
+  private writtenFlow() {
+    const plate = rig().armor![this.job.region]!;
+    const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
+    const kind = borrowKind(plate.max, plate.hp);
+    // Walked through the first two times, and the first time each new kind comes up.
+    const guided = guideCount('written') < 2 || guideCount(`written-${kind}`) < 1;
+    this.busy = true;
+    const go = () => writtenSubtractPanel(this, {
+      top: plate.max, bottom: plate.hp, guided, area, title: 'MISSING POINTS: TAKE AWAY',
+      onDone: (solo) => {
+        bumpGuide('written');
+        bumpGuide(`written-${kind}`);
+        recordSkill('written', solo);
+        this.busy = false;
+        toast(this, (LEFT + RIGHT) / 2, 318, `Now build ${formatNumber(plate.max - plate.hp)} with the pieces!`, '#06d6a0', 28);
+      },
+    });
+    howTo(this, [{
+      concept: 'written-sub', title: 'TAKING AWAY IN COLUMNS',
+      steps: [
+        `Write the full plate (${formatNumber(plate.max)}) on top and what's left (${formatNumber(plate.hp)}) under it, ones under ones.`,
+        'Start with the ONES column on the right: take the bottom digit away from the top one. Then the tens, then the hundreds.',
+        'If the top digit is too small, BORROW: take 1 from the next column over and give this column 10 more.',
+      ],
+    }, ...(kind > 0 ? [{
+      concept: 'written-borrow', title: 'BORROWING A TEN',
+      steps: [
+        'When the top digit is smaller than the bottom one, borrow a ten from the column to its left.',
+        'Cross out that digit and write one less above it. The small digit gets a 1 in front: 2 becomes 12.',
+        'If the next digit is a 0, borrow from the one after it first: the 0 becomes 10, then gives one away and becomes 9.',
+      ],
+    }] : [])], go, area);
+  }
+
   private countUpFlow() {
     const plate = rig().armor![this.job.region]!;
     const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };

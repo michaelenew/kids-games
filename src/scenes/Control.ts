@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
-import { DAYS, addMinutes, clockText, controlQuestions, type TimeQuestion } from '../skills/time';
-import { bumpGuide, guideCount, mathDone, recordSkill } from '../state';
+import { DAYS, addMinutes, clockText, controlQuestions, makeGroups, type TimeQuestion } from '../skills/time';
+import { bumpGuide, guideCount, mathDone, recordSkill, titanUnlocked } from '../state';
 import { missionById } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
@@ -42,6 +42,8 @@ export class ControlScene extends Phaser.Scene {
   private questions: TimeQuestion[] = [];
   private index = 0;
   private shield = 0;
+  /** This visit is a canyon supply drop rather than a clock question. */
+  private supply = false;
   private layer!: Phaser.GameObjects.Container;
   private shieldText!: Phaser.GameObjects.Text;
 
@@ -70,7 +72,9 @@ export class ControlScene extends Phaser.Scene {
     this.layer = this.add.container(0, 0);
     // Usually one question, so it's quick; it starts easy and gets harder
     // each visit (the first visit reads three clocks: :20, :40, :55).
-    this.questions = controlQuestions(Math.random, guideCount('control'));
+    // In the canyon, every other visit is a supply drop instead (equal groups: multiplying).
+    this.supply = titanUnlocked() && guideCount('control-cyn') % 2 === 0;
+    this.questions = this.supply ? [makeGroups(Math.random, guideCount('time-groups'))] : controlQuestions(Math.random, guideCount('control'));
     mathDone('control');
     this.ask();
   }
@@ -84,6 +88,7 @@ export class ControlScene extends Phaser.Scene {
     }
     let clock: Clock | null = null;
     if (q.kind === 'day') this.drawWeek();
+    else if (q.groups) this.drawGroups(q.groups, guideCount('time-groups') < 2);
     else if (q.clock) clock = this.drawClock(300, 380, 190, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
     // The first few times for each kind, walk him through it step by step
     // (clock reading three times: the whole first visit).
@@ -173,7 +178,7 @@ export class ControlScene extends Phaser.Scene {
               this.time.delayedCall(900, () => show(i + 1));
               return;
             }
-            recordSkill('time', misses === 0);
+            recordSkill(q.kind === 'groups' ? 'multiply' : 'time', misses === 0);
             if (guided) bumpGuide(`time-${q.kind}`);
             sparks(this, 900, 360 + k * 100, 0x06d6a0, 24);
             this.shield += SHIELD_PER_ANSWER;
@@ -209,6 +214,18 @@ export class ControlScene extends Phaser.Scene {
     const mix = (answer: string, wrong: string[]) =>
       [...new Set([answer, ...wrong])].slice(0, 3).sort(() => Math.random() - 0.5);
     const out: GuideStep[] = [];
+    if (q.groups) {
+      const { n, each, box, boxes, thing } = q.groups;
+      const seq = Array.from({ length: n }, (_, k) => (k + 1) * each).join(', ');
+      out.push({
+        intro: `${n} ${boxes}, and every ${box} has the same number of ${thing}. That's equal groups!`,
+        prompt: `How many ${thing} are in ONE ${box}?`,
+        answer: `${each}`,
+        choices: mix(`${each}`, [`${n}`, `${each + 1}`]),
+        praise: `Yes, ${each} in each. Now count by ${each}s, one ${box} at a time: ${seq}!`,
+      });
+      return out;
+    }
     const t = q.clock!;
     const fives = (n: number) => {
       const seq: number[] = [];
@@ -382,6 +399,35 @@ export class ControlScene extends Phaser.Scene {
   }
 
   /** The week as a strip of days, for "what day is it in 3 days". */
+  /** Equal groups: the boxes, each with its things inside (and, walked through, the count by each box). */
+  private drawGroups(gr: NonNullable<TimeQuestion['groups']>, counts: boolean) {
+    this.layer.add(panel(this, 300, 380, 500, 470));
+    this.layer.add(text(this, 300, 175, 'SUPPLY DROP', 26, '#ffb347'));
+    const perRow = gr.n <= 3 ? gr.n : Math.ceil(gr.n / 2);
+    const bw = 130;
+    const bh = 130;
+    for (let i = 0; i < gr.n; i++) {
+      const row = Math.floor(i / perRow);
+      const inRow = Math.min(perRow, gr.n - row * perRow);
+      const x = 300 + (i % perRow - (inRow - 1) / 2) * (bw + 14);
+      const y = (gr.n > perRow ? 300 : 370) + row * (bh + 40);
+      const g = this.add.graphics();
+      g.fillStyle(0xc98a3a, 1).fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 10);
+      g.lineStyle(4, 0x6b3f14, 1).strokeRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 10);
+      // The things inside, in tidy rows.
+      const cols = gr.each > 6 ? 5 : gr.each > 2 ? 3 : 2;
+      const rows = Math.ceil(gr.each / cols);
+      for (let k = 0; k < gr.each; k++) {
+        const cx = x + ((k % cols) - (cols - 1) / 2) * 22;
+        const cy = y + (Math.floor(k / cols) - (rows - 1) / 2) * 22;
+        g.fillStyle(0xe6ecf2, 1).fillCircle(cx, cy, 8);
+        g.lineStyle(2, 0x3b414d, 1).strokeCircle(cx, cy, 8);
+      }
+      this.layer.add(g);
+      if (counts) this.layer.add(text(this, x, y + bh / 2 + 16, `${(i + 1) * gr.each}`, 24, '#ffd166').setStroke('#000000', 5));
+    }
+  }
+
   private drawWeek() {
     this.layer.add(panel(this, 300, 380, 440, 470));
     this.layer.add(text(this, 300, 175, 'THIS WEEK', 26, '#9ad1ff'));
@@ -394,7 +440,8 @@ export class ControlScene extends Phaser.Scene {
 
   private launch() {
     this.layer.removeAll(true);
-    bumpGuide('control');
+    if (titanUnlocked()) bumpGuide('control-cyn');
+    if (!this.supply) bumpGuide('control');
     text(this, 640, 260, this.shield ? `Great timing! Shield +${this.shield} for this mission.` : 'Timing is tricky. Let\'s go anyway!', 34, '#ffffff');
     const b = button(this, 640, 400, 360, 100, 'LAUNCH! 🚀', () => this.scene.start('Invasion', { missionId: this.missionId, shield: this.shield }), {
       fill: 0xf77f00, edge: 0xffd166, size: 40,

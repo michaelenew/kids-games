@@ -139,3 +139,54 @@ export function longAddition(nums: number[]): LongColumn[] {
 export function columnParts(c: LongColumn): number[] {
   return [...c.digits.filter((d): d is number => d !== null && d > 0), ...(c.carryIn ? [c.carryIn] : [])];
 }
+
+export interface SubColumn {
+  /** 0 = ones, 1 = tens, 2 = hundreds, 3 = thousands. */
+  place: number;
+  /** The top digit here before this column's borrow, and after (with the 10 added if it borrowed). */
+  top: number;
+  value: number;
+  bottom: number;
+  result: number;
+  /**
+   * If this column had to borrow: the place it borrowed from, and the zero
+   * places in between that turn into 9s on the way (borrowing across zero).
+   */
+  borrow: { from: number; through: number[] } | null;
+  /** The top row's digits right after this column's borrow (for drawing the crossed-out digits). */
+  digitsAfter: number[];
+}
+
+/** Written (column) subtraction with borrowing, ones first. `top` must be at least `bottom`. */
+export function writtenSubtraction(top: number, bottom: number): SubColumn[] {
+  const places = String(top).length;
+  const digits = String(top).split('').reverse().map(Number);
+  const bot = String(bottom).split('').reverse().map(Number);
+  const cols: SubColumn[] = [];
+  for (let p = 0; p < places; p++) {
+    const b = bot[p] ?? 0;
+    const before = digits[p];
+    let borrow: SubColumn['borrow'] = null;
+    if (digits[p] < b) {
+      let q = p + 1;
+      while (digits[q] === 0) q++;
+      const through: number[] = [];
+      digits[q]--;
+      for (let k = q - 1; k > p; k--) {
+        digits[k] = 9;
+        through.push(k);
+      }
+      digits[p] += 10;
+      borrow = { from: q, through: through.reverse() };
+    }
+    cols.push({ place: p, top: before, value: digits[p], bottom: b, result: digits[p] - b, borrow, digitsAfter: digits.slice() });
+  }
+  return cols;
+}
+
+/** What kind of subtraction it is, easiest first: no borrowing, borrowing, borrowing across a zero. */
+export function borrowKind(top: number, bottom: number): 0 | 1 | 2 {
+  const cols = writtenSubtraction(top, bottom);
+  if (cols.some((c) => c.borrow && c.borrow.through.length)) return 2;
+  return cols.some((c) => c.borrow) ? 1 : 0;
+}

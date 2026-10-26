@@ -248,6 +248,8 @@ export class ArmorForge extends Phaser.Scene {
   }
 
   private pieceColor(place: number): number {
+    // STRIKER's pieces are all its yellow, like the plates they build.
+    if (activeBot() === 'jet') return JET_COLOR;
     return [0xb388ff, save().color, 0x4cc9f0, 0xffd166][place];
   }
 
@@ -378,7 +380,8 @@ export class ArmorForge extends Phaser.Scene {
       const full = text(this, cx - 150, 192, `FULL PLATE\n${formatNumber(plate.max)}`, 30, '#9ad1ff');
       const left = text(this, cx + 150, 192, `LEFT NOW\n${formatNumber(plate.hp)}`, 30, '#ff9f9f');
       const minus = text(this, cx, 196, '−', 48, '#ffffff');
-      const tip = guideCount('ramp') < RAMP.length ? 'Count up from what\'s left to the full plate!' : 'How many points are missing? Build them!';
+      // Just the question here; the count-up box below says what to do step by step.
+      const tip = 'How many points are missing?';
       const ask = text(this, cx, 270, tip, 24, '#ffffff');
       this.layer.add([card, title, full, left, minus, ask]);
     } else {

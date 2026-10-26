@@ -108,3 +108,34 @@ export function rampProblem(rng: () => number, digits: 1 | 2 | 3 | 4): { from: n
   const base = Math.ceil(from / 1000) * 1000;
   return { from, to: r(base + 300, Math.min(9800, base + 1900)) };
 }
+
+export interface LongColumn {
+  /** 0 = ones, 1 = tens, 2 = hundreds, 3 = thousands. */
+  place: number;
+  /** The digit each number has in this column (null where the number is too short). */
+  digits: (number | null)[];
+  carryIn: number;
+  sum: number;
+  write: number;
+  carryOut: number;
+}
+
+/** Column-by-column long addition of several numbers, ones first. */
+export function longAddition(nums: number[]): LongColumn[] {
+  const total = nums.reduce((a, b) => a + b, 0);
+  const places = String(total).length;
+  const cols: LongColumn[] = [];
+  let carry = 0;
+  for (let place = 0; place < places; place++) {
+    const digits = nums.map((n) => (n >= 10 ** place ? Math.floor(n / 10 ** place) % 10 : null));
+    const sum = digits.reduce<number>((a, d) => a + (d ?? 0), 0) + carry;
+    cols.push({ place, digits, carryIn: carry, sum, write: sum % 10, carryOut: Math.floor(sum / 10) });
+    carry = Math.floor(sum / 10);
+  }
+  return cols;
+}
+
+/** The parts of a column he actually has to add: its non-zero digits and the carry. */
+export function columnParts(c: LongColumn): number[] {
+  return [...c.digits.filter((d): d is number => d !== null && d > 0), ...(c.carryIn ? [c.carryIn] : [])];
+}

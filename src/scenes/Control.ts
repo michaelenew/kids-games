@@ -14,6 +14,29 @@ import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 
 const SHIELD_PER_ANSWER = 150;
 
+/** The long hand moving from one time to another (`back` returns it to the start afterwards). */
+interface Sweep {
+  from: { h: number; m: number };
+  to: { h: number; m: number };
+  back?: boolean;
+}
+
+/** One step of a walk-through: words (with Next), the clock moving, then a short question. */
+interface GuideStep {
+  intro?: string;
+  sweep?: Sweep;
+  prompt: string;
+  answer: string;
+  choices: string[];
+  praise?: string;
+}
+
+interface Clock {
+  set(h: number, m: number): void;
+  /** Light up `span` minutes of the face from minute `fromMin` (0 clears it). */
+  arc(fromMin: number, span: number): void;
+}
+
 export class ControlScene extends Phaser.Scene {
   private missionId = 'inv-drop';
   private questions: TimeQuestion[] = [];
@@ -59,9 +82,9 @@ export class ControlScene extends Phaser.Scene {
       this.launch();
       return;
     }
-    let setHands: ((h: number, m: number) => void) | null = null;
+    let clock: Clock | null = null;
     if (q.kind === 'day') this.drawWeek();
-    else if (q.clock) setHands = this.drawClock(300, 380, 190, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
+    else if (q.clock) clock = this.drawClock(300, 380, 190, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
     // The first few times for each kind, walk him through it step by step
     // (clock reading three times: the whole first visit).
     const guided = guideCount(`time-${q.kind}`) < (q.kind === 'read' ? 3 : 2);
@@ -70,12 +93,75 @@ export class ControlScene extends Phaser.Scene {
     this.layer.add(prompt);
     let buttons: Phaser.GameObjects.GameObject[] = [];
     let misses = 0;
-    const show = (i: number) => {
+    const clearButtons = () => {
       buttons.forEach((b) => b.destroy());
       buttons = [];
+    };
+    const flash = (msg: string) => {
+      prompt.setText(msg).setAlpha(0).setScale(0.9);
+      this.tweens.add({ targets: prompt, alpha: 1, scale: 1, duration: 300, ease: 'Back.easeOut' });
+    };
+
+    // The hands moving, with the swept part of the clock lit up and the
+    // minutes counted off by 5s as the long hand passes each number.
+    let sweepTween: Phaser.Tweens.Tween | null = null;
+    let replay: Sweep | null = null;
+    const playSweep = (sw: Sweep, delay: number, onDone?: () => void) => {
+      if (!clock) return;
+      sweepTween?.stop();
+      const c = clock;
+      const start = sw.from.h % 12 * 60 + sw.from.m;
+      const span = ((sw.to.h % 12) * 60 + sw.to.m - start + 720) % 720;
+      c.arc(sw.from.m, 0);
+      c.set(sw.from.h, sw.from.m);
+      const anim = { k: 0 };
+      sweepTween = this.tweens.add({
+        targets: anim, k: 1, delay, duration: 1200 + span * 45, ease: 'Sine.easeInOut',
+        onUpdate: () => {
+          const total = start + span * anim.k;
+          c.set(Math.floor(total / 60) || 12, total % 60);
+          c.arc(sw.from.m, span * anim.k);
+        },
+        onComplete: () => {
+          sweepTween = null;
+          if (sw.back) this.time.delayedCall(900, () => c.set(sw.from.h, sw.from.m));
+          onDone?.();
+        },
+      });
+    };
+    // During a walk-through, one button replays the last thing the clock showed.
+    // Later (no walk-through) the questions are plain word problems.
+    if (clock && steps.some((st) => st.sweep)) {
+      this.layer.add(button(this, 330, 668, 280, 58, '↻ Watch again', () => replay && playSweep(replay, 0), { fill: 0x3d4458, size: 24 }));
+    }
+
+    const show = (i: number) => {
+      clearButtons();
+      const step = steps[i];
+      if (step?.intro) {
+        // First just the words, then Next, then the clock shows it, then the question.
+        clock?.arc(0, 0);
+        flash(step.intro);
+        const next = button(this, 900, 470, 260, 80, 'Next ▶', () => {
+          clearButtons();
+          if (step.sweep) {
+            replay = step.sweep;
+            playSweep(step.sweep, 200, () => this.time.delayedCall(500, () => choose(i)));
+          } else choose(i);
+        }, { fill: 0x2a9d8f, edge: 0x9ff0e3, size: 30 });
+        this.layer.add(next);
+        buttons.push(next);
+        return;
+      }
+      choose(i);
+    };
+
+    const choose = (i: number) => {
+      clearButtons();
       const step = steps[i];
       const isFinal = !step;
-      prompt.setText(isFinal ? q.prompt : step.prompt);
+      if (isFinal && steps.length) clock?.arc(0, 0);
+      flash(isFinal ? q.prompt : step.prompt);
       const choices = isFinal ? q.choices : step.choices;
       const answer = isFinal ? q.answer : step.answer;
       choices.forEach((c, k) => {
@@ -84,7 +170,7 @@ export class ControlScene extends Phaser.Scene {
             sfx.success();
             if (!isFinal) {
               toast(this, 900, 300, step.praise ?? 'Yes!', '#06d6a0', 30);
-              this.time.delayedCall(700, () => show(i + 1));
+              this.time.delayedCall(900, () => show(i + 1));
               return;
             }
             recordSkill('time', misses === 0);
@@ -107,7 +193,7 @@ export class ControlScene extends Phaser.Scene {
             this.time.delayedCall(1800, () => this.ask());
           } else {
             const late = q.kind === 'read' && (q.clock?.m ?? 0) >= 30;
-            toast(this, 900, 300, q.kind !== 'read' ? 'Not quite. Count it out!'
+            toast(this, 900, 300, q.kind !== 'read' ? (step?.sweep ? 'Not quite. Tap Watch again and count the lit-up part!' : 'Not quite. Count it out!')
               : late ? 'Careful: the short hand hasn\'t reached the next number yet!' : 'Look again: the short hand is the hour.', '#ff9f9f', 26);
           }
         }, { fill: 0x1f6feb, size: 34 });
@@ -115,33 +201,27 @@ export class ControlScene extends Phaser.Scene {
         buttons.push(b);
       });
     };
-    // Late in the hour (like :40), first watch the hands move from the top of
-    // the hour, so he sees the short hand creep toward the next number.
-    const t = q.clock;
-    if (guided && q.kind === 'read' && t && t.m >= 30 && setHands) {
-      prompt.setText(`Watch the clock go from ${t.h}:00 to ${clockText(t.h, t.m)}. The long hand goes around, and the SHORT hand slowly creeps toward the ${(t.h % 12) + 1}...`);
-      const anim = { m: 0 };
-      setHands(t.h, 0);
-      this.tweens.add({
-        targets: anim, m: t.m, delay: 600, duration: 3200, ease: 'Sine.easeInOut',
-        onUpdate: () => setHands?.(t.h, anim.m),
-        onComplete: () => this.time.delayedCall(700, () => show(0)),
-      });
-      return;
-    }
     show(0);
   }
 
   /** Small steps that lead up to the answer, for the walk-through. */
-  private guideSteps(q: TimeQuestion): { prompt: string; answer: string; choices: string[]; praise?: string }[] {
+  private guideSteps(q: TimeQuestion): GuideStep[] {
     const mix = (answer: string, wrong: string[]) =>
       [...new Set([answer, ...wrong])].slice(0, 3).sort(() => Math.random() - 0.5);
-    const out: { prompt: string; answer: string; choices: string[]; praise?: string }[] = [];
+    const out: GuideStep[] = [];
     const t = q.clock!;
+    const fives = (n: number) => {
+      const seq: number[] = [];
+      for (let k = 5; k <= n; k += 5) seq.push(k);
+      return seq.join(', ');
+    };
     if (q.kind === 'read') {
       const nextH = (t.h % 12) + 1;
+      const fromTop = { from: { h: t.h, m: 0 }, to: t };
       out.push(t.m >= 30 ? {
-        prompt: `The SHORT black hand shows the hour. It's between the ${t.h} and the ${nextH}, and getting close to the ${nextH}... but it hasn't reached it yet! What hour is it still?`,
+        intro: `Watch the clock go from ${t.h}:00 to ${clockText(t.h, t.m)}. The long hand goes around, and the SHORT hand slowly creeps toward the ${nextH}...`,
+        sweep: fromTop,
+        prompt: `The SHORT hand is close to the ${nextH}, but it hasn't reached it yet! What hour is it still?`,
         answer: `${t.h}`,
         choices: mix(`${t.h}`, [`${nextH}`, `${((t.h + 10) % 12) + 1}`]),
         praise: `Yes! It's still ${t.h} until the long hand gets back to the 12.`,
@@ -153,7 +233,9 @@ export class ControlScene extends Phaser.Scene {
       });
       if (t.m > 0) {
         out.push({
-          prompt: `The LONG red hand shows the minutes. Each number on the clock is 5 minutes. Count by 5s from the 12 to where it points: 5, 10, 15... How many minutes?`,
+          intro: 'The LONG red hand shows the minutes. Watch it go from the 12 to where it points. Each number it passes is 5 more minutes.',
+          sweep: fromTop,
+          prompt: `Count the lit-up part by 5s: ${fives(t.m).split(', ').slice(0, 3).join(', ')}... How many minutes?`,
           answer: `${t.m}`,
           choices: mix(`${t.m}`, [`${Math.max(1, Math.round(t.m / 5))}`, `${(t.m + 5) % 60 || 5}`, `${t.m + 10}`]),
           praise: `Yes, ${t.m} minutes!`,
@@ -166,15 +248,21 @@ export class ControlScene extends Phaser.Scene {
         const toTop = 60 - t.m;
         const top = addMinutes(t.h, t.m, toTop);
         out.push({
-          prompt: `First count from ${clockText(t.h, t.m)} up to ${clockText(top.h, 0)}. Count by 5s. How many minutes is that?`,
+          intro: `First, from ${clockText(t.h, t.m)} up to ${clockText(top.h, 0)}. Watch the long hand go up to the 12.`,
+          sweep: { from: t, to: { h: top.h, m: 0 } },
+          prompt: `How many minutes from ${clockText(t.h, t.m)} to ${clockText(top.h, 0)}? Count the lit-up part by 5s.`,
           answer: `${toTop}`,
           choices: mix(`${toTop}`, [`${toTop + 5}`, `${t.m}`, `${toTop - 5}`]),
+          praise: `Yes, ${toTop} minutes!`,
         });
         if (land.m > 0) {
           out.push({
-            prompt: `Now from ${clockText(top.h, 0)} to ${clockText(land.h, land.m)}. How many more minutes?`,
+            intro: `Now from ${clockText(top.h, 0)} to ${clockText(land.h, land.m)}, when they land. Watch it go!`,
+            sweep: { from: { h: top.h, m: 0 }, to: land },
+            prompt: `How many more minutes is the lit-up part?`,
             answer: `${land.m}`,
             choices: mix(`${land.m}`, [`${land.m + 5}`, `${60 - land.m}`, `${land.m + 10}`]),
+            praise: `Yes, ${land.m} more!`,
           });
           out.push({
             prompt: `Add them up: ${toTop} + ${land.m} = ?`,
@@ -184,13 +272,13 @@ export class ControlScene extends Phaser.Scene {
           });
         }
       } else {
-        // Inside one hour: count by 5s from one time to the other.
-        const seq: number[] = [];
-        for (let k = 5; k <= total; k += 5) seq.push(k);
+        // Inside one hour: watch the long hand go from one time to the other.
         out.push({
-          prompt: `The long hand moves from ${t.m} minutes to ${land.m} minutes. Count by 5s as it goes: ${seq.join(', ')}. How many minutes is that?`,
+          intro: `The long hand goes from ${t.m} minutes up to ${land.m} minutes. Watch it go!`,
+          sweep: { from: t, to: land },
+          prompt: 'How many minutes did the long hand move? Look at the yellow numbers around the lit-up part.',
           answer: `${total}`,
-          choices: mix(`${total}`, [`${total + 5}`, `${seq.length}`, `${total - 5}`]),
+          choices: mix(`${total}`, [`${total + 5}`, `${total / 5}`, `${total - 5}`]),
           praise: `Yes, ${total} minutes!`,
         });
       }
@@ -201,7 +289,9 @@ export class ControlScene extends Phaser.Scene {
         const top = addMinutes(t.h, t.m, toTop);
         const rest = dur - toTop;
         out.push({
-          prompt: `${toTop} minutes gets us from ${clockText(t.h, t.m)} to ${clockText(top.h, 0)}. The trip is ${dur} minutes. ${dur} take away ${toTop} leaves how many more minutes?`,
+          intro: `We leave at ${clockText(t.h, t.m)}. Watch the long hand go up to the 12: that's ${toTop} minutes, and it's ${clockText(top.h, 0)}.`,
+          sweep: { from: t, to: { h: top.h, m: 0 } },
+          prompt: `The trip is ${dur} minutes. ${toTop} are used up. ${dur} take away ${toTop} leaves how many more minutes?`,
           answer: `${rest}`,
           choices: mix(`${rest}`, [`${rest + 10}`, `${rest + 5}`, `${dur}`]),
           praise: `Yes! So it's ${clockText(top.h, 0)} plus ${rest} more minutes.`,
@@ -217,24 +307,34 @@ export class ControlScene extends Phaser.Scene {
     return out;
   }
 
-  /** An analog clock with hour numbers and minute ticks. Returns a way to move the hands. */
-  private drawClock(cx: number, cy: number, r: number, h: number, m: number, label: string): (h: number, m: number) => void {
+  /** An analog clock with hour numbers and minute ticks. */
+  private drawClock(cx: number, cy: number, r: number, h: number, m: number, label: string): Clock {
     const g = this.add.graphics();
     g.fillStyle(0x000000, 0.4).fillCircle(cx + 6, cy + 8, r + 14);
     g.fillStyle(0xf8f4e8, 1).fillCircle(cx, cy, r + 10);
     g.lineStyle(10, 0x2b2f3a, 1).strokeCircle(cx, cy, r + 10);
+    this.layer.add(g);
+    // The lit-up part the long hand has swept, under the ticks and numbers.
+    const lit = this.add.graphics();
+    this.layer.add(lit);
+    const ticks = this.add.graphics();
     for (let i = 0; i < 60; i++) {
       const a = (i / 60) * Math.PI * 2 - Math.PI / 2;
       const inner = i % 5 === 0 ? r - 22 : r - 10;
-      g.lineStyle(i % 5 === 0 ? 5 : 2, 0x1a1423, 1).lineBetween(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      ticks.lineStyle(i % 5 === 0 ? 5 : 2, 0x1a1423, 1).lineBetween(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
     }
-    this.layer.add(g);
+    this.layer.add(ticks);
     for (let n = 1; n <= 12; n++) {
       const a = (n / 12) * Math.PI * 2 - Math.PI / 2;
       this.layer.add(text(this, cx + Math.cos(a) * (r - 48), cy + Math.sin(a) * (r - 48), `${n}`, 34, '#1a1423'));
     }
+    // Running count by 5s, just outside the rim.
+    const counts: Phaser.GameObjects.Text[] = [];
     const hands = this.add.graphics();
-    const draw = (hh: number, mm: number) => {
+    let labelText: Phaser.GameObjects.Text | null = null;
+    const set = (hh: number, mm: number) => {
+      const atStart = hh % 12 === h % 12 && Math.floor(mm) === m;
+      labelText?.setText(atStart ? label : clockText(hh % 12 || 12, Math.floor(mm)));
       const ma = (mm / 60) * Math.PI * 2 - Math.PI / 2;
       const ha = (((hh % 12) + mm / 60) / 12) * Math.PI * 2 - Math.PI / 2;
       hands.clear();
@@ -242,10 +342,43 @@ export class ControlScene extends Phaser.Scene {
       hands.lineStyle(8, 0xef476f, 1).lineBetween(cx, cy, cx + Math.cos(ma) * r * 0.82, cy + Math.sin(ma) * r * 0.82);
       hands.fillStyle(0x1a1423, 1).fillCircle(cx, cy, 12);
     };
-    draw(h, m);
+    const angle = (min: number) => (min / 60) * Math.PI * 2 - Math.PI / 2;
+    const arc = (fromMin: number, span: number) => {
+      lit.clear();
+      const shown = Math.min(60, span);
+      if (shown > 0.05) {
+        lit.fillStyle(0xffd166, 0.55);
+        lit.beginPath();
+        lit.slice(cx, cy, r + 4, angle(fromMin), angle(fromMin + shown), false);
+        lit.fillPath();
+        lit.lineStyle(8, 0xf77f00, 1);
+        lit.beginPath();
+        lit.arc(cx, cy, r + 4, angle(fromMin), angle(fromMin + shown), false);
+        lit.strokePath();
+      }
+      // A count label each time the long hand has passed another 5 minutes.
+      const passed = Math.floor(shown / 5 + 1e-6);
+      while (counts.length > passed) counts.pop()!.destroy();
+      while (counts.length < passed) {
+        const k = counts.length + 1;
+        const a = angle(fromMin + k * 5);
+        const t = text(this, cx + Math.cos(a) * (r + 40), cy + Math.sin(a) * (r + 40), `${k * 5}`, 24, '#ffd166').setStroke('#000000', 5);
+        t.setScale(1.6);
+        this.tweens.add({ targets: t, scale: 1, duration: 220, ease: 'Back.easeOut' });
+        this.layer.add(t);
+        counts.push(t);
+      }
+    };
+    set(h, m);
     this.layer.add(hands);
-    if (label) this.layer.add(text(this, cx, cy + r + 40, label, 26, '#ffd166'));
-    return draw;
+    // Up in the corner, clear of the minute counts around the rim. While the
+    // hands move it shows the time they're at.
+    if (label) {
+      const lt = text(this, cx - r - 10, cy - r - 10, label, 26, '#ffd166');
+      this.layer.add(lt);
+      labelText = lt;
+    }
+    return { set, arc };
   }
 
   /** The week as a strip of days, for "what day is it in 3 days". */

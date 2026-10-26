@@ -125,7 +125,7 @@ export class RecapScene extends Phaser.Scene {
     let okBtn: Phaser.GameObjects.Container | null = null;
     const okThen = (label: string, then: () => void) => {
       okBtn?.destroy();
-      okBtn = button(this, 460, 615, 240, 70, label, () => {
+      okBtn = button(this, 460, 668, 240, 64, label, () => {
         okBtn?.destroy();
         okBtn = null;
         then();
@@ -155,6 +155,16 @@ export class RecapScene extends Phaser.Scene {
       sfx.tick();
     };
     const colName = ['ONES', 'TENS', 'HUNDREDS'];
+    // Each column he works out stays under the sum, big and bold, so he never has to remember it.
+    const worked = this.add.text(460, 598, '', {
+      fontFamily: 'Arial', fontSize: '30px', fontStyle: 'bold', color: '#06d6a0', align: 'center',
+    }).setOrigin(0.5);
+    const workedLines: string[] = [];
+    const showWorked = (line: string) => {
+      workedLines.push(line);
+      worked.setText(workedLines.join('   ')).setScale(1.2);
+      this.tweens.add({ targets: worked, scale: 1, duration: 250, ease: 'Back.easeOut' });
+    };
 
     if (level === 'walk') {
       // Full walk-through: he adds each column; the boxes get filled for him with an explanation.
@@ -183,6 +193,7 @@ export class RecapScene extends Phaser.Scene {
           }
           sfx.success();
           pad.display.setColor('#06d6a0');
+          showWorked(`${parts.replace(' and ', ' + ').replace(/ the (\d) we carried/, ' $1')} = ${c.sum}`);
           put(result[p], c.write);
           put(carry[p + 1], c.carryOut);
           say.setText(c.carryOut
@@ -223,6 +234,11 @@ export class RecapScene extends Phaser.Scene {
             return;
           }
           put(o.bx, v);
+          // Once a column's answer digit is in, show that column's whole sum to work from.
+          if (o.bx === result[o.place] && o.place < 2) {
+            const c = cols[o.place];
+            showWorked(`${c.digits[0]} + ${c.digits[1]}${c.carryIn ? ` + ${c.carryIn}` : ''} = ${c.sum}`);
+          }
           k++;
           this.time.delayedCall(300, nextBox);
         };

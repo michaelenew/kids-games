@@ -143,3 +143,17 @@ describe('count-up ramp', () => {
     }
   });
 });
+
+describe('long addition of the count-up jumps', () => {
+  it('works column by column with carrying', async () => {
+    const { longAddition, columnParts } = await import('../src/skills/steps');
+    const cols = longAddition([6, 300, 1000, 700, 40, 2]);
+    expect(cols.map((c) => c.write)).toEqual([8, 4, 0, 2]);
+    expect(cols.map((c) => c.carryOut)).toEqual([0, 0, 1, 0]);
+    expect(columnParts(cols[0])).toEqual([6, 2]);
+    expect(columnParts(cols[3])).toEqual([1, 1]);
+    // Every jump's digits line up under the right place.
+    expect(cols[2].digits).toEqual([null, 3, 0, 7, null, null]);
+  });
+});
+

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
-import { countUp, jumpKind, type CountStep } from '../skills/steps';
+import { type CountStep, type LongColumn, columnParts, countUp, jumpKind, longAddition } from '../skills/steps';
 import { button, text, toast } from './widgets';
 
 /**
@@ -40,14 +40,14 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
   const total = o.to - o.from;
   const steps = countUp(o.from, o.to);
   /**
-   * Adding the jumps up is broken into places: the ones jumps together, the
-   * tens jumps together, and so on (only places with two or more jumps need
-   * adding), then the place totals. Every answer stays on the board.
+   * Adding the jumps: they're stacked up and added as long addition, one
+   * column at a time (ones, tens, hundreds, thousands) with carrying. Only
+   * columns with two or more things to add are asked; the rest fill in.
    */
-  const KINDS = ['thousands', 'hundreds', 'tens', 'ones'] as const;
-  const groups = KINDS.map((k) => ({ kind: k, gaps: steps.filter((st) => jumpKind(st) === k).map((st) => st.gap) }))
-    .filter((g) => g.gaps.length > 0);
-  const adds = steps.length > 1 ? groups.filter((g) => g.gaps.length > 1).length + (groups.length > 1 ? 1 : 0) : 0;
+  const gaps = steps.map((st) => st.gap);
+  const cols = longAddition(gaps);
+  const asked = (c: LongColumn) => columnParts(c).length >= 2;
+  const adds = steps.length > 1 ? cols.filter(asked).length : 0;
   const stepCount = steps.length + adds;
 
   const lineL = left + 30;
@@ -168,11 +168,15 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
     toast(scene, cx, top + h - 24, msg, '#ff9f9f', 22).setDepth(960);
     scene.time.delayedCall(600, clearPad);
   };
+  /** True once the jumps are stacked up for long addition (the number line is hidden). */
+  let stacked = false;
   const finish = (solo: boolean) => {
     sfx.success();
-    drawLine(steps.length);
-    stopLabels.forEach((l) => l.setAlpha(1));
-    steps.forEach((st, i) => showJump(i, `+${F(st.gap)}`, '#06d6a0'));
+    if (!stacked) {
+      drawLine(steps.length);
+      stopLabels.forEach((l) => l.setAlpha(1));
+      steps.forEach((st, i) => showJump(i, `+${F(st.gap)}`, '#06d6a0'));
+    }
     setTask('DONE!', `${F(o.from)} up to ${F(o.to)} = ${F(total)}`);
     task.setColor('#06d6a0').setFontStyle('bold');
     hint.setText('');
@@ -200,62 +204,84 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
     return `Count by ${by} from ${F(st.from)}: ${said.join(', ')}. Count how many jumps you made.`;
   };
 
-  const PLACE = { thousands: 'THOUSANDS', hundreds: 'HUNDREDS', tens: 'TENS', ones: 'ONES' };
+  const PLACE_NAME = ['ONES', 'TENS', 'HUNDREDS', 'THOUSANDS'];
 
-  /** Add the jumps: each place's jumps first, then the place totals. */
+  /** Long addition of the jumps, stacked up, one column at a time. */
   const addJumps = (stepNo: number) => {
+    // The number line has done its job; the stacked sum takes its place.
+    stacked = true;
+    line.clear();
+    [...stopLabels, ...jumpLabels].forEach((l) => l.setAlpha(0));
     hint.setText('');
+    const DIG = 24;
+    const ROW = 21;
+    const stackR = lineL + 150;
+    const y0 = top + 166;
+    const digitX = (p: number) => stackR - p * DIG;
+    const mono = (x0: number, y1: number, v: string, color = '#ffffff', size = 24) =>
+      add(scene.add.text(x0, y1, v, { fontFamily: 'monospace', fontSize: `${size}px`, fontStyle: 'bold', color }).setOrigin(0.5));
+    const glow = add(scene.add.graphics());
+    const carryText = cols.map((c) => mono(digitX(c.place), y0, '', '#ffd166', 18));
+    gaps.forEach((g, r) => {
+      String(g).split('').reverse().forEach((d, p) => mono(digitX(p), y0 + 24 + r * ROW, d));
+      if (r === gaps.length - 1) mono(digitX(String(total).length) - 6, y0 + 24 + r * ROW, '+', '#ffd166');
+    });
+    const lineAt = y0 + 24 + (gaps.length - 1) * ROW + 16;
+    glow.lineStyle(3, 0xffffff, 1).lineBetween(digitX(cols.length) - 8, lineAt, stackR + 14, lineAt);
+    const answerText = cols.map((c) => mono(digitX(c.place), lineAt + 20, '', '#06d6a0', 28));
+    // Each column's sum, kept in bold beside the stack.
+    board.setPosition(stackR + 28, y0 + 10).setFontSize(18);
     boardLines.length = 0;
     board.setText('');
+    const highlight = (p: number) => {
+      glow.clear();
+      glow.lineStyle(3, 0xffffff, 1).lineBetween(digitX(cols.length) - 8, lineAt, stackR + 14, lineAt);
+      glow.fillStyle(0xffd166, 0.22).fillRoundedRect(digitX(p) - DIG / 2, y0 - 12, DIG, lineAt - y0 + 46, 6);
+      glow.lineStyle(2, 0xffd166, 0.9).strokeRoundedRect(digitX(p) - DIG / 2, y0 - 12, DIG, lineAt - y0 + 46, 6);
+    };
     let n = stepNo;
-    const totals: number[] = [];
-    let gi = 0;
-    const nextGroup = () => {
+    let ci = 0;
+    const fill = (c: LongColumn) => {
+      answerText[c.place].setText(String(c.write)).setScale(1.5);
+      scene.tweens.add({ targets: answerText[c.place], scale: 1, duration: 250, ease: 'Back.easeOut' });
+      if (c.carryOut && carryText[c.place + 1]) carryText[c.place + 1].setText(String(c.carryOut));
+    };
+    const nextCol = () => {
       clearPad();
-      if (gi >= groups.length) {
-        // The place totals, added up (when there's more than one place).
-        if (totals.length === 1) {
-          finish(false);
-          return;
-        }
-        const ask = totals.map(F).join(' + ');
-        setTask(`STEP ${n} of ${stepCount}: add it all up`, `${ask} = ?`);
-        onEnter = (v) => {
-          if (v !== total) {
-            wrong(`Add them again: ${ask}`);
-            return;
-          }
-          sfx.success();
-          solvedFlash(ask, total);
-          scene.time.delayedCall(900, () => finish(false));
-        };
+      if (ci >= cols.length) {
+        glow.clear();
+        glow.lineStyle(3, 0xffffff, 1).lineBetween(digitX(cols.length) - 8, lineAt, stackR + 14, lineAt);
+        finish(false);
         return;
       }
-      const g = groups[gi++];
-      const sum = g.gaps.reduce((a, b) => a + b, 0);
-      if (g.gaps.length === 1) {
-        // Only one jump of this size: nothing to add.
-        write(`${PLACE[g.kind]}: ${F(sum)}`);
-        totals.push(sum);
-        nextGroup();
+      const c = cols[ci++];
+      const parts = columnParts(c);
+      highlight(c.place);
+      if (!asked(c)) {
+        // Nothing to add here: the one digit (or the carry) comes straight down.
+        fill(c);
+        write(`${PLACE_NAME[c.place].toLowerCase()}: ${parts[0] ?? 0}`);
+        scene.time.delayedCall(500, nextCol);
         return;
       }
-      const ask = g.gaps.map(F).join(' + ');
-      setTask(`STEP ${n} of ${stepCount}: add the ${g.kind} jumps`, `${ask} = ?`);
+      const carried = c.carryIn ? ` (with the ${c.carryIn} carried)` : '';
+      const ask = parts.join(' + ');
+      setTask(`STEP ${n} of ${stepCount}: the ${PLACE_NAME[c.place]} column${carried}`, `${ask} = ?`);
       onEnter = (v) => {
-        if (v !== sum) {
-          wrong(`Add them again: ${ask}`);
+        if (v !== c.sum) {
+          wrong(`Add the ${PLACE_NAME[c.place].toLowerCase()} again: ${ask}`);
           return;
         }
         sfx.success();
-        solvedFlash(ask, sum);
-        write(`${PLACE[g.kind]}: ${ask} = ${F(sum)}`);
-        totals.push(sum);
+        solvedFlash(ask, c.sum);
+        fill(c);
+        write(`${PLACE_NAME[c.place].toLowerCase()}: ${ask} = ${c.sum}`);
+        stepLabel.setText(c.carryOut ? `Write the ${c.write}, carry the ${c.carryOut}` : `Write the ${c.write}`);
         n++;
-        scene.time.delayedCall(900, nextGroup);
+        scene.time.delayedCall(1300, nextCol);
       };
     };
-    nextGroup();
+    nextCol();
   };
 
   const guidedRun = () => {

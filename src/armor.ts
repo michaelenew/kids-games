@@ -1,5 +1,5 @@
 import { randInt, type Rng } from './skills/rng';
-import type { Mark, SaveData } from './state';
+import { type BotData, type BotId, JET_COLOR, type Mark, type SaveData, activeBot, botData } from './state';
 
 /**
  * The robot's armor is five plates. Each plate is worth a number of armor
@@ -20,6 +20,19 @@ export const REGION_NAMES: Record<Region, string> = {
   legL: 'Left leg plate',
   legR: 'Right leg plate',
 };
+
+/** The jet's plates sit on the same five spots: nose, wings and tail fins. */
+export const JET_REGION_NAMES: Record<Region, string> = {
+  chest: 'Nose plate',
+  armL: 'Left wing plate',
+  armR: 'Right wing plate',
+  legL: 'Left tail plate',
+  legR: 'Right tail plate',
+};
+
+export function regionName(r: Region, bot: BotId): string {
+  return (bot === 'jet' ? JET_REGION_NAMES : REGION_NAMES)[r];
+}
 
 export interface Plate {
   mark: Mark;
@@ -128,7 +141,7 @@ export class MissionArmor {
    * fully stripped (that would always be the same number), and the missing
    * amount gets a little jitter so the ones digit varies.
    */
-  commit(s: SaveData, rng: Rng = Math.random) {
+  commit(s: BotData, rng: Rng = Math.random) {
     const a = s.armor ?? {};
     // At most two plates need repairs after a mission, so the math between
     // missions stays short: the two most damaged keep their damage.
@@ -157,12 +170,16 @@ export class MissionArmor {
   }
 }
 
-/** The robot's look from the save: gear marks plus each plate's mark and damage. */
-export function lookFromSave(s: SaveData): import('./art').RobotLook {
+/** A robot's look from the save: gear marks plus each plate's mark and damage. */
+export function lookFromSave(s: SaveData, bot: BotId = activeBot(s)): import('./art').RobotLook {
+  const d = botData(bot, s);
   const plates: NonNullable<import('./art').RobotLook['plates']> = {};
   for (const r of REGIONS) {
-    const p = s.armor?.[r];
+    const p = d.armor?.[r];
     if (p) plates[r] = { mark: p.mark, damage: p.max ? 1 - p.hp / p.max : 0 };
   }
-  return { color: s.color, armor: armorMark(s.armor ?? {}), blaster: s.gear.blaster, boots: s.gear.boots, plates };
+  return {
+    kind: bot, color: bot === 'jet' ? JET_COLOR : s.color,
+    armor: armorMark(d.armor ?? {}), blaster: d.gear.blaster, boots: d.gear.boots, plates,
+  };
 }

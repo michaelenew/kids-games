@@ -3,7 +3,7 @@ import { FONT } from '../art';
 import { lookFromSave } from '../armor';
 import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
-import { BUILD_COST, GEAR_INFO, type GearId, persist, recordSkill, save } from '../state';
+import { BUILD_COST, type GearId, actionDone, activeBot, botName, gearInfo, persist, recordSkill, rig, save } from '../state';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 import { type HowTo, howTo, needsIntro } from '../ui/howto';
 
@@ -66,7 +66,9 @@ export abstract class BenchScene extends Phaser.Scene {
     g.fillStyle(0x2d2340, 1).fillRect(0, 560, W, H - 560);
     g.fillStyle(0xf77f00, 1).fillRect(0, 100, W, 6);
 
-    const title = `${GEAR_INFO[this.gear].title.toUpperCase()} BENCH · Mark ${ROMAN[this.mark]}${this.practice ? ' (practice)' : ''}`;
+    const bot = activeBot();
+    const who = bot === 'jet' ? `${botName(bot)} · ` : '';
+    const title = `${who}${gearInfo(bot)[this.gear].title.toUpperCase()} BENCH · Mark ${ROMAN[this.mark]}${this.practice ? ' (practice)' : ''}`;
     text(this, W / 2, 50, title, 36, '#ffd166');
     button(this, 80, 50, 120, 60, '◀ Exit', () => this.exit(), { size: 24, fill: 0x3d4458 });
 
@@ -177,9 +179,10 @@ export abstract class BenchScene extends Phaser.Scene {
     const before = lookFromSave(s);
     if (!this.practice) {
       s.scrap -= BUILD_COST[this.mark];
-      s.gear[this.gear] = this.mark;
+      rig(s).gear[this.gear] = this.mark;
       persist();
-      onUpgradeBuilt();
+      onUpgradeBuilt(activeBot(s));
+      actionDone(s);
       this.scene.start('Install', { gear: this.gear, mark: this.mark, before });
       return;
     }

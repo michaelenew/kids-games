@@ -16,6 +16,8 @@ import { TraderScene } from './scenes/Trader';
 import { unlockAudio } from './audio';
 import { getStage, hasStage } from './three/stage';
 import { H, W } from './ui/widgets';
+import { updatePreviewBanner } from './ui/previewBanner';
+import * as state from './state';
 
 // Add ?canvas to the URL to skip WebGL (useful on older devices and in headless testing).
 const forceCanvas = new URLSearchParams(window.location.search).has('canvas');
@@ -47,10 +49,14 @@ game.events.on('poststep', (_time: number, delta: number) => {
 // Handy for poking at the game from the browser console while developing.
 (window as unknown as { game: Phaser.Game }).game = game;
 Object.defineProperty(window, 'stage', { get: () => (hasStage() ? getStage() : null) });
+// The live save module, for test scripts (dev server only).
+if (import.meta.env.DEV) (window as unknown as { state: typeof state }).state = state;
 
 // Progress is saved in this browser's local storage (see state.ts). Ask the
 // browser to keep it rather than clear it when space runs low.
 navigator.storage?.persist?.().catch(() => {});
+
+updatePreviewBanner();
 
 // iPad Safari only allows sound after the first tap.
 window.addEventListener('pointerup', () => unlockAudio(), { once: true });

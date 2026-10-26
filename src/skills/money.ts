@@ -37,8 +37,20 @@ export interface PriceProblem {
  * Mark I: under $1, coins up to a quarter, running total shown.
  * Mark II: $1 to $2 with dollar coins, total hidden until he pays.
  * Mark III: like Mark II with pennies needed (odd cents).
+ *
+ * `visits` (trips to the trader so far) keeps it easy to hard whatever he is
+ * building: the very first price is small and needs only dimes and nickels,
+ * and each visit can be at most one step harder than the one before.
  */
-export function makePriceProblem(rng: Rng, mark: 1 | 2 | 3): PriceProblem {
+export function makePriceProblem(rng: Rng, mark: 1 | 2 | 3, visits = 99): PriceProblem {
+  const level = Math.min(mark, visits);
+  if (level === 0) {
+    return { price: randInt(rng, 3, 8) * 5, coins: COINS.slice(1, 3), showTotal: true };
+  }
+  return priceAt(rng, level as 1 | 2 | 3);
+}
+
+function priceAt(rng: Rng, mark: 1 | 2 | 3): PriceProblem {
   if (mark === 1) {
     return { price: randInt(rng, 7, 19) * 5, coins: COINS.slice(1, 4), showTotal: true };
   }

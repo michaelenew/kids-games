@@ -9,8 +9,10 @@ import { DESERT_FOG, buildDesert, desertSky } from './desert';
 import { type Dropship, dropship } from './dropship';
 import { FX } from './fx';
 import type { AlienKind, Mission, Spawn, Step, Vehicle } from './missions';
-import { Robot } from './robot';
+import { Jet } from './jet';
+import { type Mech, makeMech } from './mech';
 import type { Stage } from './stage';
+import { JET_DAMAGE } from '../state';
 
 /**
  * The arcade shooter: the camera rides along a path behind the robot,
@@ -28,12 +30,19 @@ const SCREEN_H = 720;
 const STREET_Y = 0.02;
 const FIRE_COOLDOWN = [0.2, 0.16, 0.13, 0.075];
 const DAMAGE = [1, 2, 3, 4];
+/** STRIKER joins late, so its cannons start where BOLT's blaster is by then. */
+const JET_FIRE_COOLDOWN = [0.15, 0.13, 0.11, 0.075];
 const BOLT_COLOR = [0xff4d8d, 0xff5dc8, 0xc77dff, 0x4cf0ff];
 
 const CAM_ROBOT = new THREE.Vector3(-1.7, 2.85, -4.1);
 const LOOK_ROBOT = new THREE.Vector3(-1.4, 2.6, 25);
 const CAM_CAR = new THREE.Vector3(0, 3.3, -7.8);
 const LOOK_CAR = new THREE.Vector3(0, 1.2, 25);
+/** Behind and a little above the jet. */
+const CAM_JET = new THREE.Vector3(0, 3.4, -7.4);
+const LOOK_JET = new THREE.Vector3(0, 0.9, 25);
+/** The jet is drawn a bit bigger in missions so its gear reads from behind. */
+const JET_SCALE = 1.3;
 
 interface KindSpec {
   hp: number;
@@ -82,6 +91,8 @@ interface Bolt {
   big: boolean;
   /** Who fired it (for the mission recap). */
   from: Shooter;
+  dodgeChecked?: boolean;
+  dodged?: boolean;
 }
 
 /** Who can shoot him: the three alien kinds and the boss. */
@@ -104,17 +115,25 @@ export interface InvasionEvents {
   cleared(): void;
   bossBar(frac: number | null): void;
   complete(): void;
+  /** STRIKER took over from BOLT. */
+  swapped?(): void;
+  /** The jet rolled past a shot. */
+  dodged?(): void;
 }
 
 export interface InvasionOptions {
   look: RobotLook;
+  /** Who takes over at a swap step (the jet). */
+  swapLook?: RobotLook;
   enemyHp: number;
   fireDelay: number;
+  /** Chance the jet rolls past an incoming shot (its afterburners). */
+  dodge?: number;
 }
 
 export class Invasion {
   readonly root = new THREE.Group();
-  readonly robot: Robot;
+  robot: Mech;
   readonly fx: FX;
   private rig = new THREE.Group();
   private curve: THREE.CatmullRomCurve3;
@@ -137,6 +156,9 @@ export class Invasion {
   private dropTo = 0;
   private heading = new THREE.Vector3(0, 0, -1);
   private bank = 0;
+  /** 0 = BOLT's camera, 1 = the jet's (eases over during the swap). */
+  private jetCam = 0;
+  private swap: { jet: Mech; t: number; old: Mech } | null = null;
   private t = 0;
   private timeScale = 1;
   private slowMoLeft = 0;
@@ -177,7 +199,13 @@ export class Invasion {
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
-    this.robot = new Robot(opts.look);
+    this.robot = makeMech(opts.look);
+    if (this.robot instanceof Jet) {
+      this.robot.showroom = false;
+      // Lit, but short enough not to hide the screen.
+      this.robot.thrust = 0.5;
+      this.robot.holder.scale.setScalar(JET_SCALE);
+    }
     this.robot.spin = 0;
     this.robot.holder.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
     this.rig.add(this.robot.holder);
@@ -190,6 +218,10 @@ export class Invasion {
       engineSound('ship');
     }
     if (this.vehicle === 'car') this.robot.setVehicle(true);
+    if (this.vehicle === 'jet') {
+      this.jetCam = 1;
+      engineSound('ship');
+    }
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
@@ -224,19 +256,22 @@ export class Invasion {
     if (!this.mission.highway) this.rig.position.y = Math.max(this.rig.position.y, STREET_Y);
     if (this.vehicle === 'ship') this.rig.position.y += Math.sin(this.t * 1.6) * 0.15;
     this.rig.lookAt(p.clone().add(this.heading));
-    if (this.vehicle === 'ship') {
+    if (this.vehicle === 'ship' || this.vehicle === 'jet') {
       // Bank into turns.
       const turn = this.heading.clone().cross(flat).y;
       const want = THREE.MathUtils.clamp(-turn * 8, -0.2, 0.2) + Math.sin(this.t * 0.9) * 0.02;
       this.bank += (want - this.bank) * Math.min(1, dt * 3);
-      this.rig.rotateZ(this.bank);
+      // The jet leans into the turn itself; the camera only follows a little.
+      if (this.vehicle === 'ship') this.rig.rotateZ(this.bank);
+      else if (this.robot instanceof Jet) this.robot.bank = this.bank * 2.5;
     }
   }
 
   private placeCamera() {
     const k = this.robot.vehicleAmount;
-    const off = CAM_ROBOT.clone().lerp(CAM_CAR, k);
-    const look = LOOK_ROBOT.clone().lerp(LOOK_CAR, k);
+    const j = this.jetCam * this.jetCam * (3 - 2 * this.jetCam);
+    const off = CAM_ROBOT.clone().lerp(CAM_CAR, k).lerp(CAM_JET, j);
+    const look = LOOK_ROBOT.clone().lerp(LOOK_CAR, k).lerp(LOOK_JET, j);
     if (this.vehicle === 'foot' && this.speed > 0.5) off.y += Math.abs(Math.sin(this.t * 7)) * 0.06;
     const pos = this.rig.localToWorld(off);
     const at = this.rig.localToWorld(look);
@@ -247,7 +282,7 @@ export class Invasion {
     this.camera.position.copy(pos);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(at);
-    if (this.vehicle === 'ship') this.camera.rotateZ(this.bank * 0.3);
+    if (this.vehicle === 'ship' || this.vehicle === 'jet') this.camera.rotateZ(this.bank * 0.3);
     // Keep the sun and its shadows around the action.
     const fwd = at.clone().sub(pos).normalize();
     const focus = pos.clone().addScaledVector(fwd, 10);
@@ -302,6 +337,66 @@ export class Invasion {
       case 'boss':
         this.startBoss(s.banner);
         break;
+      case 'swap':
+        this.startSwap();
+        break;
+    }
+  }
+
+  // ---- STRIKER takes over ------------------------------------------------------
+
+  /** The jet dives in from behind and above; BOLT is beamed back to base. */
+  private startSwap() {
+    const look = this.opts.swapLook;
+    if (!look) {
+      this.nextStep();
+      return;
+    }
+    const jet = makeMech(look);
+    if (jet instanceof Jet) {
+      jet.showroom = false;
+      jet.thrust = 0.5;
+    }
+    jet.spin = 0;
+    jet.holder.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
+    jet.holder.scale.setScalar(JET_SCALE);
+    this.rig.add(jet.holder);
+    jet.holder.position.set(0, 14, -40);
+    this.swap = { jet, t: 0, old: this.robot };
+    this.waiting = true;
+    sfx.whoosh();
+    engineSound('ship');
+  }
+
+  private updateSwap(dt: number) {
+    const sw = this.swap;
+    if (!sw) return;
+    sw.t += dt;
+    const k = Math.min(1, sw.t / 1.6);
+    const e = 1 - Math.pow(1 - k, 3);
+    // Swoop in on a curve: over the camera, then settle beside BOLT and slide over.
+    sw.jet.holder.position.set(Math.sin(e * Math.PI) * 3, 14 * (1 - e) + Math.sin(e * Math.PI) * 2.5, -40 * (1 - e));
+    if (this.robot !== sw.jet) sw.jet.update(dt);
+    if (sw.t > 1.1 && sw.old.holder.parent) {
+      // BOLT beams out in a flash.
+      const at = sw.old.regionWorld('chest');
+      this.fx.ring(at, 0x4cf0ff, 4);
+      this.fx.flash(at, 0x9fefff, 5, 0.3);
+      sfx.transform();
+      sw.old.holder.removeFromParent();
+      this.robot = sw.jet;
+      // From here on the jet's gear decides the shots.
+      if (this.opts.swapLook) this.opts.look = this.opts.swapLook;
+      this.events.swapped?.();
+    }
+    this.jetCam = Math.min(1, Math.max(0, (sw.t - 0.6) / 1.4));
+    if (sw.t >= 2.2) {
+      this.jetCam = 1;
+      sw.jet.holder.position.set(0, 0, 0);
+      this.swap = null;
+      this.waiting = false;
+      this.shake = 0.6;
+      this.nextStep();
     }
   }
 
@@ -462,12 +557,14 @@ export class Invasion {
         ? new THREE.Vector3(this.rand(-6, 6), 28, this.rand(25, 35))
         : new THREE.Vector3(26 * side, this.rand(4, 9), this.rand(16, 30));
     } else if (sp.kind === 'krawler') {
-      to = new THREE.Vector3(this.rand(1.5, 6) * (sp.from === 'ahead' ? (Math.random() < 0.5 ? 1 : -1) : side), 0, this.rand(13, 19));
+      // Below a flying jet they land on the ground, not level with it.
+      const ground = this.vehicle === 'jet' ? STREET_Y - this.rig.position.y : 0;
+      to = new THREE.Vector3(this.rand(1.5, 6) * (sp.from === 'ahead' ? (Math.random() < 0.5 ? 1 : -1) : side), ground, this.rand(13, 19) + (ground < 0 ? 4 : 0));
       if (sp.from === 'ahead') {
         from = to.clone().add(new THREE.Vector3(0, 0, 22));
         phase = 'walk';
       } else {
-        from = new THREE.Vector3(17 * side, 15, to.z + this.rand(2, 8));
+        from = new THREE.Vector3(17 * side, to.y + 15, to.z + this.rand(2, 8));
         phase = 'jump';
         sfx.screech();
       }
@@ -754,6 +851,24 @@ export class Invasion {
       b.obj.position.addScaledVector(b.vel, dt);
       b.obj.rotation.z += dt * 8;
       if (Math.random() < dt * 30) this.fx.spark(b.obj.position, 0x7dff8a, 1, 1.5);
+      const jet = this.robot instanceof Jet ? this.robot : null;
+      if (jet && !b.dodgeChecked && b.obj.position.distanceTo(cam) < 6) {
+        // The afterburners roll the jet out of the way of some shots.
+        b.dodgeChecked = true;
+        if (jet.rolling || Math.random() < (this.opts.dodge ?? 0)) {
+          b.dodged = true;
+          jet.roll();
+          sfx.whoosh();
+          this.events.dodged?.();
+        }
+      }
+      if (b.dodged && b.obj.position.distanceTo(cam) < 3) {
+        // Sail on past.
+        b.life = Math.min(b.life, 0.4);
+        b.vel.add(new THREE.Vector3(b.vel.x >= 0 ? 4 : -4, 2, 0).multiplyScalar(dt * 10));
+        if (b.life <= dt) b.obj.removeFromParent();
+        continue;
+      }
       if (b.obj.position.distanceTo(cam) < 1.5) {
         b.life = 0;
         this.events.hit(b.damage, b.from);
@@ -831,7 +946,8 @@ export class Invasion {
     }
     this.robot.aimAt(aim);
     if (this.cooldown > 0) return;
-    this.cooldown = FIRE_COOLDOWN[mark];
+    const jet = this.robot instanceof Jet;
+    this.cooldown = (jet ? JET_FIRE_COOLDOWN : FIRE_COOLDOWN)[mark];
     this.robot.fire();
     sfx.laser(mark);
     const muzzle = this.robot.muzzleWorld();
@@ -840,7 +956,7 @@ export class Invasion {
     this.fx.tracer(muzzle, hitPoint, BOLT_COLOR[mark], 0.05 + mark * 0.02);
     this.fx.flash(muzzle, BOLT_COLOR[mark], 0.8 + mark * 0.3, 0.06);
     if (!target) return;
-    const dmg = DAMAGE[mark];
+    const dmg = (jet ? JET_DAMAGE : DAMAGE)[mark];
     if (target.kind === 'enemy') this.damageEnemy(target.ref as Enemy, dmg, hitPoint);
     else if (target.kind === 'bolt') this.popBolt(target.ref as Bolt);
     else this.damageBoss(target.kind, target.pod, dmg, hitPoint);
@@ -922,6 +1038,7 @@ export class Invasion {
     this.shake = Math.max(0, this.shake - realDt * 2.5);
 
     this.updateStep(dt);
+    this.updateSwap(dt);
     const before = this.rig.position.clone();
     this.placeRig(dt);
     // Shots travel along with him (otherwise the car simply outruns them).

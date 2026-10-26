@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import type { RobotLook } from '../art';
 import { lookFromSave } from '../armor';
-import { GEAR_INFO, type GearId, save } from '../state';
+import { type GearId, activeBot, gearInfo, save } from '../state';
+import { Jet } from '../three/jet';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, text } from '../ui/widgets';
@@ -47,7 +48,7 @@ export class InstallScene extends Phaser.Scene {
       flash.setFillStyle(0xffffff, 0.75);
       this.tweens.add({ targets: flash, fillAlpha: 0, duration: 450 });
       this.cameras.main.shake(250, 0.006);
-      head.setText(`${GEAR_INFO[gear].title.toUpperCase()} MARK ${ROMAN[mark]} INSTALLED!`).setColor('#06d6a0').setAlpha(1);
+      head.setText(`${gearInfo(activeBot())[gear].title.toUpperCase()} MARK ${ROMAN[mark]} INSTALLED!`).setColor('#06d6a0').setAlpha(1);
       this.tweens.add({ targets: head, scale: { from: 1.25, to: 1 }, duration: 350, ease: 'Back.easeOut' });
     });
 
@@ -58,7 +59,9 @@ export class InstallScene extends Phaser.Scene {
       if (gear === 'blaster') {
         this.time.addEvent({ delay: mark === 3 ? 90 : 220, repeat: mark === 3 ? 16 : 6, callback: () => robot.fire() });
       } else if (gear === 'boots') {
-        robot.thrust = mark >= 3 ? 1 : 0;
+        robot.thrust = mark >= 3 || robot instanceof Jet ? 1 : 0;
+        // The jet shows off its new afterburners with a barrel roll.
+        if (robot instanceof Jet) this.time.delayedCall(350, () => robot.roll());
         const slot = show.slots[0];
         const baseY = slot.position.y;
         this.tweens.addCounter({
@@ -68,7 +71,7 @@ export class InstallScene extends Phaser.Scene {
             robot.grounded = (tw.getValue() ?? 0) < 0.05;
           },
           onComplete: () => {
-            robot.thrust = 0;
+            robot.thrust = robot instanceof Jet ? 0.35 : 0;
             robot.grounded = true;
           },
         });
@@ -79,7 +82,7 @@ export class InstallScene extends Phaser.Scene {
 
     this.time.delayedCall(2600, () => {
       show.held[0] = false;
-      const perk = GEAR_INFO[gear].perks[mark];
+      const perk = gearInfo(activeBot())[gear].perks[mark];
       text(this, W / 2, 140, perk, 34, '#ffffff').setStroke('#000000', 6);
       button(this, W / 2 - 330, 660, 300, 80, 'Engineering Zone', () => this.scene.start('Engineering'), {
         fill: 0xf77f00, edge: 0xffd166, size: 26,

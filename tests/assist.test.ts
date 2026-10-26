@@ -16,7 +16,7 @@ describe('hidden help after upgrades', () => {
   it('kicks in after an upgrade and climbs with each new try', () => {
     const s = freshSave();
     onLevelStart('canyon', s);
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     expect(onLevelStart('canyon', s)).toBe(1);
     expect(onLevelStart('canyon', s)).toBe(2);
     expect(onLevelStart('canyon', s)).toBe(3);
@@ -25,15 +25,15 @@ describe('hidden help after upgrades', () => {
 
   it('a second upgrade adds more help', () => {
     const s = freshSave();
-    onUpgradeBuilt(s);
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
+    onUpgradeBuilt('bolt', s);
     expect(onLevelStart('gate', s)).toBe(2);
   });
 
   it('skips levels already beaten and resets on a win', () => {
     const s = freshSave();
     s.levelsDone = ['junkyard'];
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     expect(currentTier('junkyard', s)).toBe(0);
     expect(onLevelStart('canyon', s)).toBe(1);
     onLevelCleared('canyon', s);
@@ -69,7 +69,7 @@ describe('arcade missions wait on an upgrade', () => {
     won(s, 'inv-drop');
     expect(missionStart('inv-chase', s).hard).toBe(true);
     expect(missionStart('inv-chase', s).tune).toBe(HARD);
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     const easy = missionStart('inv-chase', s);
     expect(easy.hard).toBe(false);
     expect(easy.tune.damageTaken).toBeLessThan(HARD.damageTaken * 0.7);
@@ -78,12 +78,12 @@ describe('arcade missions wait on an upgrade', () => {
   it('each new mission asks for another upgrade', () => {
     const s = freshSave();
     won(s, 'inv-drop');
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     won(s, 'inv-chase');
     expect(needsUpgrade('inv-streets', s)).toBe(true);
     // An upgrade from before doesn't count for the new mission's help either.
     expect(currentTier('inv-streets', s)).toBe(0);
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     expect(needsUpgrade('inv-streets', s)).toBe(false);
     expect(currentTier('inv-streets', s)).toBe(1);
   });
@@ -92,7 +92,7 @@ describe('arcade missions wait on an upgrade', () => {
     const s = freshSave();
     won(s, 'inv-drop');
     expect(onMissionFailed('inv-chase', s)).toBe(FAILS_BEFORE_HINT);
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     expect(onMissionFailed('inv-chase', s)).toBe(1);
   });
 
@@ -111,11 +111,11 @@ describe('a loss locks the mission until an upgrade', () => {
     const s = freshSave();
     s.levelsDone.push('inv-drop');
     onMissionCleared('inv-drop', s);
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     expect(upgradeRequired('inv-chase', s)).toBe(false);
     onMissionFailed('inv-chase', s);
     expect(upgradeRequired('inv-chase', s)).toBe(true);
-    onUpgradeBuilt(s);
+    onUpgradeBuilt('bolt', s);
     expect(upgradeRequired('inv-chase', s)).toBe(false);
   });
 });

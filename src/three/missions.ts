@@ -19,7 +19,7 @@ export interface Spawn {
   elite?: boolean;
 }
 
-export type Vehicle = 'ship' | 'foot' | 'car';
+export type Vehicle = 'ship' | 'foot' | 'car' | 'jet';
 
 export type Step =
   | { kind: 'move'; to: number; speed: number; vehicle: Vehicle; spawns?: Spawn[] }
@@ -27,6 +27,8 @@ export type Step =
   | { kind: 'say'; lines: Line[] }
   | { kind: 'drop'; to: number }
   | { kind: 'transform'; to: 'car' | 'robot' }
+  /** STRIKER swoops in and takes over from BOLT (the first Egypt mission). */
+  | { kind: 'swap' }
   | { kind: 'boss'; banner: string };
 
 export interface Mission {
@@ -42,6 +44,10 @@ export interface Mission {
   boss?: [number, number, number];
   /** Where it happens (default the city). */
   env?: 'city' | 'desert';
+  /** Who flies it (default BOLT). A mission with a swap starts with BOLT and ends with this one. */
+  bot?: 'bolt' | 'jet';
+  /** Skip mission control before it (the jet's story mission opens straight into the action). */
+  noControl?: boolean;
   /** Boss health multiplier (default 1). */
   bossHp?: number;
   /**
@@ -179,72 +185,132 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'HIVE QUEEN!' },
     ],
   },
-  // ---- Egypt -------------------------------------------------------------------
+  // ---- Egypt: STRIKER, the fighter jet, takes over ------------------------------
   {
     id: 'egy-drop',
-    // Tuned with a kid-like bot: one alien at a time, slow to switch, sloppy aim (see README).
-    dmg: 0.83, hp: 1.3, fire: 0.8, extra: 0.8,
+    // Meant to be easy: BOLT lands, then hands over to the new jet halfway.
+    dmg: 0.45, hp: 1, fire: 0.9, extra: 0.4,
     env: 'desert',
+    bot: 'jet',
+    noControl: true,
     title: 'Invasion 6: Desert Landing',
     blurb: 'Fly to Egypt. They took the pyramids!',
     seed: 61,
     path: [
-      [0, 34, 80], [0, 32, 20], [12, 30, -60], [-10, 28, -150], [6, 26, -230], [2, 20, -262], [0, 0, -282], [0, 0, -330], [0, 0, -380],
+      [0, 34, 80], [0, 32, 20], [10, 28, -60], [4, 22, -110], [2, 0, -135], [0, 0, -175], [0, 0, -205],
+      [6, 9, -265], [-8, 14, -345], [6, 14, -430], [0, 12, -515], [0, 12, -560],
     ],
-    plazas: [[0.75, 1]],
+    plazas: [[0.28, 0.42]],
     steps: [
       { kind: 'say', lines: [{ who: 'volt', text: 'The fleet moved to Egypt! They are draining power from the pyramids. Get in there!' }] },
-      { kind: 'move', to: 2, speed: 15, vehicle: 'ship', spawns: [sk(1.5, 'left'), sk(2.5, 'right', true), sk(4, 'above'), sk(5, 'left')] },
-      { kind: 'wave', banner: 'DESERT SQUADRON!', spawns: [sk(0, 'left'), sk(0.4, 'right'), sk(1, 'above', true), sk(2, 'left'), sk(3, 'right', true), sk(4.5, 'above')] },
-      { kind: 'move', to: 4, speed: 15, vehicle: 'ship', spawns: [sk(1, 'right', true), sk(2.5, 'left'), sk(4, 'above', true)] },
-      { kind: 'move', to: 5, speed: 12, vehicle: 'ship' },
-      { kind: 'drop', to: 6 },
-      { kind: 'wave', banner: 'SAND WALKERS!', spawns: [kr(0, 'roofL'), kr(0.8, 'roofR', true), kr(2, 'ahead'), sk(3, 'above'), kr(4, 'roofL', true)] },
-      { kind: 'move', to: 7, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), sk(2, 'right')] },
-      { kind: 'wave', banner: 'HOLD THE CAUSEWAY!', spawns: [kr(0, 'ahead', true), kr(1, 'roofR'), kr(1.5, 'roofL'), sk(2.5, 'above', true), sk(3, 'left'), kr(5, 'roofR', true)] },
-      { kind: 'move', to: 8, speed: 6, vehicle: 'foot' },
+      { kind: 'move', to: 2, speed: 15, vehicle: 'ship', spawns: [sk(1.5, 'left'), sk(3, 'right'), sk(5, 'above')] },
+      { kind: 'wave', banner: 'DESERT SQUADRON!', spawns: [sk(0, 'left'), sk(0.6, 'right'), sk(2, 'above'), sk(3.5, 'left')] },
+      { kind: 'move', to: 3, speed: 12, vehicle: 'ship' },
+      { kind: 'drop', to: 4 },
+      { kind: 'move', to: 5, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), sk(2.5, 'right')] },
+      { kind: 'wave', banner: 'SAND WALKERS!', spawns: [kr(0, 'roofL'), kr(1.2, 'roofR'), sk(2.5, 'above')] },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Their saucers are climbing too high to hit from the ground. We have to take the fight to the AIR!' },
+          { who: 'sprocket', text: 'Leave that to me! I have been building something in secret... STRIKER, LAUNCH!' },
+        ],
+      },
+      { kind: 'swap' },
+      {
+        kind: 'say', lines: [
+          { who: 'sprocket', text: 'Meet STRIKER, the fighter jet robot! BOLT can rest. Blast them just like before!' },
+        ],
+      },
+      { kind: 'move', to: 8, speed: 16, vehicle: 'jet', spawns: [sk(2, 'left'), sk(3.5, 'right'), sk(5.5, 'above')] },
+      { kind: 'wave', banner: 'SKY SQUADRON!', spawns: [sk(0, 'left'), sk(0.8, 'right'), sk(2, 'above'), sk(3.5, 'left'), sk(4.5, 'right')] },
+      { kind: 'move', to: 10, speed: 16, vehicle: 'jet', spawns: [sk(1.5, 'right'), sk(3, 'left'), sk(5, 'above')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [sk(0, 'right'), sk(0.6, 'left'), sk(2, 'above', true), sk(3.5, 'left')] },
+      { kind: 'move', to: 11, speed: 12, vehicle: 'jet' },
+    ],
+  },
+  {
+    id: 'egy-nile',
+    dmg: 0.58, hp: 1.2, fire: 0.85, extra: 0.7,
+    env: 'desert',
+    bot: 'jet',
+    title: 'Invasion 7: Nile Patrol',
+    blurb: 'Fly low along the river. Walkers on the banks!',
+    seed: 67,
+    path: [[0, 6, 40], [0, 6, 0], [14, 6, -90], [-10, 7, -190], [8, 6, -290], [-6, 6, -380], [0, 6, -460], [0, 6, -500]],
+    plazas: [[0.2, 0.3], [0.55, 0.65]],
+    steps: [
+      { kind: 'move', to: 2, speed: 16, vehicle: 'jet', spawns: [sk(1.5, 'left'), sk(3, 'right'), sk(4.5, 'above'), sk(6, 'left', true)] },
+      { kind: 'wave', banner: 'RIVER RAIDERS!', spawns: [sk(0, 'left'), sk(0.5, 'right'), kr(1.5, 'roofL'), sk(2.5, 'above'), kr(3.5, 'roofR')] },
+      { kind: 'move', to: 4, speed: 16, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2.5, 'left'), sk(4, 'above')] },
+      { kind: 'wave', banner: 'BANK WALKERS!', spawns: [kr(0, 'roofL', true), kr(0.8, 'roofR'), kr(2, 'ahead'), sk(3, 'above', true), sk(4, 'left')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Nice flying! Follow the river. Their main swarm is just ahead.' }] },
+      { kind: 'move', to: 6, speed: 16, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(2, 'right'), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'THE SWARM!', spawns: [sk(0, 'left'), sk(0.4, 'right'), sk(1, 'above', true), sk(2, 'left', true), sk(3, 'right'), kr(3.5, 'ahead', true), sk(5, 'above')] },
+      { kind: 'move', to: 7, speed: 12, vehicle: 'jet' },
     ],
   },
   {
     id: 'egy-temple',
-    dmg: 0.52, hp: 1.5, fire: 0.75, extra: 1,
+    dmg: 0.56, hp: 1.1, fire: 0.85, extra: 0.7,
     env: 'desert',
-    title: 'Invasion 7: Temple Run',
-    blurb: 'Fight through the temple of columns.',
+    bot: 'jet',
+    title: 'Invasion 8: Temple Run',
+    blurb: 'Weave through the temple of columns.',
     seed: 71,
-    path: [[0, 0, 40], [0, 0, 0], [10, 0, -70], [-8, 0, -150], [8, 0, -230], [-6, 0, -300], [0, 0, -360], [0, 0, -400]],
+    path: [[0, 5, 40], [0, 5, 0], [10, 5, -70], [-8, 5, -150], [8, 5, -230], [-6, 5, -300], [0, 5, -360], [0, 5, -400]],
     plazas: [[0.1, 0.3], [0.45, 0.6], [0.8, 1]],
     steps: [
-      { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
-      { kind: 'wave', banner: 'AMBUSH!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR', true), sk(1.5, 'left'), sk(2, 'right'), kr(3, 'ahead')] },
-      { kind: 'move', to: 3, speed: 7, vehicle: 'foot', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3.5, 'above')] },
-      { kind: 'wave', banner: 'TEMPLE GUARDS!', spawns: [kr(0, 'roofR', true), kr(0.5, 'roofL', true), kr(1.5, 'ahead', true), sk(2.5, 'above', true), sk(3, 'left'), kr(4.5, 'roofR')] },
-      { kind: 'say', lines: [{ who: 'volt', text: 'The power lines run to the Great Pyramid. One more temple, then we chase them down!' }] },
-      { kind: 'move', to: 5, speed: 7, vehicle: 'foot', spawns: [sk(1, 'right', true), sk(2, 'left', true), sk(3, 'above', true)] },
-      { kind: 'wave', banner: 'LAST TEMPLE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1, 'ahead', true), sk(2, 'above', true), sk(2.5, 'left', true), sk(3, 'right', true), kr(5, 'roofL', true)] },
-      { kind: 'move', to: 7, speed: 5, vehicle: 'foot' },
+      { kind: 'move', to: 1, speed: 10, vehicle: 'jet' },
+      { kind: 'wave', banner: 'AMBUSH!', spawns: [kr(0, 'roofL'), kr(0.6, 'roofR'), sk(1.5, 'left'), sk(2, 'right'), kr(3, 'ahead')] },
+      { kind: 'move', to: 3, speed: 14, vehicle: 'jet', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'TEMPLE GUARDS!', spawns: [kr(0, 'roofR', true), kr(0.5, 'roofL'), kr(1.5, 'ahead'), sk(2.5, 'above', true), sk(3, 'left'), kr(4.5, 'roofR')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'The power lines run toward the Great Pyramid. One more temple!' }] },
+      { kind: 'move', to: 5, speed: 14, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left', true), sk(3, 'above', true)] },
+      { kind: 'wave', banner: 'LAST TEMPLE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR'), kr(1, 'ahead', true), sk(2, 'above', true), sk(2.5, 'left'), sk(3, 'right'), kr(5, 'roofL')] },
+      { kind: 'move', to: 7, speed: 10, vehicle: 'jet' },
+    ],
+  },
+  {
+    id: 'egy-sphinx',
+    dmg: 0.8, hp: 1.15, fire: 0.8, extra: 0.8,
+    env: 'desert',
+    bot: 'jet',
+    title: 'Invasion 9: Sphinx Skies',
+    blurb: 'Dogfight their elite saucers up high!',
+    seed: 79,
+    path: [[0, 24, 60], [0, 24, 0], [12, 24, -80], [-10, 22, -170], [8, 20, -260], [-4, 12, -330], [0, 7, -380], [0, 7, -420]],
+    plazas: [[0.85, 1]],
+    steps: [
+      { kind: 'move', to: 2, speed: 18, vehicle: 'jet', spawns: [sk(1, 'left'), sk(1.8, 'right'), sk(3, 'above', true), sk(4.5, 'left', true)] },
+      { kind: 'wave', banner: 'DOGFIGHT!', spawns: [sk(0, 'left', true), sk(0.4, 'right'), sk(1, 'above'), sk(2, 'left'), sk(2.8, 'right', true), sk(3.5, 'above'), sk(5, 'right')] },
+      { kind: 'move', to: 4, speed: 18, vehicle: 'jet', spawns: [sk(1, 'right', true), sk(2, 'left'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'ACE SQUADRON!', spawns: [sk(0, 'left', true), sk(0.5, 'right'), sk(1.5, 'above', true), sk(2.5, 'left'), sk(3, 'right'), sk(4, 'above'), sk(5, 'left', true)] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Dive! They have walkers guarding the Sphinx. Clear them out!' }] },
+      { kind: 'move', to: 6, speed: 16, vehicle: 'jet' },
+      { kind: 'wave', banner: 'SPHINX GUARDS!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), kr(1.5, 'ahead'), sk(2.5, 'above', true), sk(3, 'left'), kr(4.5, 'roofR', true)] },
+      { kind: 'move', to: 7, speed: 10, vehicle: 'jet' },
     ],
   },
   {
     id: 'egy-pyramid',
-    dmg: 0.6, hp: 2.4, fire: 0.7, extra: 1.5,
+    dmg: 0.8, hp: 2, fire: 0.75, extra: 1.2,
     env: 'desert',
-    title: 'Invasion 8: The Great Pyramid',
+    bot: 'jet',
+    title: 'Invasion 10: The Great Pyramid',
     blurb: 'Race the causeway. Final boss!',
     seed: 83,
-    path: [[0, 0, 20], [0, 0, -20], [14, 0, -120], [-12, 0, -230], [10, 0, -340], [-6, 0, -450], [0, 0, -560], [0, 0, -600]],
+    path: [[0, 6, 20], [0, 6, -20], [14, 6, -120], [-12, 6, -230], [10, 6, -340], [-6, 6, -450], [0, 7, -560], [0, 7, -600]],
     plazas: [[0.9, 1]],
     boss: [0, -8, -665],
-    bossHp: 2.2,
+    bossHp: 2,
     steps: [
-      { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
-      { kind: 'say', lines: [{ who: 'volt', text: 'Their biggest walker is guarding the Great Pyramid. Transform and floor it!' }] },
-      { kind: 'transform', to: 'car' },
-      { kind: 'move', to: 3, speed: 26, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4.5, 'behindL'), rd(5.5, 'behindR')] },
+      { kind: 'move', to: 1, speed: 8, vehicle: 'jet' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their biggest walker is guarding the Great Pyramid. Full throttle, STRIKER!' }] },
+      { kind: 'move', to: 3, speed: 22, vehicle: 'jet', spawns: [sk(1, 'left'), sk(1.8, 'right'), sk(3, 'above', true), sk(4.5, 'left'), sk(5.5, 'right', true)] },
       { kind: 'wave', banner: 'SANDSTORM AMBUSH!', spawns: [kr(0, 'ahead', true), sk(0.5, 'left', true), sk(1, 'right', true), kr(2.5, 'roofR', true), kr(3.5, 'roofL')] },
-      { kind: 'move', to: 6, speed: 28, vehicle: 'car', spawns: [rd(0.8, 'behindR'), rd(1.4, 'behindL'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR'), rd(7, 'behindL'), rd(8.5, 'behindR')] },
-      { kind: 'transform', to: 'robot' },
-      { kind: 'move', to: 7, speed: 5, vehicle: 'foot' },
+      { kind: 'move', to: 6, speed: 22, vehicle: 'jet', spawns: [sk(0.8, 'right'), sk(1.4, 'left'), sk(3, 'above', true), sk(4, 'left'), sk(5, 'right', true), sk(7, 'above')] },
+      { kind: 'move', to: 7, speed: 6, vehicle: 'jet' },
       { kind: 'boss', banner: 'PYRAMID WALKER!' },
     ],
   },
@@ -255,3 +321,8 @@ export function missionById(id: string): Mission {
 }
 
 export const MISSION_IDS = MISSIONS.map((m) => m.id);
+
+/** Who flies a mission (by the end of it). */
+export function missionBot(id: string): 'bolt' | 'jet' {
+  return MISSIONS.find((m) => m.id === id)?.bot ?? 'bolt';
+}

@@ -3,6 +3,7 @@ import {
   applyCells, makeChainProblem, makePairProblem, makeQuickFact, signed,
   type ChainProblem, type PairProblem, type QuickFact,
 } from '../skills/facts';
+import { activeBot } from '../state';
 import { button, sparks, text } from '../ui/widgets';
 import { BenchScene } from './Bench';
 
@@ -82,12 +83,14 @@ export class BootsBench extends BenchScene {
     if (this.index === 0) this.puzzleIntro();
     if (this.mark === 1) {
       this.say(this.index === 0
-        ? `Jump boots need springs pumped to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`
-        : `This spring needs exactly ${p.target}. Which two cells?`);
+        ? (this.jet
+          ? `Afterburners need fuel pumped to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`
+          : `Jump boots need springs pumped to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`)
+        : `This ${this.thing} needs exactly ${p.target}. Which two cells?`);
     } else {
       const c = p as ChainProblem;
       this.say(this.index === 0
-        ? `Mark II springs start with some pressure already: ${c.start}. Some cells add and some take away. Get it to exactly ${c.target}!`
+        ? `Mark II ${this.thing}s start with some pressure already: ${c.start}. Some cells add and some take away. Get it to exactly ${c.target}!`
         : `Start at ${c.start}. Get to exactly ${c.target}.`);
     }
   }
@@ -100,7 +103,7 @@ export class BootsBench extends BenchScene {
       const a = p.cells.find((c) => p.cells.includes(p.target - c) && (c * 2 !== p.target || p.cells.filter((x) => x === c).length > 1)) ?? p.cells[0];
       this.busy = true;
       this.introduce([{ concept: 'facts-pair', title: 'MAKING A NUMBER WITH TWO CELLS', steps: [
-        `The spring needs EXACTLY ${p.target}. Two energy cells that add up to ${p.target} will do it.`,
+        `The ${this.thing} needs EXACTLY ${p.target}. Two energy cells that add up to ${p.target} will do it.`,
         `Pick one cell, like the ${a}. Then ask: ${a} + what = ${p.target}?`,
         `Count up from ${a} to ${p.target}: that's ${p.target - a}. Is there a ${p.target - a} cell? Tap both, then PUMP!`,
       ] }], () => (this.busy = false));
@@ -115,7 +118,7 @@ export class BootsBench extends BenchScene {
     }
     this.busy = true;
     this.introduce([{ concept: 'facts-chain', title: 'ADDING AND TAKING AWAY', steps: [
-      `This spring STARTS at ${c.start}. We need to get to exactly ${c.target}.`,
+      `This ${this.thing} STARTS at ${c.start}. We need to get to exactly ${c.target}.`,
       'GREEN cells add (+). RED cells take away (−). You can use up to 3 cells.',
       `Go one cell at a time. For example ${c.start} ${signed(first)} = ${mid}.`,
       `Then ask: from ${mid}, how do I get to ${c.target}? Up or down, and by how much?`,
@@ -209,7 +212,20 @@ export class BootsBench extends BenchScene {
     this.readout.setText(showNumber ? `Pressure: ${value}` : 'Pressure: ? ?');
   }
 
+  /** STRIKER's benches build afterburners instead of jump springs. */
+  private get jet() {
+    return activeBot() === 'jet';
+  }
+
+  private get thing() {
+    return this.jet ? 'afterburner' : 'spring';
+  }
+
   private drawSpring(fill: number) {
+    if (this.jet) {
+      this.drawBurner(fill);
+      return;
+    }
     // A coil that squashes as pressure builds.
     const g = this.spring;
     const x = 400;
@@ -226,6 +242,27 @@ export class BootsBench extends BenchScene {
       const y3 = bottom - (h / coils) * (i + 1);
       g.lineBetween(x - 45, y1, x + 45, y2).lineBetween(x + 45, y2, x - 45, y3);
     }
+  }
+
+  /** An afterburner nozzle whose flame grows as the fuel pressure builds. */
+  private drawBurner(fill: number) {
+    const g = this.spring;
+    const x = 400;
+    const y = 360;
+    g.clear();
+    // The flame, out of the nozzle to the right: orange, then blue-hot when full.
+    const len = 30 + fill * 330;
+    const hot = fill >= 0.99;
+    const outer = hot ? 0x4cc9f0 : 0xff9f1c;
+    const inner = hot ? 0xe8fbff : 0xffe066;
+    g.fillStyle(outer, 0.35).fillEllipse(x + 40 + len / 2, y, len + 40, 70 + fill * 40);
+    g.fillStyle(outer, 0.9).fillTriangle(x + 40, y - 34, x + 40, y + 34, x + 40 + len, y);
+    g.fillStyle(inner, 1).fillTriangle(x + 40, y - 16, x + 40, y + 16, x + 40 + len * 0.6, y);
+    // Nozzle.
+    g.fillStyle(0x3b414d, 1).fillRoundedRect(x - 90, y - 50, 110, 100, 14);
+    g.fillStyle(0x22262e, 1).fillRoundedRect(x + 10, y - 42, 34, 84, 10);
+    g.fillStyle(0xffd60a, 1).fillRect(x - 90, y - 50, 22, 100);
+    g.lineStyle(4, hot ? 0x4cc9f0 : 0xff9f1c, 1).strokeRoundedRect(x + 10, y - 42, 34, 84, 10);
   }
 
   private pickCell(i: number) {
@@ -322,10 +359,12 @@ export class BootsBench extends BenchScene {
     });
 
     if (this.index === 0 && this.misses === 0) {
-      this.say('Mark III boots need a turbo spring! Answer 10 quick ones to pump it all the way. Go go go!');
+      this.say(this.jet
+        ? 'Mark III hyper boosters need a full tank! Answer 10 quick ones to fill them all the way. Go go go!'
+        : 'Mark III boots need a turbo spring! Answer 10 quick ones to pump it all the way. Go go go!');
       this.busy = true;
       this.introduce([{ concept: 'facts-quick', title: 'QUICK FACTS', steps: [
-        'Type the answer on the keypad and press ✓. Ten in a row fills the spring.',
+        `Type the answer on the keypad and press ✓. Ten in a row fills the ${this.thing}.`,
         'Adding? Start with the BIGGER number and count on. 3 + 9: start at 9, then 10, 11, 12.',
         'Taking away? Count UP from the small number to the big one. 13 − 9: from 9 to 13 is 4.',
         'The timer waits while you read this. When you press the button, go!',

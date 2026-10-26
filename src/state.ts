@@ -1,5 +1,13 @@
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
+/** The robots he can build up: BOLT (his first) and STRIKER, the yellow fighter jet. */
+export type BotId = 'bolt' | 'jet';
+
+/** One robot's upgrades and armor plates. */
+export interface BotData {
+  gear: Record<GearId, Mark>;
+  armor?: import('./armor').ArmorState;
+}
 
 export interface SkillStat {
   tries: number;
@@ -31,11 +39,31 @@ export interface SaveData {
   /** How many times each walk-through kind has been done (help fades as these grow). */
   guide?: Record<string, number>;
   clearedAt?: Record<string, number>;
+  /** Upgrades built for each robot (the jet's missions only count the jet's). */
+  upgradesBy?: Partial<Record<BotId, number>>;
+  /** The jet's upgrade count when each jet mission was first beaten. */
+  clearedAtJet?: Record<string, number>;
+  /**
+   * The jet's gear and plates. BOLT's live at the top level (`gear`, `armor`)
+   * so saves from before the jet keep working.
+   */
+  jet?: BotData;
+  /** Which robot the Engineering Zone, benches and forge are working on. */
+  bot?: BotId;
+  /** Forced math between missions (see `pace` below). */
+  pace?: { run: number; next: 'control' | 'recap' };
   skills: Record<string, SkillStat>;
 }
 
 // v2: armor became five plates; older saves start fresh.
 const KEY = 'mecha-forge-save-v2';
+/**
+ * Grown-up preview: a throwaway copy of the save to play ahead on. While the
+ * flag is set, everything reads and writes the copy; his real save is never
+ * touched, and ending the preview just deletes the copy.
+ */
+const PREVIEW_KEY = 'mecha-forge-preview-save';
+const PREVIEW_FLAG = 'mecha-forge-preview';
 
 export function freshSave(): SaveData {
   return {
@@ -46,7 +74,7 @@ export function freshSave(): SaveData {
     scrap: 0,
     gear: { armor: 0, blaster: 0, boots: 0 },
     levelsDone: [],
-    seen: [],
+    seen: ['jet-era'],
     voice: true,
     skills: {},
   };
@@ -59,12 +87,67 @@ export function save(): SaveData {
   return current;
 }
 
+export function inPreview(): boolean {
+  try {
+    return localStorage.getItem(PREVIEW_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function storeKey(): string {
+  return inPreview() ? PREVIEW_KEY : KEY;
+}
+
+/** Start playing on a copy of the save. */
+export function startPreview(): void {
+  persist();
+  try {
+    localStorage.setItem(PREVIEW_KEY, JSON.stringify(save()));
+    localStorage.setItem(PREVIEW_FLAG, '1');
+  } catch {
+    return;
+  }
+  current = null;
+}
+
+/** Throw the copy away and go back to his real save. */
+export function endPreview(): void {
+  try {
+    localStorage.removeItem(PREVIEW_FLAG);
+    localStorage.removeItem(PREVIEW_KEY);
+  } catch {
+    // Nothing to undo.
+  }
+  current = null;
+}
+
+/**
+ * Egypt became the jet's five missions, starting with the mission where
+ * STRIKER takes over from BOLT. Egypt missions beaten before that change
+ * were different missions, so they open up again (from the hand-over
+ * story); scrap, BOLT's upgrades and everything learned are kept.
+ */
+function migrate(s: SaveData): SaveData {
+  if (s.seen.includes('jet-era')) return s;
+  if (!s.jet) {
+    const old = (id: string) => id.startsWith('egy-');
+    s.levelsDone = s.levelsDone.filter((id) => !old(id));
+    for (const rec of [s.clearedAt, s.assist]) {
+      if (!rec) continue;
+      for (const id of Object.keys(rec)) if (old(id)) delete rec[id];
+    }
+  }
+  s.seen.push('jet-era');
+  return s;
+}
+
 function load(): SaveData {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(storeKey());
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<SaveData>;
-      if (parsed.v === 1) return { ...freshSave(), ...parsed, gear: { ...freshSave().gear, ...parsed.gear } };
+      if (parsed.v === 1) return migrate({ ...freshSave(), ...parsed, gear: { ...freshSave().gear, ...parsed.gear } });
     }
   } catch {
     // Storage blocked or corrupt: start fresh rather than crash.
@@ -74,7 +157,7 @@ function load(): SaveData {
 
 export function persist(): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(save()));
+    localStorage.setItem(storeKey(), JSON.stringify(save()));
   } catch {
     // Private mode or full storage: the game still works, it just won't remember.
   }
@@ -119,6 +202,77 @@ export function canDoubleJump(): boolean {
   return save().gear.boots >= 3;
 }
 
+// ---- Robots ------------------------------------------------------------------
+
+/** STRIKER's paint. */
+export const JET_COLOR = 0xffd60a;
+
+/** The jet joins after the first Egypt mission (it takes over halfway through). */
+export function jetUnlocked(s: SaveData = save()): boolean {
+  return s.levelsDone.includes('egy-drop');
+}
+
+/** A robot's gear and plates. BOLT's are the save's own fields. */
+export function botData(bot: BotId, s: SaveData = save()): BotData {
+  if (bot === 'jet') return (s.jet ??= { gear: { armor: 0, blaster: 0, boots: 0 } });
+  return s;
+}
+
+/** The robot the workshop screens are working on. */
+export function activeBot(s: SaveData = save()): BotId {
+  return s.bot === 'jet' && jetUnlocked(s) ? 'jet' : 'bolt';
+}
+
+export function setActiveBot(bot: BotId, s: SaveData = save()): void {
+  s.bot = bot;
+  persist();
+}
+
+/** The active robot's gear and plates. */
+export function rig(s: SaveData = save()): BotData {
+  return botData(activeBot(s), s);
+}
+
+export const BOT_NAMES: Record<BotId, string> = { bolt: 'BOLT', jet: 'STRIKER' };
+
+export function botName(bot: BotId, s: SaveData = save()): string {
+  return bot === 'bolt' ? s.name : BOT_NAMES.jet;
+}
+
+/** The jet's cannon damage by mark (it joins late, so it starts stronger than BOLT did). */
+export const JET_DAMAGE = [2, 3, 4, 5];
+/** Chance the jet's afterburners roll it past an incoming shot, by mark. */
+export const JET_DODGE = [0, 0.12, 0.22, 0.32];
+
+export const JET_GEAR_INFO: Record<GearId, { title: string; skill: string; perks: string[] }> = {
+  armor: {
+    title: 'Hull Armor',
+    skill: 'Place value',
+    perks: ['No hull plates', 'Hull armor plates', 'Heavy hull + tail spikes', 'Titan hull + gold wing blades'],
+  },
+  blaster: {
+    title: 'Wing Cannons',
+    skill: 'Measuring',
+    perks: ['Nose gun, damage 2', 'Twin wing cannons, damage 3', 'Quad cannons + missiles, damage 4', 'Plasma gatlings, damage 5, rapid fire'],
+  },
+  boots: {
+    title: 'Afterburners',
+    skill: 'Adding & subtracting',
+    perks: ['Plain engine', 'Afterburner: rolls past some shots', 'Twin afterburners: dodges more', 'Hyper boosters: dodges lots of shots'],
+  },
+};
+
+export function gearInfo(bot: BotId): Record<GearId, { title: string; skill: string; perks: string[] }> {
+  return bot === 'jet' ? JET_GEAR_INFO : GEAR_INFO;
+}
+
+/** Count an upgrade for a robot. */
+export function countUpgrade(bot: BotId, s: SaveData = save()): void {
+  s.upgradeCount = (s.upgradeCount ?? 0) + 1;
+  s.upgradesBy ??= {};
+  s.upgradesBy[bot] = (s.upgradesBy[bot] ?? 0) + 1;
+}
+
 export const GEAR_INFO: Record<GearId, { title: string; skill: string; perks: string[] }> = {
   armor: {
     title: 'Armor',
@@ -150,6 +304,40 @@ export function egyptUnlocked(s: SaveData = save()): boolean {
 /** How many times he has done a kind of problem with a walk-through. */
 export function guideCount(kind: string, s: SaveData = save()): number {
   return s.guide?.[kind] ?? 0;
+}
+
+/**
+ * Forced math between missions: no more than two sections in a row (mission
+ * control, the mission report, repairs) without some action in between.
+ * Mission control and the report take turns; a mission or a new upgrade
+ * resets the count.
+ */
+export function pace(s: SaveData = save()): { run: number; next: 'control' | 'recap' } {
+  return (s.pace ??= { run: 0, next: 'control' });
+}
+
+export function wantsControl(s: SaveData = save()): boolean {
+  const p = pace(s);
+  return p.next === 'control' && p.run < 2;
+}
+
+export function wantsRecap(s: SaveData = save()): boolean {
+  const p = pace(s);
+  return p.next === 'recap' && p.run < 2;
+}
+
+export function mathDone(kind: 'control' | 'recap' | 'repair', s: SaveData = save()): void {
+  const p = pace(s);
+  p.run++;
+  if (kind === 'control') p.next = 'recap';
+  if (kind === 'recap') p.next = 'control';
+  persist();
+}
+
+/** Played a mission or built an upgrade: the math count starts over. */
+export function actionDone(s: SaveData = save()): void {
+  pace(s).run = 0;
+  persist();
 }
 
 export function bumpGuide(kind: string, s: SaveData = save()): void {

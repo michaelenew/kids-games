@@ -1,6 +1,6 @@
 import { LEVELS } from './levels';
-import { MISSION_IDS } from './three/missions';
-import { BUILD_COST, type GearId, type SaveData, persist, save } from './state';
+import { MISSION_IDS, missionBot, missionById } from './three/missions';
+import { BUILD_COST, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save } from './state';
 
 /**
  * Behind-the-scenes help. Building an upgrade should always make the next
@@ -78,15 +78,42 @@ export const HARD: Tuning = {
 /** Losses (since the last upgrade) before the mission locks until he upgrades. */
 export const FAILS_BEFORE_HINT = 1;
 
-function allMaxed(s: SaveData) {
-  return (Object.keys(s.gear) as GearId[]).every((g) => s.gear[g] >= 3);
+/**
+ * Whose upgrades a mission waits on (patrols are always BOLT's). The
+ * hand-over mission counts as BOLT's: the jet can't be upgraded until it's beaten.
+ */
+function botFor(id: string): BotId {
+  if (!MISSION_IDS.includes(id)) return 'bolt';
+  if (isHandOver(id)) return 'bolt';
+  return missionBot(id);
 }
 
-/** True if this mission is waiting on an upgrade (and so plays hard). */
+/** The mission where STRIKER takes over from BOLT. */
+function isHandOver(id: string): boolean {
+  return missionById(id).steps.some((st) => st.kind === 'swap');
+}
+
+function allMaxed(s: SaveData, bot: BotId) {
+  const g = botData(bot, s).gear;
+  return (Object.keys(g) as GearId[]).every((k) => g[k] >= 3);
+}
+
+/**
+ * True if this mission is waiting on an upgrade (and so plays hard). The
+ * jet's missions wait on a jet upgrade; upgrading BOLT doesn't count there.
+ * The first jet mission is the easy hand-over, so it never waits.
+ */
 export function needsUpgrade(id: string, s: SaveData = save()): boolean {
   const i = MISSION_IDS.indexOf(id);
-  if (i <= 0 || s.levelsDone.includes(id) || allMaxed(s)) return false;
-  const before = s.clearedAt?.[MISSION_IDS[i - 1]];
+  const bot = botFor(id);
+  if (i <= 0 || s.levelsDone.includes(id) || allMaxed(s, bot) || isHandOver(id)) return false;
+  const prev = MISSION_IDS[i - 1];
+  if (bot === 'jet') {
+    const before = s.clearedAtJet?.[prev];
+    if (before === undefined) return false;
+    return (s.upgradesBy?.jet ?? 0) <= before;
+  }
+  const before = s.clearedAt?.[prev];
   if (before === undefined) return false;
   return (s.upgradeCount ?? 0) <= before;
 }
@@ -109,6 +136,8 @@ export function onMissionFailed(id: string, s: SaveData = save()): number {
 export function onMissionCleared(id: string, s: SaveData = save()) {
   s.clearedAt ??= {};
   if (s.clearedAt[id] === undefined) s.clearedAt[id] = s.upgradeCount ?? 0;
+  s.clearedAtJet ??= {};
+  if (s.clearedAtJet[id] === undefined) s.clearedAtJet[id] = s.upgradesBy?.jet ?? 0;
   onLevelCleared(id, s);
   const next = MISSION_IDS[MISSION_IDS.indexOf(id) + 1];
   if (next && !s.levelsDone.includes(next)) {
@@ -122,14 +151,20 @@ export function onMissionCleared(id: string, s: SaveData = save()) {
  * builds something (unless everything is already fully upgraded).
  */
 export function upgradeRequired(id: string, s: SaveData = save()): boolean {
-  if (allMaxed(s) || s.levelsDone.includes(id)) return false;
+  if (allMaxed(s, botFor(id)) || s.levelsDone.includes(id)) return false;
   return (s.assist?.[id]?.fails ?? 0) >= FAILS_BEFORE_HINT;
 }
 
-/** Cheapest upgrade he could build next (0 if everything is maxed). */
-export function cheapestUpgrade(s: SaveData = save()): number {
-  const costs = (Object.keys(s.gear) as GearId[]).filter((g) => s.gear[g] < 3).map((g) => BUILD_COST[s.gear[g] + 1]);
+/** Cheapest upgrade he could build next for a robot (0 if everything is maxed). */
+export function cheapestUpgrade(s: SaveData = save(), bot: BotId = 'bolt'): number {
+  const g = botData(bot, s).gear;
+  const costs = (Object.keys(g) as GearId[]).filter((k) => g[k] < 3).map((k) => BUILD_COST[g[k] + 1]);
   return costs.length ? Math.min(...costs) : 0;
+}
+
+/** Who flies a mission (for the Engineering Zone after a loss). */
+export function botForMission(id: string): BotId {
+  return botFor(id);
 }
 
 export function tuning(tier: number): Tuning {
@@ -142,11 +177,11 @@ function entry(s: SaveData, id: string): LevelAssist {
   return s.assist[id];
 }
 
-/** Call when an upgrade is built (not for practice runs). */
-export function onUpgradeBuilt(s: SaveData = save()) {
-  s.upgradeCount = (s.upgradeCount ?? 0) + 1;
+/** Call when an upgrade is built (not for practice runs). Only that robot's missions get easier. */
+export function onUpgradeBuilt(bot: BotId = 'bolt', s: SaveData = save()) {
+  countUpgrade(bot, s);
   for (const id of [...MISSION_IDS, ...LEVELS.map((l) => l.id)]) {
-    if (s.levelsDone.includes(id)) continue;
+    if (s.levelsDone.includes(id) || botFor(id) !== bot) continue;
     const a = entry(s, id);
     a.tier = Math.min(MAX_TIER, a.tier + 1);
     a.armed = true;

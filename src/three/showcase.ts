@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { RobotLook } from '../art';
 import { addCity, addSkyBits, pedestal, skyTexture } from './backdrop';
 import { glowTexture } from './kit';
-import { Robot, ROBOT_HEIGHT } from './robot';
+import { type Mech, makeMech } from './mech';
 import { type Stage, UNIT, px2w, py2w } from './stage';
 
 export interface ShowItem {
@@ -39,7 +39,7 @@ function floorTexture(): THREE.Texture {
 
 /** A hangar floor with robots on glowing pedestals and the city behind. */
 export class Showcase {
-  readonly robots: Robot[] = [];
+  readonly robots: Mech[] = [];
   /** Each robot stands in a slot with its pedestal and light beam. */
   readonly slots: THREE.Group[] = [];
   private spins: number[] = [];
@@ -64,8 +64,8 @@ export class Showcase {
     addSkyBits(root, px2w(640), floorY);
 
     for (const it of items) {
-      const r = new Robot(it.look);
-      const s = it.height / UNIT / ROBOT_HEIGHT;
+      const r = makeMech(it.look);
+      const s = it.height / UNIT / r.size;
       const slot = new THREE.Group();
       slot.position.set(px2w(it.x), py2w(it.y), 0);
       root.add(slot);

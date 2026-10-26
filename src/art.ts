@@ -23,6 +23,8 @@ export const FONT = '"Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-se
 export const ROBOT_COLORS = [0x3a86ff, 0xef476f, 0x06d6a0, 0xffd166, 0x9b5de5, 0xff8c42];
 
 export interface RobotLook {
+  /** Which robot this is (default BOLT). */
+  kind?: 'bolt' | 'jet';
   color: number;
   /** Armor mark used for every plate when `plates` isn't given. */
   armor: Mark;

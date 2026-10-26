@@ -83,9 +83,15 @@ interface FlyIn {
   landed?: boolean;
 }
 
+/** Rough size of each plate on the robot (robot units), for fitting the repair view. */
+const PLATE_SIZE: Record<Region, [number, number]> = {
+  chest: [0.9, 0.7], armL: [0.4, 0.55], armR: [0.4, 0.55], legL: [0.4, 0.6], legR: [0.4, 0.6],
+};
+
 export class Robot {
   /** Position and overall size. Move this one. */
   readonly holder = new THREE.Group();
+  readonly size = ROBOT_HEIGHT;
   /** Facing and mirroring live here. */
   private readonly root = new THREE.Group();
   private readonly joints = {} as Record<JointName, THREE.Object3D>;
@@ -571,6 +577,10 @@ export class Robot {
   // ---- Look --------------------------------------------------------------
 
   /** Mark and damage for one plate under the current look. */
+  plateSize(r: Region): [number, number] {
+    return PLATE_SIZE[r];
+  }
+
   plateOf(r: Region): { mark: number; damage: number } {
     const p = this.look.plates;
     if (p) return p[r] ?? { mark: 0, damage: 0 };

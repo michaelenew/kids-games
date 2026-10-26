@@ -2,11 +2,14 @@ import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
 import { LEVELS } from '../levels';
 import {
-  BLASTER_DAMAGE, BUILD_COST, GEAR_INFO, type GearId,
-  hasSeen, markSeen, persist, resetSave, save,
+  BLASTER_DAMAGE, BUILD_COST, type BotId, type GearId, JET_DAMAGE, JET_DODGE, activeBot, botData, botName, endPreview, gearInfo,
+  hasSeen, inPreview, jetUnlocked, markSeen, persist, resetSave, save, setActiveBot, startPreview,
 } from '../state';
 import { REGIONS, lookFromSave, repairsNeeded, totalHp, totalMax } from '../armor';
-import { MISSIONS } from '../three/missions';
+import { MISSIONS, missionBot } from '../three/missions';
+import { launchMission } from './launch';
+import { updatePreviewBanner } from '../ui/previewBanner';
+import { onMissionCleared } from '../assist';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, scrapBadge, text } from '../ui/widgets';
@@ -33,10 +36,25 @@ const SKILL_LABELS: Record<string, string> = {
   graphs: 'Mission report: read a bar graph',
 };
 
-/** True if any gear has a next mark he has enough scrap for. */
+/** True if any gear (on either robot) has a next mark he has enough scrap for. */
 export function upgradeAffordable(): boolean {
   const s = save();
-  return (Object.keys(s.gear) as GearId[]).some((g) => s.gear[g] < 3 && s.scrap >= BUILD_COST[s.gear[g] + 1]);
+  const bots: BotId[] = jetUnlocked(s) ? ['jet', 'bolt'] : ['bolt'];
+  return bots.some((b) => {
+    const g = botData(b, s).gear;
+    return (Object.keys(g) as GearId[]).some((k) => g[k] < 3 && s.scrap >= BUILD_COST[g[k] + 1]);
+  });
+}
+
+/** A robot that has never had armor built, but should by now. */
+function needsFirstArmor(bot: BotId): boolean {
+  const s = save();
+  const ready = bot === 'jet' ? jetUnlocked(s) : s.levelsDone.includes('inv-drop');
+  return ready && !REGIONS.some((r) => botData(bot, s).armor?.[r]);
+}
+
+function needsRepairs(bot: BotId): boolean {
+  return repairsNeeded(botData(bot).armor ?? {}).length > 0;
 }
 
 export class GarageScene extends Phaser.Scene {
@@ -47,8 +65,10 @@ export class GarageScene extends Phaser.Scene {
   create() {
     const s = save();
     music('calm');
+    const bot = activeBot(s);
+    const d = botData(bot, s);
     const show = new Showcase(getStage(this.game.canvas), [
-      { look: lookFromSave(s), x: 300, y: 590, height: 400, spin: 0.35, yaw: 0.7 },
+      { look: lookFromSave(s, bot), x: 300, y: bot === 'jet' ? 560 : 590, height: bot === 'jet' ? 300 : 400, spin: 0.35, yaw: 0.7 },
     ]);
     const robot = show.robots[0];
 
@@ -68,15 +88,28 @@ export class GarageScene extends Phaser.Scene {
     zone.on('pointerup', release);
     zone.on('pointerout', release);
 
-    text(this, 300, 70, s.name, 52, '#ffd166').setStroke('#000000', 8);
-    const stats = [
-      `Armor ${totalHp(s.armor ?? {})} / ${totalMax(s.armor ?? {})}`,
-      `Blaster power ${BLASTER_DAMAGE[s.gear.blaster]}`,
-      `Jump ${['normal', 'super', 'mega', 'mega + double'][s.gear.boots]}`,
+    text(this, 300, 70, botName(bot, s), 52, bot === 'jet' ? '#ffd60a' : '#ffd166').setStroke('#000000', 8);
+    const stats = bot === 'jet' ? [
+      `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
+      `Cannon power ${JET_DAMAGE[d.gear.blaster]}`,
+      `Dodge ${Math.round(JET_DODGE[d.gear.boots] * 100)}%`,
+    ] : [
+      `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
+      `Blaster power ${BLASTER_DAMAGE[d.gear.blaster]}`,
+      `Jump ${['normal', 'super', 'mega', 'mega + double'][d.gear.boots]}`,
     ];
     text(this, 300, 120, stats.join('   ·   '), 20, '#9ad1ff').setStroke('#000000', 5);
 
-    if (carUnlocked()) {
+    // Both robots: tap to look at the other one.
+    if (jetUnlocked(s)) {
+      const other: BotId = bot === 'jet' ? 'bolt' : 'jet';
+      button(this, 470, 590, 200, 56, `See ${botName(other, s)} ⇄`, () => {
+        setActiveBot(other);
+        this.scene.restart();
+      }, { fill: 0x3d4458, size: 20 });
+    }
+
+    if (carUnlocked() && bot === 'bolt') {
       const tf = button(this, 300, 660, 260, 70, 'TRANSFORM ⇄', () => {
         robot.setVehicle(!robot.isVehicle);
         tf.label.setText(robot.isVehicle ? 'ROBOT MODE ⇄' : 'TRANSFORM ⇄');
@@ -87,23 +120,29 @@ export class GarageScene extends Phaser.Scene {
     scrapBadge(this, W - 180, 50, s.scrap);
     button(this, 60, 50, 80, 64, '⚙', () => this.settings(), { size: 34, fill: 0x3d4458 });
 
-    // Missions. Damaged or missing armor has to be fixed in the forge first.
-    const needsRepair = repairsNeeded(s.armor ?? {}).length > 0;
-    const noArmor = s.levelsDone.includes('inv-drop') && !REGIONS.some((r) => s.armor?.[r]);
+    // Missions. Damaged or missing armor (on whoever flies it) has to be fixed in the forge first.
     const go = (key: string, data: object, missionId: string, gateId = missionId) => {
       const then = missionId || undefined;
+      const who: BotId = missionId ? missionBot(missionId) : 'bolt';
+      // A hand-over mission starts with BOLT, so it needs BOLT ready.
+      const flier: BotId = who === 'jet' && !jetUnlocked() ? 'bolt' : who;
+      setActiveBot(flier);
+      const needsRepair = needsRepairs(flier);
       if (gateId && upgradeRequired(gateId)) {
         // Lost since the last upgrade: build something first.
         if (needsRepair) {
           this.scene.start('ArmorForge', { mode: 'repair', then: 'engineering' });
           return;
         }
-        dialog(this, [{ who: 'sprocket', text: 'Those aliens are too strong for us right now. We have to build an upgrade before we go back!' }],
-          () => this.scene.start('Engineering'));
+        const line = flier === 'jet'
+          ? 'Those aliens are too strong for STRIKER right now. We have to build STRIKER an upgrade before we go back!'
+          : 'Those aliens are too strong for us right now. We have to build an upgrade before we go back!';
+        dialog(this, [{ who: 'sprocket', text: line }], () => this.scene.start('Engineering'));
         return;
       }
-      if (noArmor) this.scene.start('ArmorForge', { mode: 'build', mark: 1, then });
+      if (needsFirstArmor(flier)) this.scene.start('ArmorForge', { mode: 'build', mark: 1, then });
       else if (needsRepair) this.scene.start('ArmorForge', { mode: 'repair', then });
+      else if (key === 'Invasion') launchMission(this, missionId);
       else this.scene.start(key, data);
     };
     text(this, 880, 44, 'MISSIONS', 36);
@@ -118,13 +157,14 @@ export class GarageScene extends Phaser.Scene {
       const y = 134 + col.n++ * 64;
       const name = `${i + 1}. ${m.title.replace(/^Invasion \d+: /, '')}`;
       // Beaten missions can't be replayed, so the only way forward is the next one.
-      const b = button(this, col.x, y, 280, 56, '', () => go(m.env === 'desert' ? 'Control' : 'Invasion', { missionId: m.id }, m.id), {
+      const b = button(this, col.x, y, 280, 56, '', () => go('Invasion', { missionId: m.id }, m.id), {
         fill: m.env === 'desert' ? 0xb5651d : 0x7b2cbf, edge: m.env === 'desert' ? 0xffc98a : 0xd0a7ff, disabled: !unlocked || done,
       });
       b.label.setText(done ? `${name} ✓` : unlocked ? name : '🔒').setY(unlocked && !done ? -9 : 0).setFontSize(19);
       if (done) b.label.setColor('#7ee2b8');
       const locked = unlocked && !done && upgradeRequired(m.id);
-      if (unlocked && !done) b.add(this.add.text(0, 14, locked ? '🔧 Build an upgrade first!' : m.blurb, { fontFamily: FONT, fontSize: '12px', color: '#f1e6ff', wordWrap: { width: 264 } }).setOrigin(0.5));
+      const lockText = m.bot === 'jet' && jetUnlocked(s) ? '🔧 Upgrade STRIKER first!' : '🔧 Build an upgrade first!';
+      if (unlocked && !done) b.add(this.add.text(0, 14, locked ? lockText : m.blurb, { fontFamily: FONT, fontSize: '12px', color: '#f1e6ff', wordWrap: { width: 264 } }).setOrigin(0.5));
     });
     // The side-scrolling patrols open up after the first invasion.
     text(this, 880, 476, 'PATROLS', 22, '#9ad1ff');
@@ -137,17 +177,29 @@ export class GarageScene extends Phaser.Scene {
       if (done) b.label.setColor('#7ee2b8');
     });
 
-    if (needsRepair || noArmor) {
-      const rb = button(this, 300, 175, 300, 70, noArmor ? 'BUILD ARMOR!' : 'REPAIR BAY', () =>
-        this.scene.start('ArmorForge', noArmor ? { mode: 'build', mark: 1 } : { mode: 'repair' }), {
-        fill: 0xc1121f, edge: 0xffb3b3, size: 30,
+    // Armor to build or fix: the robot on show first, then the other one.
+    const fixFor = ([bot, bot === 'jet' ? 'bolt' : 'jet'] as BotId[])
+      .filter((b) => b === 'bolt' || jetUnlocked(s))
+      .find((b) => needsFirstArmor(b) || needsRepairs(b));
+    if (fixFor) {
+      const first = needsFirstArmor(fixFor);
+      const label = `${first ? 'BUILD ARMOR' : 'REPAIR'}${fixFor !== bot ? ` ${botName(fixFor, s)}` : ''}!`;
+      const rb = button(this, 300, 175, 340, 70, label, () => {
+        setActiveBot(fixFor);
+        this.scene.start('ArmorForge', first ? { mode: 'build', mark: 1 } : { mode: 'repair' });
+      }, {
+        fill: 0xc1121f, edge: 0xffb3b3, size: 28,
       });
       this.tweens.add({ targets: rb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
     }
 
     // Engineering Zone.
     const ready = upgradeAffordable();
-    button(this, 880, 640, 560, 88, 'ENGINEERING ZONE', () => this.scene.start('Engineering'), {
+    button(this, 880, 640, 560, 88, 'ENGINEERING ZONE', () => {
+      // STRIKER is the one picked when the Engineering Zone opens.
+      if (jetUnlocked()) setActiveBot('jet');
+      this.scene.start('Engineering');
+    }, {
       fill: 0xf77f00, edge: 0xffd166, size: 40,
     });
     if (ready) {
@@ -173,8 +225,8 @@ export class GarageScene extends Phaser.Scene {
     const items: Phaser.GameObjects.GameObject[] = [];
     const close = () => items.forEach((o) => o.destroy());
     items.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive().setDepth(50));
-    items.push(panel(this, W / 2, H / 2, 620, 580).setDepth(51));
-    items.push(text(this, W / 2, H / 2 - 230, 'Settings', 44, '#ffd166').setDepth(52));
+    items.push(panel(this, W / 2, H / 2 + 20, 620, 640).setDepth(51));
+    items.push(text(this, W / 2, H / 2 - 230, inPreview() ? 'Settings (PREVIEW)' : 'Settings', 44, '#ffd166').setDepth(52));
     const gfxLabel = () => `Graphics: ${s.graphics === 'fast' ? 'FAST' : 'BEST'}`;
     const gfx = button(this, W / 2, H / 2 - 150, 420, 76, gfxLabel(), () => {
       s.graphics = s.graphics === 'fast' ? 'best' : 'fast';
@@ -194,18 +246,73 @@ export class GarageScene extends Phaser.Scene {
       close();
       this.parentView();
     }, { fill: 0x3d4458 }).setDepth(52));
-    let armed = false;
-    const reset = button(this, W / 2, H / 2 + 120, 420, 76, 'Start over', () => {
-      if (!armed) {
-        armed = true;
-        reset.label.setText('Tap again to erase everything');
-        return;
-      }
-      resetSave();
-      this.scene.start('Title');
-    }, { fill: 0x8d1b2e, size: 26 });
-    items.push(reset.setDepth(52));
+    if (inPreview()) {
+      // Previewing on a copy: tools to skip ahead, and the way back.
+      items.push(button(this, W / 2 - 110, H / 2 + 120, 200, 76, '+50 scrap', () => {
+        s.scrap += 50;
+        persist();
+        this.scene.restart();
+      }, { fill: 0x3d4458, size: 24 }).setDepth(52));
+      items.push(button(this, W / 2 + 110, H / 2 + 120, 200, 76, 'Skip mission', () => {
+        this.skipMission();
+        this.scene.restart();
+      }, { fill: 0x3d4458, size: 24 }).setDepth(52));
+      items.push(button(this, W / 2, H / 2 + 210, 420, 76, 'End preview (his save)', () => {
+        endPreview();
+        updatePreviewBanner();
+        this.scene.start('Title');
+      }, { fill: 0xc1121f, edge: 0xffb3b3, size: 26 }).setDepth(52));
+    } else {
+      items.push(button(this, W / 2, H / 2 + 120, 420, 76, 'Grown-ups: preview ahead', () => {
+        close();
+        this.previewAsk();
+      }, { fill: 0x3d4458, size: 26 }).setDepth(52));
+      let armed = false;
+      const reset = button(this, W / 2, H / 2 + 210, 420, 76, 'Start over', () => {
+        if (!armed) {
+          armed = true;
+          reset.label.setText('Tap again to erase everything');
+          return;
+        }
+        resetSave();
+        this.scene.start('Title');
+      }, { fill: 0x8d1b2e, size: 26 });
+      items.push(reset.setDepth(52));
+    }
     items.push(button(this, W / 2 + 260, H / 2 - 240, 64, 64, '✕', close, { fill: 0x3d4458 }).setDepth(53));
+  }
+
+  /** Explain preview mode before starting it. */
+  private previewAsk() {
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const close = () => items.forEach((o) => o.destroy());
+    items.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.7).setInteractive().setDepth(50));
+    items.push(panel(this, W / 2, H / 2, 860, 440).setDepth(51));
+    items.push(text(this, W / 2, H / 2 - 160, 'Preview ahead (grown-ups)', 38, '#ffd166').setDepth(52));
+    items.push(this.add.text(W / 2, H / 2 - 50, [
+      'Play on a copy of his game to see what is coming.',
+      'Nothing you do in the preview touches his save.',
+      'Settings will have +50 scrap and Skip mission to jump ahead.',
+      'When you are done, tap End preview in Settings.',
+    ].join('\n'), { fontFamily: FONT, fontSize: '22px', color: COLORS.text, align: 'center', lineSpacing: 8 }).setOrigin(0.5).setDepth(52));
+    items.push(button(this, W / 2 - 160, H / 2 + 140, 280, 76, 'Start preview', () => {
+      startPreview();
+      updatePreviewBanner();
+      this.scene.restart();
+    }, { fill: 0x2a9d8f, edge: 0x9ff0e3, size: 26 }).setDepth(52));
+    items.push(button(this, W / 2 + 160, H / 2 + 140, 240, 76, 'Cancel', close, { fill: 0x3d4458, size: 26 }).setDepth(52));
+  }
+
+  /** Preview only: count the next mission as beaten, with a bit of scrap for it. */
+  private skipMission() {
+    const s = save();
+    const m = MISSIONS.find((x) => !s.levelsDone.includes(x.id));
+    if (!m) return;
+    s.levelsDone.push(m.id);
+    s.scrap += 15;
+    onMissionCleared(m.id, s);
+    if (m.bot === 'jet') setActiveBot('jet', s);
+    persist();
   }
 
   private parentView() {
@@ -214,9 +321,9 @@ export class GarageScene extends Phaser.Scene {
     items.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setInteractive().setDepth(50));
     items.push(panel(this, W / 2, H / 2, 1100, 640).setDepth(51));
     items.push(text(this, W / 2, 70, 'Progress (for grown-ups)', 36, '#ffd166').setDepth(52));
-    const gears = (Object.keys(s.gear) as GearId[])
-      .map((g) => `${GEAR_INFO[g].title}: Mark ${s.gear[g]} of 3`)
-      .join('     ');
+    const bots: BotId[] = jetUnlocked(s) ? ['bolt', 'jet'] : ['bolt'];
+    const gears = bots.map((b) => `${botName(b, s)}: ${(Object.keys(s.gear) as GearId[])
+      .map((g) => `${gearInfo(b)[g].title} ${botData(b, s).gear[g]}/3`).join(', ')}`).join('     ');
     items.push(text(this, W / 2, 115, gears, 22, '#9ad1ff').setDepth(52));
     // The hidden help each unbeaten level is set to (never shown to the kid).
     // The next arcade mission: hard until he builds an upgrade, then quietly easier.

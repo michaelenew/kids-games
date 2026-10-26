@@ -1,16 +1,19 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
 import { onUpgradeBuilt, upgradeRequired } from '../assist';
-import { REGIONS, REGION_NAMES, type Region, armorMark, lookFromSave, plateTarget, repairsNeeded } from '../armor';
+import { REGIONS, type Region, armorMark, lookFromSave, plateTarget, regionName, repairsNeeded } from '../armor';
 import { music, sfx } from '../audio';
 import { type PlaceCounts, type SpecFormat, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
-import { BUILD_COST, bumpGuide, egyptUnlocked, guideCount, persist, recordSkill, save } from '../state';
+import {
+  BUILD_COST, JET_COLOR, actionDone, activeBot, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, persist, recordSkill, rig, save,
+} from '../state';
+import { Jet } from '../three/jet';
+import { launchMission } from './launch';
 import { RAMP, rampProblem } from '../skills/steps';
 import { countUpPanel } from '../ui/countup';
 import { placeValueCards } from '../skills/concepts';
 import { howTo, needsIntro } from '../ui/howto';
 import { type PatchPiece, PlatePatch } from '../three/patch';
-import { missionById } from '../three/missions';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
@@ -40,10 +43,6 @@ const HOLE = 0x0b0d14;
 const PIECE_SIZE: [number, number][] = [[61, 61], [50, 50], [10, 50], [10, 10]];
 const ROMAN = ['', 'I', 'II', 'III'];
 
-/** Rough size of each plate on the robot (robot units), for fitting the repair view. */
-const PLATE_SIZE: Record<Region, [number, number]> = {
-  chest: [0.9, 0.7], armL: [0.4, 0.55], armR: [0.4, 0.55], legL: [0.4, 0.6], legR: [0.4, 0.6],
-};
 
 /** Where things sit on screen. */
 const TRAY_TOP = 330;
@@ -82,6 +81,8 @@ export class ArmorForge extends Phaser.Scene {
   private camHome: THREE.Vector3 | null = null;
   private camTarget: THREE.Vector3 | null = null;
   private busy = false;
+  /** A count-up warm-up has been done this visit. */
+  private warmedUp = false;
   private pips: Phaser.GameObjects.Arc[] = [];
   /** Pieces used up by a finished job, cleared when the next one starts. */
   private spent: Phaser.GameObjects.Image[] = [];
@@ -94,9 +95,10 @@ export class ArmorForge extends Phaser.Scene {
     this.mode = data.mode ?? 'build';
     this.then = data.then;
     const s = save();
-    this.mark = data.mark ?? (Math.min(3, Math.max(1, s.gear.armor + 1)) as 1 | 2 | 3);
+    this.mark = data.mark ?? (Math.min(3, Math.max(1, rig(s).gear.armor + 1)) as 1 | 2 | 3);
     this.jobIndex = 0;
     this.busy = false;
+    this.warmedUp = false;
     this.trayPieces = [[], [], [], []];
     this.pips = [];
     this.spent = [];
@@ -115,8 +117,10 @@ export class ArmorForge extends Phaser.Scene {
     this.show = new Showcase(getStage(this.game.canvas), [
       { look: lookFromSave(s), x: 285, y: 650, height: 480, spin: 0, yaw: 0.35 },
     ]);
-    // Repairs zoom in on the front of the robot, so face the camera.
+    // Repairs zoom in on the front of the robot, so face the camera
+    // (the jet stands up on its tail, top toward you).
     this.robot.spin = this.mode === 'repair' ? 0 : 0.35;
+    if (this.robot instanceof Jet) this.robot.present = this.mode === 'repair';
 
     // Drag across the robot to turn it.
     const zone = this.add.zone(285, 400, 480, 560).setInteractive();
@@ -132,7 +136,7 @@ export class ArmorForge extends Phaser.Scene {
 
     if (this.mode === 'build') {
       // Plates already built at this mark (e.g. before leaving the forge) are skipped.
-      const todo = REGIONS.filter((r) => (s.armor?.[r]?.mark ?? 0) < this.mark);
+      const todo = REGIONS.filter((r) => (rig(s).armor?.[r]?.mark ?? 0) < this.mark);
       this.jobs = todo.map((region) => {
         const i = REGIONS.indexOf(region);
         const target = plateTarget(Math.random, this.mark, region);
@@ -140,26 +144,29 @@ export class ArmorForge extends Phaser.Scene {
         return { region, target, spec: specText(target, format), format, misses: 0 };
       });
       this.places = this.mark === 3 ? [0, 1, 2, 3] : [1, 2, 3];
-      text(this, (LEFT + RIGHT) / 2, 46, `ARMOR FORGE · MARK ${ROMAN[this.mark]}`, 40, '#ffd166').setStroke('#000000', 8);
+      const who = activeBot() === 'jet' ? `${botName('jet')} ` : '';
+      text(this, (LEFT + RIGHT) / 2, 46, `${who}ARMOR FORGE · MARK ${ROMAN[this.mark]}`, 40, '#ffd166').setStroke('#000000', 8);
       if (!this.jobs.length) {
         this.allDone();
         return;
       }
     } else {
-      this.jobs = repairsNeeded(s.armor ?? {}).map(({ region, missing }) => ({ region, target: missing, spec: formatNumber(missing), format: 'digits' as SpecFormat, misses: 0 }));
+      this.jobs = repairsNeeded(rig(s).armor ?? {}).map(({ region, missing }) => ({ region, target: missing, spec: formatNumber(missing), format: 'digits' as SpecFormat, misses: 0 }));
       this.places = [1, 2, 3];
-      text(this, (LEFT + RIGHT) / 2, 46, 'REPAIR BAY', 44, '#ffd166').setStroke('#000000', 8);
+      text(this, (LEFT + RIGHT) / 2, 46, activeBot() === 'jet' ? `${botName('jet')} REPAIR BAY` : 'REPAIR BAY', 44, '#ffd166').setStroke('#000000', 8);
       if (!this.jobs.length) {
         this.allDone();
         return;
       }
+      // Repairs count toward the math between missions (see `pace` in state.ts).
+      mathDone('repair', s);
     }
 
     // A pip per job along the top.
     this.jobs.forEach((j, i) => {
       const x = (LEFT + RIGHT) / 2 + (i - (this.jobs.length - 1) / 2) * 120;
       this.pips.push(this.add.circle(x - 46, 92, 9, 0x3d4458).setStrokeStyle(2, 0xffffff, 0.6));
-      text(this, x + 6, 92, REGION_NAMES[j.region].replace(' plate', ''), 15, '#9ad1ff').setOrigin(0.5);
+      text(this, x + 6, 92, regionName(j.region, activeBot()).replace(' plate', ''), 15, '#9ad1ff').setOrigin(0.5);
     });
 
     this.layer = this.add.container(0, 0);
@@ -272,7 +279,7 @@ export class ArmorForge extends Phaser.Scene {
       card.lineStyle(3, 0x9ad1ff, 0.8).strokeRoundedRect(LEFT, 115, RIGHT - LEFT, 190, 16);
       card.lineStyle(1, 0x9ad1ff, 0.15);
       for (let y = 130; y < 300; y += 18) card.lineBetween(LEFT + 10, y, RIGHT - 10, y);
-      const title = text(this, cx, 145, `BLUEPRINT: ${REGION_NAMES[j.region].toUpperCase()}`, 24, '#9ad1ff');
+      const title = text(this, cx, 145, `BLUEPRINT: ${regionName(j.region, activeBot()).toUpperCase()}`, 24, '#9ad1ff');
       const small = j.spec.length > 12;
       const spec = text(this, cx, 225, j.spec, small ? 34 : 86, '#ffffff', { wordWrap: { width: RIGHT - LEFT - 40 } }).setStroke('#0b1a33', 6);
       const label = text(this, cx, 288, 'armor points', 18, '#9ad1ff');
@@ -308,7 +315,7 @@ export class ArmorForge extends Phaser.Scene {
    * number line until he has done numbers that size on his own.
    */
   private countUpFlow() {
-    const plate = save().armor![this.job.region]!;
+    const plate = rig().armor![this.job.region]!;
     const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
     const stage = guideCount('ramp');
     const real = () => {
@@ -328,10 +335,12 @@ export class ArmorForge extends Phaser.Scene {
       });
     };
     this.busy = true;
-    if (stage >= RAMP.length) {
+    // One warm-up per visit at most, so a two-plate repair isn't four problems in a row.
+    if (stage >= RAMP.length || this.warmedUp) {
       real();
       return;
     }
+    this.warmedUp = true;
     const step = RAMP[stage];
     const p = rampProblem(Math.random, step.digits);
     countUpPanel(this, {
@@ -353,7 +362,7 @@ export class ArmorForge extends Phaser.Scene {
   private drawPlateWithHoles() {
     const s = save();
     const j = this.job;
-    const plate = s.armor![j.region]!;
+    const plate = rig(s).armor![j.region]!;
     const have = toCounts(plate.hp);
     const miss = toCounts(j.target);
     // Repairs never need thousands; fold them into hundreds for drawing.
@@ -362,7 +371,7 @@ export class ArmorForge extends Phaser.Scene {
     const card = this.add.graphics();
     card.fillStyle(0x24283b, 0.96).fillRoundedRect(LEFT, 112, RIGHT - LEFT, 190, 16);
     card.lineStyle(3, 0xff9f1c, 0.9).strokeRoundedRect(LEFT, 112, RIGHT - LEFT, 190, 16);
-    const title = text(this, cx, 140, `REPAIR: ${REGION_NAMES[j.region].toUpperCase()}`, 24, '#ffd166');
+    const title = text(this, cx, 140, `REPAIR: ${regionName(j.region, activeBot()).toUpperCase()}`, 24, '#ffd166');
     this.subtracting = egyptUnlocked();
     if (this.subtracting) {
       // Real subtraction (from Egypt on): he sees the full plate and what's left, not the answer.
@@ -381,9 +390,9 @@ export class ArmorForge extends Phaser.Scene {
 
     // The plate on the robot, with its holes.
     const sc = this.robot.holder.scale.x;
-    const [pw, ph] = PLATE_SIZE[j.region];
+    const [pw, ph] = this.robot.plateSize(j.region);
     this.patch?.group.removeFromParent();
-    this.patch = new PlatePatch([have[1], have[2], have[3]], [miss[1], miss[2], miss[3]], s.color, pw * sc, ph * sc);
+    this.patch = new PlatePatch([have[1], have[2], have[3]], [miss[1], miss[2], miss[3]], activeBot(s) === 'jet' ? JET_COLOR : s.color, pw * sc, ph * sc);
     if (this.subtracting) this.patch.coverHoles();
     getStage().content.add(this.patch.group);
     this.placePatch();
@@ -604,8 +613,9 @@ export class ArmorForge extends Phaser.Scene {
           this.tweens.add({ targets: t, y: at.y - 120, alpha: 0, delay: 900, duration: 500, onComplete: () => t.destroy() });
           // Save as we go so a closed tab keeps finished plates.
           const s = save();
-          s.armor ??= {};
-          s.armor[j.region] = { mark: this.mark, max: j.target, hp: j.target };
+          const d = rig(s);
+          d.armor ??= {};
+          d.armor[j.region] = { mark: this.mark, max: j.target, hp: j.target };
           persist();
           this.time.delayedCall(1200, () => this.nextJob());
         });
@@ -730,7 +740,7 @@ export class ArmorForge extends Phaser.Scene {
         this.spent.push(...filled.map((f) => f.img), ...extras);
         this.trayPieces = [[], [], [], []];
         const s = save();
-        const plate = s.armor![j.region]!;
+        const plate = rig(s).armor![j.region]!;
         plate.hp = plate.max;
         persist();
         this.robot.setDamage(j.region, 0);
@@ -805,12 +815,16 @@ export class ArmorForge extends Phaser.Scene {
     this.pips.forEach((p) => p.setFillStyle(0x06d6a0));
     let title = 'ALL PATCHED UP!';
     if (this.mode === 'build') {
-      const before = s.gear.armor;
-      s.gear.armor = armorMark(s.armor ?? {});
+      const d = rig(s);
+      const before = d.gear.armor;
+      d.gear.armor = armorMark(d.armor ?? {});
       // Mark I is the story gift after the first mission; later marks cost scrap.
-      if (this.mark > 1 && s.gear.armor > before) s.scrap = Math.max(0, s.scrap - BUILD_COST[this.mark]);
+      if (this.mark > 1 && d.gear.armor > before) s.scrap = Math.max(0, s.scrap - BUILD_COST[this.mark]);
       persist();
-      if (s.gear.armor > before) onUpgradeBuilt();
+      if (d.gear.armor > before) {
+        onUpgradeBuilt(activeBot(s));
+        actionDone(s);
+      }
       title = `MARK ${ROMAN[this.mark]} ARMOR COMPLETE!`;
     }
     sfx.success();
@@ -821,7 +835,7 @@ export class ArmorForge extends Phaser.Scene {
     panel(this, cx, 380, RIGHT - LEFT, 380);
     const t = text(this, cx, 270, title, 44, '#06d6a0').setStroke('#000000', 7).setScale(0.3);
     this.tweens.add({ targets: t, scale: 1, duration: 300, ease: 'Back.easeOut' });
-    const total = REGIONS.reduce((n, r) => n + (s.armor?.[r]?.max ?? 0), 0);
+    const total = REGIONS.reduce((n, r) => n + (rig(s).armor?.[r]?.max ?? 0), 0);
     text(this, cx, 345, `Armor plates: ${formatNumber(total)} points`, 30, '#ffffff');
     text(this, cx, 395, 'Your robot can take way more hits now!', 24, '#9ad1ff');
     const next = this.then;
@@ -836,7 +850,7 @@ export class ArmorForge extends Phaser.Scene {
         fill: 0xf77f00, edge: 0xffd166,
       });
     } else if (next) {
-      button(this, cx - 160, 480, 290, 80, 'Back to mission!', () => this.scene.start(missionById(next).env === 'desert' ? 'Control' : 'Invasion', { missionId: next }), {
+      button(this, cx - 160, 480, 290, 80, 'Back to mission!', () => launchMission(this, next), {
         fill: 0x2a9d8f, edge: 0x9ff0e3,
       });
       button(this, cx + 160, 480, 260, 80, 'Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 });

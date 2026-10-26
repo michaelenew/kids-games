@@ -120,11 +120,13 @@ export class PlatePatch {
     const nT = have[1] + missing[1];
     const nO = have[2] + missing[2];
 
+    // The ones take one column (up to 5) or two (6 to 9), plus a gap before them.
+    const onesW = nO ? 1 + (nO > 5 ? 3 : 1) : 0;
     // Pick how many hundreds go in a row so the whole thing fits best.
     let best = { cell: 0, perRow: 1 };
     for (let perRow = 1; perRow <= Math.max(1, nH); perRow++) {
       const rows = Math.ceil(nH / perRow);
-      const lowW = nT * (1 + GAP * 0.6) + (nO ? 1 + Math.min(5, nO) * 1.2 : 0);
+      const lowW = nT * (1 + GAP * 0.6) + onesW;
       const w = Math.max(perRow * (10 + GAP), lowW, 4);
       const h = rows * (10 + GAP) + (nT || nO ? 10 + GAP : 0);
       const cell = Math.min(width / w, height / h);
@@ -134,7 +136,7 @@ export class PlatePatch {
     this.cell = c;
     const perRow = best.perRow;
     const rows = Math.ceil(nH / perRow);
-    const totalW = Math.max(perRow * (10 + GAP), nT * (1 + GAP * 0.6) + (nO ? 1 + Math.min(5, nO) * 1.2 : 0)) * c;
+    const totalW = Math.max(perRow * (10 + GAP), nT * (1 + GAP * 0.6) + onesW) * c;
     const totalH = (rows * (10 + GAP) + (nT || nO ? 10 + GAP : 0)) * c;
 
     // Backing: the plate itself, a little darker, with a rim.
@@ -166,7 +168,8 @@ export class PlatePatch {
     const lowY = y0 - rows * (10 + GAP) * c;
     for (let i = 0; i < nT; i++) add(2, i >= have[1], x0 + i * (1 + GAP * 0.6) * c, lowY);
     const onesX = x0 + nT * (1 + GAP * 0.6) * c + c;
-    for (let i = 0; i < nO; i++) add(3, i >= have[2], onesX + (i % 5) * 1.2 * c, lowY - Math.floor(i / 5) * 1.2 * c);
+    // Ones: two columns of five, with a one-square gap around each.
+    for (let i = 0; i < nO; i++) add(3, i >= have[2], onesX + Math.floor(i / 5) * 2 * c, lowY - (i % 5) * 2 * c);
   }
 
   /**

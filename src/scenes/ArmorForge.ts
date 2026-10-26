@@ -5,7 +5,8 @@ import { REGIONS, REGION_NAMES, type Region, armorMark, lookFromSave, plateTarge
 import { music, sfx } from '../audio';
 import { type PlaceCounts, type SpecFormat, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
 import { BUILD_COST, bumpGuide, egyptUnlocked, guideCount, persist, recordSkill, save } from '../state';
-import { countUp } from '../skills/steps';
+import { RAMP, rampProblem } from '../skills/steps';
+import { countUpPanel } from '../ui/countup';
 import { placeValueCards } from '../skills/concepts';
 import { howTo, needsIntro } from '../ui/howto';
 import { type PatchPiece, PlatePatch } from '../three/patch';
@@ -276,8 +277,8 @@ export class ArmorForge extends Phaser.Scene {
     this.buildTray();
     this.refresh();
     // The first few subtraction repairs walk him through counting up.
-    if (this.mode === 'repair' && this.subtracting && guideCount('subtract') < 3) {
-      this.countUpGuide();
+    if (this.mode === 'repair' && this.subtracting) {
+      this.countUpFlow();
       return;
     }
     // Every place-value idea gets a "how to" the first time it shows up, and
@@ -294,74 +295,48 @@ export class ArmorForge extends Phaser.Scene {
   }
 
   /**
-   * A walk-through for subtraction: count up from what's left to the full
-   * plate in friendly jumps, add the jumps, then build that number.
+   * Subtraction repairs, ramped up: before each repair he does the next
+   * warm-up from the count-up ramp (1 digit, then 2, 3 and 4 digits, each
+   * guided and then on his own). The repair itself is walked through on the
+   * number line until he has done numbers that size on his own.
    */
-  private countUpGuide() {
+  private countUpFlow() {
     const plate = save().armor![this.job.region]!;
-    const steps = countUp(plate.hp, plate.max);
-    const box = this.add.container(0, 0).setDepth(60);
-    const bg = this.add.graphics().fillStyle(0x10142a, 0.98).fillRoundedRect(LEFT, 318, RIGHT - LEFT, 395, 16)
-      .lineStyle(3, 0xffd166, 1).strokeRoundedRect(LEFT, 318, RIGHT - LEFT, 395, 16);
-    box.add(bg);
-    const cx = (LEFT + RIGHT) / 2;
-    const line = text(this, cx, 352, '', 24, '#ffffff', { wordWrap: { width: RIGHT - LEFT - 40 } });
-    const trail = text(this, cx, 420, '', 30, '#9ad1ff');
-    box.add([line, trail]);
-    let buttons: Phaser.GameObjects.GameObject[] = [];
-    const ask = (prompt: string, answer: number, wrong: number[], done: () => void) => {
-      buttons.forEach((b) => b.destroy());
-      buttons = [];
-      line.setText(prompt);
-      const choices = [...new Set([answer, ...wrong.filter((w) => w > 0 && w !== answer)])].slice(0, 3).sort(() => Math.random() - 0.5);
-      choices.forEach((c, i) => {
-        const b = button(this, cx + (i - (choices.length - 1) / 2) * 200, 520, 170, 80, formatNumber(c), () => {
-          if (c === answer) {
-            sfx.success();
-            done();
-          } else {
-            sfx.buzz();
-            this.tweens.add({ targets: b, x: b.x + 8, duration: 50, yoyo: true, repeat: 3 });
-            toast(this, cx, 610, 'Not quite. Count it again!', '#ff9f9f', 24);
-          }
-        }, { fill: 0x1f6feb, size: 34 });
-        b.setDepth(61);
-        buttons.push(b);
-      });
-    };
-    const path: string[] = [formatNumber(plate.hp)];
-    const gaps: number[] = [];
-    const next = (i: number) => {
-      if (i >= steps.length) {
-        const total = gaps.reduce((a, b) => a + b, 0);
-        if (gaps.length === 1) {
-          finish(total);
-          return;
-        }
-        ask(`Now add up the jumps: ${gaps.map(formatNumber).join(' + ')} = ?`, total, [total + 10, total - 10, total + 100], () => finish(total));
+    const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
+    const stage = guideCount('ramp');
+    const real = () => {
+      const digits = String(plate.max).length;
+      // Index of the "on his own" ramp step for numbers this size.
+      const soloAt = RAMP.findIndex((r) => r.digits === Math.min(4, digits) && !r.guided);
+      if (guideCount('ramp') > soloAt) {
+        this.busy = false;
         return;
       }
-      const st = steps[i];
-      ask(`From ${formatNumber(st.from)} up to ${formatNumber(st.to)}: how many is that?`, st.gap, [st.gap + 10, st.gap + 1, Math.max(1, st.gap - 10), st.gap * 10], () => {
-        gaps.push(st.gap);
-        path.push(formatNumber(st.to));
-        trail.setText(path.join(' → ') + `\n(${gaps.map((g) => '+' + formatNumber(g)).join('  ')})`);
-        next(i + 1);
+      countUpPanel(this, {
+        from: plate.hp, to: plate.max, guided: true, area, title: 'COUNT UP: MISSING POINTS',
+        onDone: () => {
+          this.busy = false;
+          toast(this, (LEFT + RIGHT) / 2, 318, `Now build ${formatNumber(plate.max - plate.hp)} with the pieces!`, '#06d6a0', 28);
+        },
       });
     };
-    const finish = (total: number) => {
-      buttons.forEach((b) => b.destroy());
-      line.setText(`Yes! ${formatNumber(plate.max)} − ${formatNumber(plate.hp)} = ${formatNumber(total)}. Now build ${formatNumber(total)} with the pieces!`);
-      const go = button(this, cx, 560, 260, 80, 'Build it!', () => {
-        bumpGuide('subtract');
-        box.destroy();
-        go.destroy();
-      }, { fill: 0x2a9d8f, edge: 0x9ff0e3, size: 32 });
-      go.setDepth(61);
-    };
-    trail.setText(path.join(' → '));
-    line.setText(`We start at ${formatNumber(plate.hp)} and count up to ${formatNumber(plate.max)}.`);
-    next(0);
+    this.busy = true;
+    if (stage >= RAMP.length) {
+      real();
+      return;
+    }
+    const step = RAMP[stage];
+    const p = rampProblem(Math.random, step.digits);
+    countUpPanel(this, {
+      from: p.from, to: p.to, guided: step.guided, area,
+      title: `WARM-UP: COUNT UP (${step.digits === 1 ? '1 digit' : `${step.digits} digits`})`,
+      onDone: (solo) => {
+        // The "on your own" steps only count when he managed without the walk-through.
+        if (step.guided || solo) bumpGuide('ramp');
+        recordSkill('countup', solo);
+        real();
+      },
+    });
   }
 
   /**
@@ -387,8 +362,7 @@ export class ArmorForge extends Phaser.Scene {
       const full = text(this, cx - 150, 192, `FULL PLATE\n${formatNumber(plate.max)}`, 30, '#9ad1ff');
       const left = text(this, cx + 150, 192, `LEFT NOW\n${formatNumber(plate.hp)}`, 30, '#ff9f9f');
       const minus = text(this, cx, 196, '−', 48, '#ffffff');
-      const n = guideCount('subtract');
-      const tip = n < 3 ? 'Let\'s count up together!' : n < 6 ? 'Tip: count up from what\'s left to the full plate.' : 'How many points are missing? Build them!';
+      const tip = guideCount('ramp') < RAMP.length ? 'Count up from what\'s left to the full plate!' : 'How many points are missing? Build them!';
       const ask = text(this, cx, 270, tip, 24, '#ffffff');
       this.layer.add([card, title, full, left, minus, ask]);
     } else {
@@ -473,7 +447,7 @@ export class ArmorForge extends Phaser.Scene {
 
   /** Pieces are drawn bigger in the tray so they're easy to see and tap. */
   private trayScale(place: number) {
-    return [1, 1.3, 1.3, 2][place];
+    return [1, 1.3, 1.3, 1.4][place];
   }
 
   /** Screen spot for the i-th piece in a tray column. */
@@ -488,7 +462,8 @@ export class ArmorForge extends Phaser.Scene {
       case 2:
         return { x: x - 64 + i * 16, y: TRAY_BASE - 62 };
       default:
-        return { x: x - 32 + (i % 3) * 32, y: TRAY_BASE - 30 - Math.floor(i / 3) * 30 };
+        // Rivets: two columns of five, with a rivet-sized gap around each one.
+        return { x: x - 14 + Math.floor(i / 5) * 28, y: TRAY_BASE - 12 - (i % 5) * 28 };
     }
   }
 
@@ -542,7 +517,7 @@ export class ArmorForge extends Phaser.Scene {
     }
     const want = toCounts(this.job.target);
     const names = ['thousands', 'hundreds', 'tens', 'ones'];
-    const parts = this.places.filter((p) => want[p] > 0).map((p) => `${want[p]} ${names[p]}`).join(', ');
+    const parts = this.places.filter((p) => want[p] > 0).map((p) => `${want[p]} ${want[p] === 1 ? names[p].slice(0, -1) : names[p]}`).join(', ');
     const off = this.places.find((p) => this.counts[p] !== want[p]);
     if (off === undefined) {
       this.guideLine.setText(`That's ${parts}. Press ${this.mode === 'build' ? 'FORGE PLATE' : 'REPAIR'}!`);
@@ -738,8 +713,6 @@ export class ArmorForge extends Phaser.Scene {
       if (right) {
         recordSkill(this.subtracting ? 'subtract' : 'repair', j.misses === 0);
         if (this.pieceGuide === 'fill') bumpGuide('fill');
-        // After the walk-throughs, each solo repair moves the help along.
-        if (this.subtracting && guideCount('subtract') >= 3) bumpGuide('subtract');
         sfx.success();
         sfx.clang(1.1);
         this.cameras.main.shake(180, 0.008);

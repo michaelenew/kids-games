@@ -14,7 +14,7 @@ See [GAME_DESIGN.md](GAME_DESIGN.md) for the full plan and the syllabus mapping.
   - Boots: making a number from two cells, adding and taking away in a chain, and quick facts (the timer waits while he reads).
 - **Walk-throughs.** Every kind of problem starts with a step-by-step guide, and the help fades:
   - Adding (two 2-digit numbers): the first 3 times, a full walk-through with carry boxes and answer boxes ("Add 8 and 7. Yes, 15! The 5 goes here, the 1 carries up..."). The next 3, he fills the boxes himself with a short nudge. After that, no help.
-  - Subtraction repairs: the first 3 count up in friendly jumps (383 → 390 → 400 → 600, then add the jumps). The next 3 show a "count up" tip. Then none.
+  - Subtraction repairs: a count-up ramp. Before each repair he does one short warm-up on a number line, in this order: 1 digit (6 up to 10) guided, 2 digits guided, 2 digits on his own, then 3 digits and 4 digits the same way. Guided means each jump is explained ("count on by ONES from 21 to 30: 22, 23... How much is that jump?", then tens, hundreds, thousands, then add the jumps). On his own, a miss shows the first jump and a second miss switches to guided. Real repairs are walked through on the number line until he has done that size of number on his own.
   - Clock questions: the first 2 of each kind are broken into small steps (which hour, then count the minutes by 5s; or count to the next hour, then the rest).
   - Money: the first 2 trader visits suggest the biggest coin that still fits, and that coin pulses. The next 2 show a tip and the running total.
   - Graphs: the first one explains how to read a bar before asking.

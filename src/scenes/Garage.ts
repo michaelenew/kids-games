@@ -26,6 +26,7 @@ const SKILL_LABELS: Record<string, string> = {
   'boots-3': 'Fast facts within 20 (timed)',
   repair: 'Repairs (early): build an exact amount from hundreds, tens, ones',
   subtract: 'Repairs (Egypt on): 3-digit subtraction by counting up',
+  countup: 'Count-up warm-ups: 1 to 4 digits',
   time: 'Mission control: telling time, minutes until, days of the week',
   money: 'Junk trader: pay exact amounts with coins (up to $2)',
   addition: 'Mission report: add the biggest hits (2-digit, three at a time)',

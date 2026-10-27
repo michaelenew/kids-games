@@ -74,8 +74,8 @@ describe('TITAN and the Grand Canyon', () => {
   });
 });
 
-describe('armor blocks in rows (multiplying)', () => {
-  it('Mark I armor uses the easy facts and few rows', () => {
+describe('brick walls (multiplying)', () => {
+  it('Mark I walls use the easy facts and short walls', () => {
     const r = rng(3);
     for (let n = 0; n < 40; n++) {
       REGIONS.forEach((region, i) => {
@@ -87,7 +87,7 @@ describe('armor blocks in rows (multiplying)', () => {
     }
   });
 
-  it('later marks get bigger armor', () => {
+  it('later marks get bigger walls', () => {
     const r = rng(5);
     const total = (mark: 1 | 2 | 3) => REGIONS.reduce((n, region, i) => {
       const w = wallTarget(r, mark, region, i);
@@ -111,7 +111,7 @@ describe('armor blocks in rows (multiplying)', () => {
     }
   });
 
-  it('a mission knocks off whole armor blocks', () => {
+  it('a mission leaves walls missing whole bricks', () => {
     const s = freshSave();
     const t = botData('titan', s);
     t.armor = { chest: { mark: 1, max: 2000, hp: 2000, rows: 4, cols: 5 } };
@@ -123,7 +123,7 @@ describe('armor blocks in rows (multiplying)', () => {
     expect(lost % 5).toBe(0);
   });
 
-  it('armor repairs move on to loose blocks after two', () => {
+  it('wall repairs move on to loose bricks after two', () => {
     const s = freshSave();
     expect(wallStage(s)).toBe(0);
     s.guide = { 'wall-fix': 2 };

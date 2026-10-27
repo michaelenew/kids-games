@@ -31,13 +31,13 @@ export const JET_REGION_NAMES: Record<Region, string> = {
   legR: 'Right tail plate',
 };
 
-/** TITAN's plates are rows of armor blocks. */
+/** TITAN's plates are brick walls. */
 export const TITAN_REGION_NAMES: Record<Region, string> = {
-  chest: 'Chest armor',
-  armL: 'Left arm armor',
-  armR: 'Right arm armor',
-  legL: 'Left leg armor',
-  legR: 'Right leg armor',
+  chest: 'Chest wall',
+  armL: 'Left arm wall',
+  armR: 'Right arm wall',
+  legL: 'Left leg wall',
+  legR: 'Right leg wall',
 };
 
 export function regionName(r: Region, bot: BotId): string {
@@ -48,12 +48,12 @@ export interface Plate {
   mark: Mark;
   max: number;
   hp: number;
-  /** TITAN's armor: rows of armor blocks, each block worth BRICK points. */
+  /** TITAN's brick walls: rows of bricks, each brick worth BRICK points. */
   rows?: number;
   cols?: number;
 }
 
-/** Armor points per block in TITAN's armor. */
+/** Armor points per brick in TITAN's walls. */
 export const BRICK = 100;
 
 export type ArmorState = Partial<Record<Region, Plate>>;
@@ -180,7 +180,7 @@ export class MissionArmor {
       const cap = Math.round(p.max * (0.4 + rng() * 0.45));
       missing = Math.min(missing, cap);
       if (p.rows && p.cols) {
-        // Armor blocks come off in whole rows (and later a few loose blocks).
+        // A brick wall loses whole rows (and later a few extra bricks).
         p.hp = p.max - wallDamage(p.rows, p.cols, missing, wallStage, rng) * BRICK;
         continue;
       }
@@ -226,8 +226,8 @@ export function shapeHp(max: number, hp: number, stage: 0 | 1): number {
 
 
 /**
- * Armor blocks blasted off, from the points lost: whole rows first
- * (stage 0: "2 rows of 5"), then whole rows plus a few loose blocks
+ * Bricks knocked out of a wall, from the points lost: whole rows first
+ * (stage 0: "2 rows of 5"), then whole rows plus a few loose bricks
  * (stage 1: "2 rows of 5, and 3 more"). At least one row always stays.
  */
 export function wallDamage(rows: number, cols: number, lostPoints: number, stage: 0 | 1, rng: Rng = Math.random): number {
@@ -238,9 +238,9 @@ export function wallDamage(rows: number, cols: number, lostPoints: number, stage
 }
 
 /**
- * An armor blueprint for a new mark: rows × blocks per row. Mark I uses the
- * easiest facts (2s, 5s and 10s, few rows); Mark II adds 3s and 4s;
- * Mark III gets more rows.
+ * A wall blueprint for a new mark: rows × bricks per row. Mark I uses the
+ * easiest facts (2s, 5s and 10s, short walls); Mark II adds 3s and 4s;
+ * Mark III gets taller.
  */
 export function wallTarget(rng: Rng, mark: 1 | 2 | 3, region: Region, index: number): { rows: number; cols: number } {
   const big = region === 'chest';
@@ -256,7 +256,7 @@ export function wallTarget(rng: Rng, mark: 1 | 2 | 3, region: Region, index: num
   return { rows: cols === 10 ? randInt(rng, 3, 4) : big ? randInt(rng, 6, 7) : randInt(rng, 4, 6), cols };
 }
 
-/** Where a robot's armor is built and fixed: TITAN's armor blocks have their own bay. */
+/** Where a robot's armor is built and fixed: TITAN's brick walls have their own yard. */
 export function forgeScene(bot: BotId): 'ArmorForge' | 'WallForge' {
   return bot === 'titan' ? 'WallForge' : 'ArmorForge';
 }

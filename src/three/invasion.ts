@@ -123,8 +123,8 @@ export interface InvasionEvents {
   complete(): void;
   /** The next robot took over. */
   swapped?(): void;
-  /** The jet rolled past a shot, or TITAN's boosters dashed it aside. */
-  dodged?(how: 'roll' | 'dash'): void;
+  /** The jet rolled past a shot, or TITAN swatted one away. */
+  dodged?(how: 'roll' | 'swat'): void;
 }
 
 export interface InvasionOptions {
@@ -135,7 +135,7 @@ export interface InvasionOptions {
   swapDodge?: number;
   enemyHp: number;
   fireDelay: number;
-  /** Chance the jet rolls past an incoming shot (its afterburners), or TITAN dashes aside (its rocket boosters). */
+  /** Chance the jet rolls past an incoming shot (its afterburners), or TITAN swats it (its treads). */
   dodge?: number;
 }
 
@@ -948,13 +948,17 @@ export class Invasion {
       }
       const titan = this.robot instanceof Titan ? this.robot : null;
       if (titan && !b.dodgeChecked && b.obj.position.distanceTo(cam) < 5) {
-        // The boosters' upgrade: a rocket dash sideways, and the shot sails on past.
+        // The treads' upgrade: the digger arm swats some shots out of the air.
         b.dodgeChecked = true;
-        if (titan.evading || Math.random() < Math.min(0.75, this.opts.dodge ?? 0)) {
-          b.dodged = true;
+        if (Math.random() < Math.min(0.75, this.opts.dodge ?? 0)) {
           titan.evade();
-          sfx.whoosh();
-          this.events.dodged?.('dash');
+          this.fx.flash(b.obj.position, 0xffb347, 1.6, 0.12);
+          this.fx.spark(b.obj.position, 0xffd166, 10, 3);
+          sfx.clang(0.9);
+          b.life = 0;
+          b.obj.removeFromParent();
+          this.events.dodged?.('swat');
+          continue;
         }
       }
       if (b.dodged && b.obj.position.distanceTo(cam) < 3) {

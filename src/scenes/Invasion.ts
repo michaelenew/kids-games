@@ -3,7 +3,7 @@ import { type Tuning, botForMission, cheapestUpgrade, missionStart, tuning, onMi
 import { MissionArmor, REGIONS, type Region, forgeScene, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import {
-  type BotId, GADGETS, JET_DODGE, TITAN_DODGE, actionDone, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
+  type BotId, GADGETS, JET_DODGE, TITAN_BLOCK, actionDone, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
   wallStage, wantsRecap, writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
@@ -83,8 +83,8 @@ export class InvasionScene extends Phaser.Scene {
     const hasSwap = isHandOver(this.mission.id);
     const ender = missionBot(this.mission.id);
     this.bot = startBot(this.mission.id);
-    // Each robot's own way of beating shots: the jet rolls past them, TITAN's boosters dash it aside.
-    const dodgeOf = (b: BotId) => (b === 'jet' ? JET_DODGE : b === 'titan' ? TITAN_DODGE : [0, 0, 0, 0])[botData(b, s).gear.boots];
+    // Each robot's own way of beating shots: the jet rolls past them, TITAN swats them.
+    const dodgeOf = (b: BotId) => (b === 'jet' ? JET_DODGE : b === 'titan' ? TITAN_BLOCK : [0, 0, 0, 0])[botData(b, s).gear.boots];
     // The Energy Armor gadget: a big force field on top of the plates, this mission only.
     if (missionBot(this.mission.id) === 'jet' && s.gadget === 'shield') this.shieldBonus += 1500;
     this.useArmor(this.bot);
@@ -124,10 +124,10 @@ export class InvasionScene extends Phaser.Scene {
         // The new robot does the rest with its own armor.
         this.bot = ender;
         this.useArmor(ender);
-        this.banner(`${botName(ender)}!`, ender === 'titan' ? '#9dff6a' : '#ffd60a');
+        this.banner(`${botName(ender)}!`, ender === 'titan' ? '#ffb347' : '#ffd60a');
       },
       dodged: (how) => {
-        const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, 'DODGE!', 40, how === 'dash' ? '#9dff6a' : '#ffd60a').setStroke('#000000', 6).setDepth(25);
+        const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, how === 'swat' ? 'SWAT!' : 'DODGE!', 40, how === 'swat' ? '#ffb347' : '#ffd60a').setStroke('#000000', 6).setDepth(25);
         this.tweens.add({ targets: t, y: 320, alpha: 0, duration: 800, onComplete: () => t.destroy() });
       },
     });
@@ -446,7 +446,7 @@ export class InvasionScene extends Phaser.Scene {
     // The forge works on whoever flew the mission.
     setActiveBot(this.bot, s);
     const forge = forgeScene(this.bot);
-    if (!built) return { key: forge, data: { mode: 'build', mark: 1 }, label: 'Build armor!' };
+    if (!built) return { key: forge, data: { mode: 'build', mark: 1 }, label: this.bot === 'titan' ? 'Build walls!' : 'Build armor!' };
     if (repairsNeeded(d.armor ?? {}).length) return { key: forge, data: { mode: 'repair' }, label: 'Repair bay' };
     return { key: 'Garage', label: 'Back to Garage' };
   }
@@ -529,9 +529,9 @@ export class InvasionScene extends Phaser.Scene {
         ], after);
       } else if (this.mission.id === 'cyn-drop' && firstWin) {
         dialog(this, [
-          { who: 'volt', text: 'TITAN! Our tank robot made it to the canyon!' },
-          { who: 'sprocket', text: 'TITAN does the canyon missions now. It\'s slow, but its cannon hits like thunder.' },
-          { who: 'sprocket', text: 'Tanks wear armor blocks, in rows. Let\'s go build TITAN its first armor, row by row!' },
+          { who: 'volt', text: 'TITAN! Our construction robot made it to the canyon!' },
+          { who: 'sprocket', text: 'TITAN does the canyon missions now. It\'s slow, but it hits like a wrecking ball.' },
+          { who: 'sprocket', text: 'Its armor is brick walls. Let\'s go build TITAN its first walls, row by row!' },
         ], after);
       } else if (this.mission.id === 'cyn-core' && firstWin) {
         dialog(this, [
@@ -539,7 +539,7 @@ export class InvasionScene extends Phaser.Scene {
           { who: 'volt', text: 'BOLT, STRIKER and TITAN... you saved the whole planet. Best. Team. Ever.' },
         ], after);
       } else if (next.key === 'WallForge') {
-        dialog(this, [{ who: 'sprocket', text: 'TITAN lost some armor blocks. Let\'s bolt them back on, row by row!' }], after);
+        dialog(this, [{ who: 'sprocket', text: 'TITAN\'s walls lost some bricks. Let\'s rebuild them, row by row!' }], after);
       } else if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {
         dialog(this, [
           { who: 'sprocket', text: 'You did it! But look at you... a bare frame. Those hits went right through!' },

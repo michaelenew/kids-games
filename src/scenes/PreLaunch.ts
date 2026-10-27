@@ -61,7 +61,7 @@ export class PreLaunchScene extends Phaser.Scene {
 
     const a = alerts(s);
     const focus = a.next === 'focus';
-    // In the canyon the focus is multiplying (once he has built a couple of rows-of-blocks armor panels).
+    // In the canyon the focus is multiplying (once he has built a couple of walls).
     const crates = focus && titanUnlocked(s) && guideCount('wall') >= 2;
     const item = crates ? 'Supply crates' : focus ? 'Fuel' : '';
     const check = focus ? null : practiceCheck(Math.random, bot === 'jet' ? 'jet' : 'bolt', guideCount('prelaunch'));

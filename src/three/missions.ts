@@ -452,7 +452,7 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'HIVE TREE WALKER!' },
     ],
   },
-  // ---- The Grand Canyon: TITAN, the tank robot, takes over -------------------------
+  // ---- The Grand Canyon: TITAN, the construction robot, takes over -----------------
   {
     id: 'cyn-drop',
     // Meant to be easy: STRIKER flies in, then TITAN drops in and takes over on the ground.
@@ -474,13 +474,13 @@ export const MISSIONS: Mission[] = [
       {
         kind: 'say', lines: [
           { who: 'volt', text: 'Their walkers are dug into the rock down there. Lasers just bounce off!' },
-          { who: 'sprocket', text: 'Then we need something HEAVY. I built one more robot... a TANK! TITAN, DROP!' },
+          { who: 'sprocket', text: 'Then we need something HEAVY. I built one more robot... TITAN, DROP!' },
         ],
       },
       { kind: 'swap' },
       {
         kind: 'say', lines: [
-          { who: 'sprocket', text: 'Meet TITAN, the tank robot! Slow, tough, and its cannon hits HARD. STRIKER, go refuel!' },
+          { who: 'sprocket', text: 'Meet TITAN, the construction robot! Slow, tough, and its rivet cannon hits HARD. STRIKER, go refuel!' },
         ],
       },
       { kind: 'wave', banner: 'ROCK WALKERS!', spawns: [kr(0, 'roofL'), kr(1.2, 'roofR'), sk(2.5, 'above')] },
@@ -497,7 +497,7 @@ export const MISSIONS: Mission[] = [
     env: 'canyon',
     bot: 'titan',
     title: 'Invasion 17: River Road',
-    blurb: 'Roll down the river road in tank mode!',
+    blurb: 'Bulldoze down the river road!',
     seed: 157,
     path: [[0, 0, 20], [0, 0, -20], [6, 0, -70], [-10, 0, -150], [12, 0, -240], [-8, 0, -330], [6, 0, -400], [-4, 0, -450], [0, 0, -500], [0, 0, -530]],
     plazas: [[0, 0.12], [0.85, 1]],
@@ -505,7 +505,7 @@ export const MISSIONS: Mission[] = [
       { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
       { kind: 'wave', banner: 'ROADBLOCK!', spawns: [kr(0, 'roofL'), kr(0.8, 'roofR'), sk(2, 'above'), kr(3, 'ahead')] },
       { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left')] },
-      { kind: 'say', lines: [{ who: 'volt', text: 'Raiders are coming up the river road behind you! TANK MODE, TITAN!' }] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Raiders are coming up the river road behind you! DOZER MODE, TITAN!' }] },
       { kind: 'transform', to: 'car' },
       { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1.5, 'behindL'), rd(3, 'behindR'), sk(4.5, 'above'), rd(6, 'behindL'), rd(7.5, 'behindR')] },
       { kind: 'move', to: 6, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2, 'behindL'), sk(3, 'above')] },
@@ -532,7 +532,7 @@ export const MISSIONS: Mission[] = [
       { kind: 'wave', banner: 'FROM THE BRIDGE!', spawns: [sk(0, 'above'), sk(0.5, 'above', true), kr(1.5, 'roofL'), kr(2.2, 'roofR'), sk(3.5, 'left')] },
       { kind: 'move', to: 3, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right')] },
       { kind: 'wave', banner: 'WALKER SQUAD!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), kr(1.2, 'roofR', true), sk(2.4, 'above'), kr(3.6, 'ahead')] },
-      { kind: 'say', lines: [{ who: 'volt', text: 'Raiders on your tail! Tank mode, and floor it!' }] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Raiders on your tail! Dozer mode, and floor it!' }] },
       { kind: 'transform', to: 'car' },
       { kind: 'move', to: 6, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2, 'behindR'), sk(3.5, 'above', true), rd(5, 'behindL'), rd(6, 'behindR'), rd(7.5, 'behindL')] },
       { kind: 'transform', to: 'robot' },

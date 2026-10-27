@@ -194,15 +194,15 @@ export function missionControlQuestion(rng: Rng, egyptIndex: number): TimeQuesti
 }
 
 const SUPPLIES: { box: string; boxes: string; thing: string }[] = [
-  { box: 'crate', boxes: 'crates', thing: 'armor blocks' },
-  { box: 'box', boxes: 'boxes', thing: 'tank shells' },
+  { box: 'crate', boxes: 'crates', thing: 'bricks' },
+  { box: 'box', boxes: 'boxes', thing: 'rivets' },
   { box: 'barrel', boxes: 'barrels', thing: 'bolts' },
   { box: 'pallet', boxes: 'pallets', thing: 'steel beams' },
 ];
 
 /**
  * Equal groups, as a supply drop for TITAN (the canyon's mission control):
- * "4 crates, 5 armor blocks in each: how many blocks?" The first ones use the
+ * "4 crates, 5 bricks in each: how many bricks?" The first ones use the
  * easiest facts (2s, 5s, 10s); `n` is how many he has done.
  */
 export function makeGroups(rng: Rng, n: number): TimeQuestion {

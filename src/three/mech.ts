@@ -7,7 +7,7 @@ import { type Region, Robot } from './robot';
 /**
  * What every playable robot can do, so the showroom, the forge and the
  * arcade missions work the same with BOLT (the walking robot) and STRIKER
- * (the fighter jet) and TITAN (the tank robot).
+ * (the fighter jet) and TITAN (the construction robot).
  */
 export interface Mech {
   readonly holder: THREE.Group;

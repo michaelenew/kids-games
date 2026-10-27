@@ -257,7 +257,7 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 
 - **BOLT**: his first robot, transforms into a car. Flies the city missions.
 - **STRIKER** (built): a yellow fighter jet that also transforms into a walking robot. Takes over halfway through the first Egypt mission and does Egypt and the Amazon. Same three benches, its own flashy parts, plus one-mission super gadgets from the Super Lab.
-- **TITAN** (built): an army-green tank robot that transforms into a tank. Drops in for STRIKER in the first Grand Canyon mission and does the canyon. Its armor is armor blocks bolted on in rows, which is where multiplying lives; its repairs are rows of blocks blasted off.
+- **TITAN** (built): an orange construction robot that transforms into a bulldozer. Drops in for STRIKER in the first Grand Canyon mission and does the canyon. Its armor is brick walls built in rows, which is where multiplying lives; its repairs are missing rows of bricks.
 - **Planned**: a submarine robot and a robot with invisibility powers. Each gets its own missions and an Engineering Zone tab, and may use different kinds of problems on its benches.
 
 ### Where each skill lives, by area
@@ -267,7 +267,7 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 | City (1–5) | BOLT | Place value, measuring, fact fluency | — |
 | Egypt (6–10) | STRIKER | Time, money, count-up subtraction, bar graphs, adding | City skills on the benches |
 | Amazon (11–15) | STRIKER | Written subtraction, picture graphs, estimating | Time, money, adding; patrol alerts with BOLT |
-| Grand Canyon (16–20) | TITAN (tank) | Multiplying: armor blocks in rows, supply drops (equal groups) | Every report kind in turn, time, money; alerts with BOLT and STRIKER |
+| Grand Canyon (16–20) | TITAN | Multiplying: walls in rows, supply drops (equal groups) | Every report kind in turn, time, money; alerts with BOLT and STRIKER |
 
 ---
 

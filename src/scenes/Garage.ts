@@ -2,13 +2,13 @@ import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
 import { LEVELS } from '../levels';
 import {
-  BLASTER_DAMAGE, BUILD_COST, type BotId, type GearId, JET_DAMAGE, JET_DODGE, TITAN_BLOCK, TITAN_DAMAGE, activeBot, botData, botName,
-  botsUnlocked, endPreview, gearInfo, alerts, hasSeen, inPreview, jetUnlocked, markSeen, persist, resetSave, save, setActiveBot,
-  startPreview, titanUnlocked,
+  BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName,
+  botsUnlocked, endPreview, gearInfo, alerts, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
+  startPreview,
 } from '../state';
-import { REGIONS, forgeScene, lookFromSave, repairsNeeded, totalHp, totalMax } from '../armor';
-import { MISSIONS, alertMission, missionById, startBot } from '../three/missions';
-import { launchMission } from './launch';
+import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
+import { MISSIONS, alertMission, isPick, missionById, startBot } from '../three/missions';
+import { launchMission, needsFirstArmor, needsRepairs, readyThenGo } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
 import { onMissionCleared } from '../assist';
 import { Showcase } from '../three/showcase';
@@ -37,9 +37,9 @@ const SKILL_LABELS: Record<string, string> = {
   graphs: 'Mission report: read a bar graph',
   written: 'Repairs (Amazon on): written subtraction with borrowing',
   multiply: 'TITAN walls: rows of bricks (multiplying)',
+  divide: 'TRIDENT hull: sharing tiles into equal rows (dividing)',
 };
 
-const NAME_COLOR: Record<BotId, string> = { bolt: '#ffd166', jet: '#ffd60a', titan: '#ffb347' };
 
 /** True if any gear (on either robot) has a next mark he has enough scrap for. */
 export function upgradeAffordable(): boolean {
@@ -48,17 +48,6 @@ export function upgradeAffordable(): boolean {
     const g = botData(b, s).gear;
     return (Object.keys(g) as GearId[]).some((k) => g[k] < 3 && s.scrap >= BUILD_COST[g[k] + 1]);
   });
-}
-
-/** A robot that has never had armor built, but should by now. */
-function needsFirstArmor(bot: BotId): boolean {
-  const s = save();
-  const ready = bot === 'jet' ? jetUnlocked(s) : bot === 'titan' ? titanUnlocked(s) : s.levelsDone.includes('inv-drop');
-  return ready && !REGIONS.some((r) => botData(bot, s).armor?.[r]);
-}
-
-function needsRepairs(bot: BotId): boolean {
-  return repairsNeeded(botData(bot).armor ?? {}).length > 0;
 }
 
 export class GarageScene extends Phaser.Scene {
@@ -92,15 +81,16 @@ export class GarageScene extends Phaser.Scene {
     zone.on('pointerup', release);
     zone.on('pointerout', release);
 
-    text(this, 300, 70, botName(bot, s), 52, NAME_COLOR[bot]).setStroke('#000000', 8);
+    text(this, 300, 70, botName(bot, s), 52, BOTS[bot].nameColor).setStroke('#000000', 8);
+    const spec = BOTS[bot];
     const stats = bot === 'titan' ? [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
-      `Rivet power ${TITAN_DAMAGE[d.gear.blaster]}`,
-      `Swats ${Math.round(TITAN_BLOCK[d.gear.boots] * 100)}% of shots`,
-    ] : bot === 'jet' ? [
+      `Rivet power ${spec.damage[d.gear.blaster]}`,
+      `Swats ${Math.round(spec.dodge[d.gear.boots] * 100)}% of shots`,
+    ] : bot !== 'bolt' ? [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
-      `Cannon power ${JET_DAMAGE[d.gear.blaster]}`,
-      `Dodge ${Math.round(JET_DODGE[d.gear.boots] * 100)}%`,
+      `Cannon power ${spec.damage[d.gear.blaster]}`,
+      `Dodge ${Math.round(spec.dodge[d.gear.boots] * 100)}%`,
     ] : [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
       `Blaster power ${BLASTER_DAMAGE[d.gear.blaster]}`,
@@ -120,13 +110,11 @@ export class GarageScene extends Phaser.Scene {
     }
 
     if ((carUnlocked() && bot === 'bolt') || bot !== 'bolt') {
-      // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a bulldozer.
-      const tf = button(this, 300, 660, 260, 70, bot === 'titan' ? 'DOZER MODE ⇄' : 'TRANSFORM ⇄', () => {
+      // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a bulldozer, RHINO a tank.
+      const label = () => (robot.isVehicle ? 'ROBOT MODE ⇄' : bot === 'bolt' ? 'TRANSFORM ⇄' : `${spec.vehicle} MODE ⇄`);
+      const tf = button(this, 300, 660, 260, 70, label(), () => {
         robot.setVehicle(!robot.isVehicle);
-        const vehicleNow = robot.isVehicle;
-        tf.label.setText(bot === 'jet' ? (vehicleNow ? 'TRANSFORM ⇄' : 'JET MODE ⇄')
-          : bot === 'titan' ? (vehicleNow ? 'ROBOT MODE ⇄' : 'DOZER MODE ⇄')
-            : (vehicleNow ? 'ROBOT MODE ⇄' : 'TRANSFORM ⇄'));
+        tf.label.setText(label());
         show.sparkle(0);
       }, { fill: 0x7b2cbf, edge: 0xd0a7ff, size: 28 });
     }
@@ -135,29 +123,13 @@ export class GarageScene extends Phaser.Scene {
     button(this, 60, 50, 80, 64, '⚙', () => this.settings(), { size: 34, fill: 0x3d4458 });
 
     // Missions. Damaged or missing armor (on whoever flies it) has to be fixed in the forge first.
+    // In a pick-your-robot mission he chooses the robot first.
     const go = (key: string, data: object, missionId: string, gateId = missionId) => {
-      const then = missionId || undefined;
-      // A hand-over mission starts with the old robot, so that one needs to be ready.
-      const flier: BotId = missionId ? startBot(missionId) : 'bolt';
-      setActiveBot(flier);
-      const forge = forgeScene(flier);
-      const needsRepair = needsRepairs(flier);
-      if (gateId && upgradeRequired(gateId)) {
-        // Lost since the last upgrade: build something first.
-        if (needsRepair) {
-          this.scene.start(forge, { mode: 'repair', then: 'engineering' });
-          return;
-        }
-        const line = flier !== 'bolt'
-          ? `Those aliens are too strong for ${botName(flier)} right now. We have to build ${botName(flier)} an upgrade before we go back!`
-          : 'Those aliens are too strong for us right now. We have to build an upgrade before we go back!';
-        dialog(this, [{ who: 'sprocket', text: line }], () => this.scene.start('Engineering'));
+      if (key === 'Invasion' && isPick(missionId)) {
+        this.scene.start('Pick', { missionId });
         return;
       }
-      if (needsFirstArmor(flier)) this.scene.start(forge, { mode: 'build', mark: 1, then });
-      else if (needsRepair) this.scene.start(forge, { mode: 'repair', then });
-      else if (key === 'Invasion') launchMission(this, missionId);
-      else this.scene.start(key, data);
+      readyThenGo(this, missionId, () => (key === 'Invasion' ? launchMission(this, missionId) : this.scene.start(key, data)), gateId);
     };
     text(this, 880, 44, 'MISSIONS', 36);
     // Two columns: the area he's in now, and the one before it.
@@ -166,8 +138,11 @@ export class GarageScene extends Phaser.Scene {
       { env: 'desert', label: 'EGYPT', color: '#ffc98a', fill: 0xb5651d, edge: 0xffc98a },
       { env: 'jungle', label: 'AMAZON', color: '#8ef0a0', fill: 0x2d8a4e, edge: 0x9ff0b8 },
       { env: 'canyon', label: 'GRAND CANYON', color: '#ffb38a', fill: 0xb5482a, edge: 0xffb38a },
+      { env: 'arctic', label: 'ARCTIC', color: '#bfe6ff', fill: 0x2f6f9f, edge: 0xbfe6ff },
+      { env: 'tour', label: 'COUNTERATTACK', color: '#e0aaff', fill: 0x6a2c91, edge: 0xe0aaff },
+      { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
     ];
-    const envOf = (m: (typeof MISSIONS)[number]) => m.env ?? 'city';
+    const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';
     const nextMission = MISSIONS.find((m) => !s.levelsDone.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
     const cur = Math.max(0, AREAS.findIndex((a) => a.env === envOf(nextMission)));
     const shown = cur === 0 ? [0, 1] : [cur - 1, cur];

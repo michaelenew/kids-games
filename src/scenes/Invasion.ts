@@ -3,13 +3,26 @@ import { type Tuning, botForMission, cheapestUpgrade, missionStart, tuning, onMi
 import { MissionArmor, REGIONS, type Region, forgeScene, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import {
-  type BotId, GADGETS, JET_DODGE, TITAN_BLOCK, actionDone, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
-  wallStage, wantsRecap, writtenStage,
+  BOTS, type BotId, actionDone, botsUnlocked, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
+  gadgetInfo, gadgetOf, setGadget, wallStage, wantsRecap, writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
+
+/**
+ * Reinforcements: the backup he picked (see Pick.ts), or else his
+ * best-upgraded other robot (the newest, on a tie). It only helps; its plates
+ * never take damage, so repairs stay the same size.
+ */
+function allyFor(main: BotId, missionId: string, s = save()): BotId {
+  const others = botsUnlocked(s).filter((b) => b !== main);
+  const picked = s.backups?.[missionId];
+  if (picked && others.includes(picked)) return picked;
+  const power = (b: BotId) => Object.values(botData(b, s).gear).reduce((n: number, v) => n + v, 0);
+  return others.sort((a, b) => power(b) - power(a))[0] ?? main;
+}
 
 /**
  * The arcade mode screen: hooks touch/mouse into the 3D shooter and draws
@@ -84,9 +97,9 @@ export class InvasionScene extends Phaser.Scene {
     const ender = missionBot(this.mission.id);
     this.bot = startBot(this.mission.id);
     // Each robot's own way of beating shots: the jet rolls past them, TITAN swats them.
-    const dodgeOf = (b: BotId) => (b === 'jet' ? JET_DODGE : b === 'titan' ? TITAN_BLOCK : [0, 0, 0, 0])[botData(b, s).gear.boots];
+    const dodgeOf = (b: BotId) => BOTS[b].dodge[botData(b, s).gear.boots];
     // The Energy Armor gadget: a big force field on top of the plates, this mission only.
-    if (missionBot(this.mission.id) === 'jet' && s.gadget === 'shield') this.shieldBonus += 1500;
+    if (gadgetOf(this.bot, s) === 'shield') this.shieldBonus += 1500;
     this.useArmor(this.bot);
 
     const look = lookFromSave(s, this.bot);
@@ -97,6 +110,7 @@ export class InvasionScene extends Phaser.Scene {
       fireDelay: this.tune.fireDelay,
       dodge: dodgeOf(this.bot),
       swapDodge: dodgeOf(ender),
+      allyLook: this.mission.steps.some((st) => st.kind === 'reinforce') ? lookFromSave(s, allyFor(this.bot, this.mission.id, s)) : undefined,
     }, {
       hit: (raw, from) => this.onHit(raw, from),
       kill: (k) => this.onKill(k),
@@ -120,11 +134,17 @@ export class InvasionScene extends Phaser.Scene {
       },
       bossBar: (f) => (this.bossFrac = f),
       complete: () => this.win(),
+      allyJoined: () => {
+        const ally = allyFor(this.bot, this.mission.id);
+        this.banner(`${botName(ally)} JOINS THE FIGHT!`, BOTS[ally].nameColor);
+      },
+      combining: () => this.banner(`${botName('titan')} + ${botName('tank')}: COMBINE!`, '#e0aaff'),
+      combined: () => this.banner(`MEGA ${botName('tank')}-${botName('titan')}!`, '#ffd166'),
       swapped: () => {
         // The new robot does the rest with its own armor.
         this.bot = ender;
         this.useArmor(ender);
-        this.banner(`${botName(ender)}!`, ender === 'titan' ? '#ffb347' : '#ffd60a');
+        this.banner(`${botName(ender)}!`, BOTS[ender].nameColor);
       },
       dodged: (how) => {
         const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, how === 'swat' ? 'SWAT!' : 'DODGE!', 40, how === 'swat' ? '#ffb347' : '#ffd60a').setStroke('#000000', 6).setDepth(25);
@@ -422,12 +442,22 @@ export class InvasionScene extends Phaser.Scene {
     // From the Amazon on, the damage is shaped so repairs ramp up: no borrowing, then borrowing.
     if (won) this.armor.commit(botData(this.bot, s), Math.random, writtenStage(s), wallStage(s));
     s.scrap += this.scrap;
-    // A super gadget only lasts one mission.
-    if (missionBot(this.mission.id) === 'jet' && s.gadget) {
-      this.brokenGadget = GADGETS[s.gadget].title;
-      s.gadget = undefined;
+    // A super gadget only lasts one mission (on whoever flew it, both robots on a hand-over).
+    for (const b of new Set([startBot(this.mission.id), this.bot])) {
+      const g = gadgetOf(b, s);
+      if (!g) continue;
+      this.brokenGadget = gadgetInfo(b, g).title;
+      setGadget(b, undefined, s);
     }
     persist();
+  }
+
+  /** End of a mission: the super gadget explodes off the robot, with a banner. */
+  private blowOffGadget() {
+    const g = gadgetOf(this.bot);
+    if (!g || this.alert) return;
+    this.game3d.blowOffGadget();
+    this.banner(`${gadgetInfo(this.bot, g).title.toUpperCase()} BLEW OFF!`, '#e0aaff');
   }
 
   /** The gadget that burned out this mission, to say so on the results panel. */
@@ -435,7 +465,7 @@ export class InvasionScene extends Phaser.Scene {
 
   private gadgetNote(y: number) {
     if (!this.brokenGadget) return;
-    text(this, W / 2, y, `Your ${this.brokenGadget} burned out! Build a new one in the Super Lab.`, 20, '#e0aaff').setDepth(61);
+    text(this, W / 2, y, `Your ${this.brokenGadget} blew off! Build a new one in the Super Lab.`, 20, '#e0aaff').setDepth(61);
   }
 
   /** Where to go after a mission: build armor the first time, otherwise repair if needed. */
@@ -469,6 +499,7 @@ export class InvasionScene extends Phaser.Scene {
       const a = alerts(s);
       if (a.count > 0 && !a.mission) a.mission = alertMission(s.levelsDone);
     }
+    this.blowOffGadget();
     this.bank(true);
     music('calm');
     sfx.success();
@@ -490,9 +521,11 @@ export class InvasionScene extends Phaser.Scene {
       const after = () => {
         // The mission report (graphs and adding) starts in Egypt, and takes
         // turns with mission control so the math between missions stays short.
-        const report = (this.mission.env ?? 'city') !== 'city' && wantsRecap();
+        // The Counterattack missions get a report wherever they happen (it's all review there).
+        const place = this.mission.area ?? this.mission.env ?? 'city';
+        const report = place !== 'city' && wantsRecap();
         const b = button(this, W / 2, H / 2 + 120, 320, 84, report ? 'Mission report ▶' : next.label, () => {
-          if (report) this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data }, env: this.mission.env });
+          if (report) this.scene.start('Recap', { hits: this.hitLog, next: { key: next.key, data: next.data }, env: place });
           else this.scene.start(next.key, next.data);
         }, {
           fill: 0x2a9d8f, edge: 0x9ff0e3, size: 32,
@@ -536,8 +569,40 @@ export class InvasionScene extends Phaser.Scene {
       } else if (this.mission.id === 'cyn-core' && firstWin) {
         dialog(this, [
           { who: 'volt', text: 'The Drill Walker is down! The mothership\'s last machine is scrap!' },
-          { who: 'volt', text: 'BOLT, STRIKER and TITAN... you saved the whole planet. Best. Team. Ever.' },
+          { who: 'volt', text: 'But their last ship got away... it\'s heading north. All the way north. To the ARCTIC.' },
+          { who: 'sprocket', text: 'Then TITAN\'s going to need a friend who likes the cold. I\'ve got just the robot...' },
         ], after);
+      } else if (this.mission.id === 'arc-drop' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'RHINO! Our tank robot made it through the snow!' },
+          { who: 'sprocket', text: 'RHINO does the Arctic missions. Heavy armor, a big cannon, and rocket boosters!' },
+          { who: 'sprocket', text: 'Its plates are bare metal. Let\'s forge RHINO some armor, just like the others!' },
+        ], after);
+      } else if (this.mission.id === 'arc-core' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Ice Walker is down! Their Arctic base is finished!' },
+          { who: 'volt', text: 'Wait... alarms everywhere! They\'re coming back to the city, Egypt, the jungle, the canyon... ALL at once!' },
+          { who: 'sprocket', text: 'Then we send the whole team. YOU pick which robot goes on each mission. And every robot gets super gadgets now!' },
+        ], after);
+      } else if (this.mission.id === 'tour-ice' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Mega Ice Walker is down! The counterattack is over!' },
+          { who: 'volt', text: 'But the last of them just dove into the OCEAN. They\'re hiding at the bottom of the sea!' },
+          { who: 'sprocket', text: 'Under the water? Then I\'d better finish my secret project... a robot that can SWIM.' },
+        ], after);
+      } else if (this.mission.id === 'sea-drop' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'TRIDENT! Our submarine robot is down in the deep!' },
+          { who: 'sprocket', text: 'TRIDENT does the ocean missions. Its armor is hull tiles, and every row has to be EVEN or it leaks!' },
+          { who: 'sprocket', text: 'Let\'s go build its first hull. We\'ll share the tiles out fairly, one row at a time.' },
+        ], after);
+      } else if (this.mission.id === 'sea-deep' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Kraken Walker is scrap! The aliens are gone, from the city to the bottom of the sea!' },
+          { who: 'volt', text: 'BOLT, STRIKER, TITAN, RHINO and TRIDENT... the best team on the planet.' },
+        ], after);
+      } else if (next.key === 'HullForge' || (next.key === 'WallForge' && this.bot === 'sub')) {
+        dialog(this, [{ who: 'sprocket', text: 'TRIDENT lost some hull tiles. Let\'s put the rows back, before it springs a leak!' }], after);
       } else if (next.key === 'WallForge') {
         dialog(this, [{ who: 'sprocket', text: 'TITAN\'s walls lost some bricks. Let\'s rebuild them, row by row!' }], after);
       } else if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {
@@ -562,6 +627,7 @@ export class InvasionScene extends Phaser.Scene {
       this.alertDone(false);
       return;
     }
+    this.blowOffGadget();
     this.bank(false);
     onMissionFailed(this.mission.id);
     music('calm');

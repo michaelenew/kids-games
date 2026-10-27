@@ -12,10 +12,15 @@ import { FX } from './fx';
 import type { AlienKind, Mission, Spawn, Step, Vehicle } from './missions';
 import { Jet } from './jet';
 import { type Mech, makeMech } from './mech';
+import { MegaBot } from './megabot';
 import type { Stage } from './stage';
+import { Sub } from './sub';
+import { Tank } from './tank';
 import { Titan } from './titan';
+import { ARCTIC_FOG, arcticSky, buildArctic } from './arctic';
+import { OCEAN_FOG, buildOcean, oceanSky } from './ocean';
 import { CANYON_FOG, buildCanyon, canyonSky } from './canyon';
-import { JET_DAMAGE, TITAN_DAMAGE } from '../state';
+import { BOTS } from '../state';
 
 /**
  * The arcade shooter: the camera rides along a path behind the robot,
@@ -31,12 +36,6 @@ const SCREEN_W = 1280;
 const SCREEN_H = 720;
 /** Top of the street surface (see city.ts). */
 const STREET_Y = 0.02;
-const FIRE_COOLDOWN = [0.2, 0.16, 0.13, 0.075];
-const DAMAGE = [1, 2, 3, 4];
-/** STRIKER joins late, so its cannons start where BOLT's blaster is by then. */
-const JET_FIRE_COOLDOWN = [0.15, 0.13, 0.11, 0.075];
-/** TITAN fires slower, heavier shots. */
-const TITAN_FIRE_COOLDOWN = [0.22, 0.2, 0.17, 0.12];
 const BOLT_COLOR = [0xff4d8d, 0xff5dc8, 0xc77dff, 0x4cf0ff];
 
 const CAM_ROBOT = new THREE.Vector3(-1.7, 2.85, -4.1);
@@ -47,6 +46,10 @@ const LOOK_CAR = new THREE.Vector3(0, 1.2, 25);
 const CAM_JET = new THREE.Vector3(0, 3.4, -7.4);
 const LOOK_JET = new THREE.Vector3(0, 0.9, 25);
 const TITAN_CAM_EXTRA = new THREE.Vector3(-0.4, 0.5, -1.1);
+/** The combined TITAN + RHINO mega bot is much taller: the camera backs off and up. */
+const MEGA_CAM_EXTRA = new THREE.Vector3(-0.9, 2.1, -3.8);
+/** Where reinforcements fight: on his left, a little ahead, so they're in view. */
+const ALLY_AT = new THREE.Vector3(3, 0, 1.5);
 /** The jet is drawn a bit bigger in missions so its gear reads from behind. */
 const JET_SCALE = 1.3;
 
@@ -123,8 +126,13 @@ export interface InvasionEvents {
   complete(): void;
   /** The next robot took over. */
   swapped?(): void;
+  /** Reinforcements landed. */
+  allyJoined?(): void;
+  /** TITAN and RHINO start combining, and then lock together into the mega bot. */
+  combining?(): void;
+  combined?(): void;
   /** The jet rolled past a shot, or TITAN swatted one away. */
-  dodged?(how: 'roll' | 'swat'): void;
+  dodged?(how: 'roll' | 'swat' | 'dash'): void;
 }
 
 export interface InvasionOptions {
@@ -133,6 +141,8 @@ export interface InvasionOptions {
   swapLook?: RobotLook;
   /** The new robot's dodge chance, from the swap on. */
   swapDodge?: number;
+  /** Who comes as reinforcements at a reinforce step. */
+  allyLook?: RobotLook;
   enemyHp: number;
   fireDelay: number;
   /** Chance the jet rolls past an incoming shot (its afterburners), or TITAN swats it (its treads). */
@@ -204,9 +214,12 @@ export class Invasion {
     const desert = mission.env === 'desert';
     const jungle = mission.env === 'jungle';
     const canyon = mission.env === 'canyon';
+    const arctic = mission.env === 'arctic';
+    const ocean = mission.env === 'ocean';
     const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas };
     this.city = desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
-      : canyon ? buildCanyon(this.curve, where) : buildCity(this.curve, where);
+      : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
+        : ocean ? buildOcean(this.curve, where) : buildCity(this.curve, where);
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
@@ -228,6 +241,9 @@ export class Invasion {
       this.rig.add(this.ship.root);
       engineSound('ship');
     }
+    this.vehicle = this.mapVehicle(this.vehicle);
+    // A pick-your-robot mission on foot with STRIKER: it starts in robot mode.
+    if (this.robot instanceof Jet && this.vehicle === 'foot') this.robot.setVehicle(false);
     if (this.vehicle === 'car') this.robot.setVehicle(true);
     if (this.vehicle === 'jet') {
       this.jetCam = 1;
@@ -236,7 +252,17 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    if (canyon) {
+    if (ocean) {
+      // Murky blue water: things fade out sooner than on land.
+      stage.activate(oceanSky(), new THREE.Fog(OCEAN_FOG, 40, 300));
+      stage.key.color.setHex(0xbff6ff);
+      stage.key.intensity = 2.4;
+    } else if (arctic) {
+      stage.activate(arcticSky(), new THREE.Fog(ARCTIC_FOG, 90, 560));
+      // Low, cold polar sun (dimmer than elsewhere: snow reflects a lot).
+      stage.key.color.setHex(0xdfe9ff);
+      stage.key.intensity = 2.0;
+    } else if (canyon) {
       stage.activate(canyonSky(), new THREE.Fog(CANYON_FOG, 70, 560));
       // Hot afternoon sun on red rock.
       stage.key.color.setHex(0xffd2a0);
@@ -294,9 +320,12 @@ export class Invasion {
     const jc = this.jetCam * (this.robot instanceof Jet ? this.robot.flight : 1);
     const j = jc * jc * (3 - 2 * jc);
     const off = CAM_ROBOT.clone().lerp(CAM_CAR, k).lerp(CAM_JET, j);
-    // TITAN is wide: sit the camera a bit further back and higher so it doesn't fill the view.
-    if (this.robot instanceof Titan) off.add(TITAN_CAM_EXTRA.clone().multiplyScalar(1 - k));
+    // TITAN and RHINO are wide: sit the camera a bit further back and higher so it doesn't fill the view.
+    const mega = this.robot instanceof MegaBot ? this.robot.amount : 0;
+    if (this.robot instanceof Titan || this.robot instanceof Tank || this.robot instanceof Sub || this.robot instanceof MegaBot) off.add(TITAN_CAM_EXTRA.clone().multiplyScalar(1 - k));
+    off.add(MEGA_CAM_EXTRA.clone().multiplyScalar(mega));
     const look = LOOK_ROBOT.clone().lerp(LOOK_CAR, k).lerp(LOOK_JET, j);
+    look.y -= mega * 1.6;
     if (this.vehicle === 'foot' && this.speed > 0.5) off.y += Math.abs(Math.sin(this.t * 7)) * 0.06;
     const pos = this.rig.localToWorld(off);
     const at = this.rig.localToWorld(look);
@@ -332,7 +361,7 @@ export class Invasion {
     }
     switch (s.kind) {
       case 'move':
-        this.setVehicle(s.vehicle);
+        this.setVehicle(this.mapVehicle(s.vehicle));
         break;
       case 'wave':
         this.waveIndex++;
@@ -367,7 +396,137 @@ export class Invasion {
       case 'swap':
         this.startSwap();
         break;
+      case 'reinforce':
+        this.startAlly();
+        this.nextStep();
+        break;
     }
+  }
+
+  /** In a pick-your-robot mission, STRIKER flies the "vehicle" stretches as a jet. */
+  private mapVehicle(v: Vehicle): Vehicle {
+    return this.robot instanceof Jet && v === 'car' ? 'jet' : v;
+  }
+
+  // ---- Reinforcements ---------------------------------------------------------
+
+  /** A second robot fighting alongside, on his left. It shoots by itself and never gets hurt. */
+  private ally: { mech: Mech; t: number; landed: boolean; cooldown: number; landedAt: number } | null = null;
+
+  private startAlly() {
+    const look = this.opts.allyLook;
+    if (!look || this.ally) return;
+    const mech = makeMech(look);
+    if (mech instanceof Jet) {
+      mech.showroom = false;
+      mech.thrust = 0.5;
+      mech.flightScale = JET_SCALE;
+    }
+    mech.spin = 0;
+    mech.holder.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
+    mech.grounded = false;
+    this.rig.add(mech.holder);
+    mech.holder.position.set(ALLY_AT.x, 16, 34);
+    this.ally = { mech, t: 0, landed: false, cooldown: 1, landedAt: 0 };
+    sfx.whoosh();
+  }
+
+  private updateAlly(dt: number) {
+    const a = this.ally;
+    if (!a) return;
+    const m = a.mech;
+    a.t += dt;
+    if (!a.landed) {
+      // It streaks in from the sky ahead, like a meteor, and lands beside him.
+      const k = Math.min(1, a.t / 1.1);
+      m.holder.position.set(ALLY_AT.x, 16 * (1 - k * k), ALLY_AT.z + (34 - ALLY_AT.z) * (1 - k));
+      m.vy = -400;
+      if (k < 1) this.fx.spark(m.regionWorld('chest'), 0xffa23a, 3, 2);
+      else {
+        a.landed = true;
+        a.landedAt = a.t;
+        m.grounded = true;
+        m.vy = 0;
+        const at = m.regionWorld('legL');
+        this.fx.ring(at, 0x4cf0ff, 5);
+        this.fx.flash(at, 0x9fefff, 3, 0.25);
+        sfx.clang(1.3);
+        this.shake = Math.max(this.shake, 0.8);
+        this.events.allyJoined?.();
+      }
+      m.update(dt);
+      return;
+    }
+    // TITAN and RHINO together: a moment after landing, they combine.
+    if (!(this.robot instanceof MegaBot) && this.canCombine(m) && a.t - a.landedAt > 0.9) this.startMega(m);
+    if (!(this.robot instanceof MegaBot)) {
+      // Keep pace with him, and change form when he does.
+      m.speed = this.robot.speed;
+      m.grounded = this.robot.grounded;
+      const wantVehicle = this.vehicle !== 'foot';
+      if (m.isVehicle !== wantVehicle) m.setVehicle(wantVehicle);
+      m.update(dt);
+    }
+    a.cooldown -= dt;
+    if (a.cooldown > 0) return;
+    const from = m.muzzleWorld();
+    const kind = this.opts.allyLook?.kind ?? 'bolt';
+    const mark = this.opts.allyLook?.blaster ?? 0;
+    const dmg = BOTS[kind].damage[mark];
+    const near = this.enemies
+      .map((e) => ({ e, at: this.enemyCenter(e) }))
+      .filter((x) => x.at.distanceTo(from) < 70 && !this.project(x.at).behind)
+      .sort((p, q) => p.at.distanceTo(from) - q.at.distanceTo(from))[0];
+    if (near) {
+      a.cooldown = 0.5 + Math.random() * 0.3;
+      m.aimAt(near.at);
+      m.fire();
+      this.fx.tracer(from, near.at, BOLT_COLOR[mark], 0.05 + mark * 0.02);
+      this.damageEnemy(near.e, dmg, near.at);
+    } else if (this.boss && this.boss.dying === 0) {
+      a.cooldown = 0.6;
+      const bb = this.boss;
+      const i = bb.podHp.findIndex((h) => h > 0);
+      const at = i >= 0 ? model3dWorld(bb.model.pods[i]) : model3dWorld(bb.model.core);
+      m.aimAt(at);
+      m.fire();
+      this.fx.tracer(from, at, BOLT_COLOR[mark], 0.05 + mark * 0.02);
+      this.damageBoss(i >= 0 ? 'pod' : 'core', i, dmg, at);
+    } else a.cooldown = 0.3;
+  }
+
+  // ---- TITAN + RHINO: the mega bot ---------------------------------------------
+
+  private canCombine(ally: Mech) {
+    const r = this.robot;
+    return (r instanceof Titan && ally instanceof Tank) || (r instanceof Tank && ally instanceof Titan);
+  }
+
+  /** The two robots combine into one (see megabot.ts); the mega bot takes the pilot's place. */
+  private startMega(ally: Mech) {
+    const pilot = this.robot;
+    const top = (pilot instanceof Titan ? pilot : ally) as Titan;
+    const base = (pilot instanceof Tank ? pilot : ally) as Tank;
+    const mega = new MegaBot(pilot, top, base);
+    this.rig.add(mega.holder);
+    this.robot = mega;
+    sfx.transform();
+    this.fx.ring(top.regionWorld('chest'), 0xc77dff, 4);
+    this.fx.ring(base.regionWorld('chest'), 0xc77dff, 4);
+    this.events.combining?.();
+    mega.onMerged = () => {
+      const at = top.regionWorld('legL');
+      this.fx.flash(at, 0xe0aaff, 7, 0.4);
+      this.fx.ring(at, 0xc77dff, 7);
+      this.fx.ring(at, 0x4cf0ff, 5);
+      this.fx.spark(at, 0xc77dff, 50, 9);
+      this.fx.spark(at, 0xffd166, 30, 7);
+      sfx.clang(1.6);
+      sfx.success();
+      this.shake = Math.max(this.shake, 1.2);
+      this.slowMoLeft = Math.max(this.slowMoLeft, 0.6);
+      this.events.combined?.();
+    };
   }
 
   // ---- STRIKER takes over ------------------------------------------------------
@@ -400,7 +559,7 @@ export class Invasion {
     if (!drop) engineSound('ship');
   }
 
-  /** TITAN streaks down out of the sky ahead, like a meteor, and lands with a thud; STRIKER climbs away. */
+  /** The new robot streaks down out of the sky ahead, like a meteor, and lands with a thud; the old one flies off or beams out. */
   private updateDropSwap(dt: number) {
     const sw = this.swap!;
     sw.t += dt;
@@ -409,14 +568,20 @@ export class Invasion {
     sw.jet.vy = -400;
     sw.jet.update(dt);
     if (k < 1) this.fx.spark(sw.jet.regionWorld('chest'), 0xffa23a, 3, 2);
-    // The jet pulls up and away.
-    if (sw.old.holder.parent) {
+    // The jet pulls up and away (a walking robot stays put, and beams out when the new one lands).
+    if (sw.old.holder.parent && sw.old instanceof Jet) {
       sw.old.holder.position.y += dt * (4 + sw.t * 10);
       sw.old.holder.position.z += dt * (8 + sw.t * 30);
       if (this.robot === sw.old) sw.old.update(dt);
     }
     if (k >= 1 && !sw.landed) {
       sw.landed = true;
+      if (!(sw.old instanceof Jet)) {
+        const at = sw.old.regionWorld('chest');
+        this.fx.ring(at, 0x4cf0ff, 4);
+        this.fx.flash(at, 0x9fefff, 5, 0.3);
+        sw.old.holder.removeFromParent();
+      }
       sw.jet.grounded = true;
       sw.jet.vy = 0;
       const at = sw.jet.regionWorld('legL');
@@ -938,7 +1103,7 @@ export class Invasion {
         // The afterburners roll the jet out of the way of some shots.
         b.dodgeChecked = true;
         // Hyper Boosters gadget: dodges most shots.
-        const dodge = (this.opts.dodge ?? 0) + (this.opts.look.gadget === 'hyper' ? 0.4 : 0);
+        const dodge = (this.opts.dodge ?? 0) + this.hyperBonus;
         if (jet.rolling || Math.random() < Math.min(0.75, dodge)) {
           b.dodged = true;
           jet.roll();
@@ -946,19 +1111,25 @@ export class Invasion {
           this.events.dodged?.('roll');
         }
       }
-      const titan = this.robot instanceof Titan ? this.robot : null;
-      if (titan && !b.dodgeChecked && b.obj.position.distanceTo(cam) < 5) {
-        // The treads' upgrade: the digger arm swats some shots out of the air.
+      const bot = this.robot;
+      if (bot.dodgeStyle && !b.dodgeChecked && b.obj.position.distanceTo(cam) < 5) {
+        // Upgraded boots: TITAN's digger arm swats the shot out of the air;
+        // RHINO's rocket boosters dash it sideways and the shot sails past.
         b.dodgeChecked = true;
-        if (Math.random() < Math.min(0.75, this.opts.dodge ?? 0)) {
-          titan.evade();
-          this.fx.flash(b.obj.position, 0xffb347, 1.6, 0.12);
-          this.fx.spark(b.obj.position, 0xffd166, 10, 3);
-          sfx.clang(0.9);
-          b.life = 0;
-          b.obj.removeFromParent();
-          this.events.dodged?.('swat');
-          continue;
+        if (bot.evading || Math.random() < Math.min(0.75, (this.opts.dodge ?? 0) + this.hyperBonus)) {
+          bot.evade?.();
+          if (bot.dodgeStyle === 'swat') {
+            this.fx.flash(b.obj.position, 0xffb347, 1.6, 0.12);
+            this.fx.spark(b.obj.position, 0xffd166, 10, 3);
+            sfx.clang(0.9);
+            b.life = 0;
+            b.obj.removeFromParent();
+            this.events.dodged?.('swat');
+            continue;
+          }
+          b.dodged = true;
+          sfx.whoosh();
+          this.events.dodged?.('dash');
         }
       }
       if (b.dodged && b.obj.position.distanceTo(cam) < 3) {
@@ -1045,31 +1216,50 @@ export class Invasion {
     }
     this.robot.aimAt(aim);
     if (this.cooldown > 0) return;
-    const jet = this.robot instanceof Jet;
-    const titan = this.robot instanceof Titan;
-    this.cooldown = (jet ? JET_FIRE_COOLDOWN : titan ? TITAN_FIRE_COOLDOWN : FIRE_COOLDOWN)[mark];
+    const spec = BOTS[this.opts.look.kind ?? 'bolt'];
+    this.cooldown = spec.cooldown[mark];
     this.robot.fire();
     sfx.laser(mark);
     const muzzle = this.robot.muzzleWorld();
     const jitter = target ? new THREE.Vector3(this.rand(-0.25, 0.25), this.rand(-0.25, 0.25), this.rand(-0.25, 0.25)) : new THREE.Vector3();
     const hitPoint = aim.clone().add(jitter);
     // The Mega Cannon gadget: fat violet beams, double damage.
-    const mega = jet && this.opts.look.gadget === 'mega';
+    const mega = this.opts.look.gadget === 'mega';
     this.fx.tracer(muzzle, hitPoint, mega ? 0xc77dff : BOLT_COLOR[mark], mega ? 0.22 : 0.05 + mark * 0.02);
     this.fx.flash(muzzle, mega ? 0xe0aaff : BOLT_COLOR[mark], mega ? 2.4 : 0.8 + mark * 0.3, 0.06);
     if (!target) return;
-    const dmg = (jet ? JET_DAMAGE : titan ? TITAN_DAMAGE : DAMAGE)[mark] * (mega ? 2 : 1);
+    const dmg = spec.damage[mark] * (mega ? 2 : 1);
     if (mega) this.shake = Math.max(this.shake, 0.15);
     if (target.kind === 'enemy') this.damageEnemy(target.ref as Enemy, dmg, hitPoint);
     else if (target.kind === 'bolt') this.popBolt(target.ref as Bolt);
     else this.damageBoss(target.kind, target.pod, dmg, hitPoint);
   }
 
+  /** Hyper Boosters (or Rocket Pack) gadget: dodges most shots. */
+  private get hyperBonus() {
+    return this.opts.look.gadget === 'hyper' ? 0.4 : 0;
+  }
+
+  /** The end of a mission: the gadget explodes off the robot in a shower of sparks. */
+  blowOffGadget() {
+    if (!this.opts.look.gadget) return;
+    const at = this.robot.regionWorld('chest');
+    this.fx.flash(at, 0xe0aaff, 6, 0.35);
+    this.fx.ring(at, 0xc77dff, 5);
+    this.fx.spark(at, 0xc77dff, 40, 9);
+    this.fx.spark(at, 0xffd166, 24, 7);
+    sfx.clang(1.5);
+    sfx.whoosh();
+    this.shake = 1;
+    this.opts.look = { ...this.opts.look, gadget: undefined };
+    this.robot.setLook(this.opts.look);
+  }
+
   /** Drone Wingmen gadget: each drone zaps the nearest alien now and then. */
   private droneCooldown = 0;
 
   private updateDrones(dt: number) {
-    if (!(this.robot instanceof Jet) || this.opts.look.gadget !== 'drones') return;
+    if (this.opts.look.gadget !== 'drones' || !this.robot.droneWorld) return;
     this.droneCooldown -= dt;
     if (this.droneCooldown > 0) return;
     this.droneCooldown = 0.55;
@@ -1196,6 +1386,7 @@ export class Invasion {
     this.updateBoss(dt);
     this.updateShooting(dt);
     this.updateDrones(dt);
+    this.updateAlly(dt);
     this.city.update(dt);
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {

@@ -11,6 +11,8 @@ export function numpad(
   y: number,
   onSubmit: (value: number) => void,
   maxDigits = 4,
+  /** How to show what's typed (e.g. "345" as "3:45" for a time). */
+  format: (typed: string) => string = (t) => t,
 ): { display: Phaser.GameObjects.Text; clear: () => void; objects: Phaser.GameObjects.GameObject[]; destroy: () => void } {
   let typed = '';
   const objects: Phaser.GameObjects.GameObject[] = [];
@@ -24,7 +26,7 @@ export function numpad(
       if (typed) onSubmit(Number(typed));
       return;
     } else if (typed.length < maxDigits) typed += k;
-    display.setText(typed).setColor('#ffd166');
+    display.setText(format(typed)).setColor('#ffd166');
   };
   const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '⌫', '0', '✓'];
   keys.forEach((k, i) => {

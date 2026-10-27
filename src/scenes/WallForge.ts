@@ -5,7 +5,7 @@ import { BRICK, REGIONS, type Region, armorMark, lookFromSave, regionName, wallT
 import { music, sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
 import {
-  BUILD_COST, actionDone, bumpGuide, guideCount, mathDone, persist, recordSkill, rig, save, setActiveBot,
+  BUILD_COST, actionDone, botName, bumpGuide, guideCount, mathDone, persist, recordSkill, rig, save, setActiveBot,
 } from '../state';
 import { launchMission } from './launch';
 import { howTo, needsIntro } from '../ui/howto';
@@ -31,6 +31,8 @@ import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets'
 type Mode = 'build' | 'repair';
 interface WallData {
   mode: Mode;
+  /** TITAN's walls (default), or TRIDENT's hull tiles (repairs only: its new armor is built by sharing, in the HullForge). */
+  bot?: 'titan' | 'sub';
   mark?: 1 | 2 | 3;
   then?: string;
 }
@@ -53,11 +55,24 @@ const CX = (LEFT + RIGHT) / 2;
 /** The wall sits in this box; the keypad is to its right. */
 const WALL = { left: 580, right: 880, top: 262, bottom: 585 };
 const PAD_X = 1100;
-const BRICK_COLOR = 0xd9622b;
-const BRICK_EDGE = 0x5c2312;
+/** The words and colors for each robot's rows: TITAN's bricks, TRIDENT's hull tiles. */
+const WORDS = {
+  titan: {
+    one: 'brick', many: 'bricks', panel: 'wall', yard: 'WALL YARD', fixed: 'WALLS', title: '#ffb347', light: '#ffd8a8',
+    brick: 0xd9622b, edge: 0x5c2312, btn: { fill: 0xd96c00, edge: 0xffc27a },
+  },
+  sub: {
+    one: 'tile', many: 'tiles', panel: 'hull', yard: 'HULL BAY', fixed: 'HULL TILES', title: '#7ff7ff', light: '#c9fbff',
+    brick: 0x1fb5c4, edge: 0x0a3a40, btn: { fill: 0x0f7f8c, edge: 0x9ff7ff },
+  },
+};
 
 export class WallForge extends Phaser.Scene {
   private mode: Mode = 'build';
+  private bot: 'titan' | 'sub' = 'titan';
+  private get W() {
+    return WORDS[this.bot];
+  }
   private mark: 1 | 2 | 3 = 1;
   private then?: string;
   private jobs: Job[] = [];
@@ -81,7 +96,8 @@ export class WallForge extends Phaser.Scene {
   init(data: WallData) {
     this.mode = data.mode ?? 'build';
     this.then = data.then;
-    setActiveBot('titan');
+    this.bot = data.bot ?? 'titan';
+    setActiveBot(this.bot);
     this.mark = data.mark ?? (Math.min(3, Math.max(1, rig().gear.armor + 1)) as 1 | 2 | 3);
     this.jobIndex = 0;
     this.pips = [];
@@ -93,7 +109,7 @@ export class WallForge extends Phaser.Scene {
     const s = save();
     music('calm');
     this.show = new Showcase(getStage(this.game.canvas), [
-      { look: lookFromSave(s, 'titan'), x: 285, y: 650, height: 470, spin: 0, yaw: 0.35 },
+      { look: lookFromSave(s, this.bot), x: 285, y: 650, height: 470, spin: 0, yaw: 0.35 },
     ]);
     this.robot.spin = 0.35;
     const zone = this.add.zone(285, 400, 480, 560).setInteractive();
@@ -114,7 +130,7 @@ export class WallForge extends Phaser.Scene {
         const { rows, cols } = wallTarget(Math.random, this.mark, region, REGIONS.indexOf(region));
         return { region, rows, cols, full: rows, extra: 0, misses: 0 };
       });
-      text(this, CX, 46, `TITAN WALL YARD · MARK ${ROMAN[this.mark]}`, 38, '#ffb347').setStroke('#000000', 8);
+      text(this, CX, 46, `${botName(this.bot)} ${this.W.yard} · MARK ${ROMAN[this.mark]}`, 38, this.W.title).setStroke('#000000', 8);
     } else {
       this.jobs = REGIONS.flatMap((region) => {
         const p = d.armor?.[region];
@@ -122,7 +138,7 @@ export class WallForge extends Phaser.Scene {
         const missing = Math.round((p.max - p.hp) / BRICK);
         return [{ region, rows: p.rows, cols: p.cols, full: Math.floor(missing / p.cols), extra: missing % p.cols, misses: 0 }];
       });
-      text(this, CX, 46, 'TITAN WALL REPAIRS', 42, '#ffb347').setStroke('#000000', 8);
+      text(this, CX, 46, `${botName(this.bot)} ${this.W.panel.toUpperCase()} REPAIRS`, 42, this.W.title).setStroke('#000000', 8);
       if (this.jobs.length) mathDone('repair', s);
     }
     if (!this.jobs.length) {
@@ -132,7 +148,7 @@ export class WallForge extends Phaser.Scene {
     this.jobs.forEach((j, i) => {
       const x = CX + (i - (this.jobs.length - 1) / 2) * 120;
       this.pips.push(this.add.circle(x - 46, 92, 9, 0x3d4458).setStrokeStyle(2, 0xffffff, 0.6));
-      text(this, x + 6, 92, regionName(j.region, 'titan').replace(' wall', ''), 15, '#ffd8a8').setOrigin(0.5);
+      text(this, x + 6, 92, regionName(j.region, this.bot).replace(` ${this.W.panel}`, ''), 15, this.W.light).setOrigin(0.5);
     });
     this.layer = this.add.container(0, 0);
     this.wall = this.add.container(0, 0);
@@ -182,7 +198,7 @@ export class WallForge extends Phaser.Scene {
     const repair = this.mode === 'repair';
     card.fillStyle(repair ? 0x24283b : 0x1d3557, 0.96).fillRoundedRect(LEFT, 112, RIGHT - LEFT, 136, 16);
     card.lineStyle(3, repair ? 0xff9f1c : 0x9ad1ff, 0.9).strokeRoundedRect(LEFT, 112, RIGHT - LEFT, 136, 16);
-    const title = text(this, CX, 134, `${repair ? 'REPAIR' : 'BLUEPRINT'}: ${regionName(j.region, 'titan').toUpperCase()}`, 22, repair ? '#ffd166' : '#9ad1ff');
+    const title = text(this, CX, 134, `${repair ? 'REPAIR' : 'BLUEPRINT'}: ${regionName(j.region, this.bot).toUpperCase()}`, 22, repair ? '#ffd166' : '#9ad1ff');
     this.stepLabel = text(this, CX, 168, '', 20, '#ffd166');
     this.task = text(this, CX, 212, '', 34, '#ffffff', { wordWrap: { width: RIGHT - LEFT - 30 } });
     this.layer.add([card, title, this.stepLabel, this.task]);
@@ -193,7 +209,7 @@ export class WallForge extends Phaser.Scene {
     if (cards.length) {
       // The card sits over the keypad, so the wall it talks about stays in view.
       this.busy = true;
-      this.setTask(repair ? 'DAMAGE REPORT' : 'THE BLUEPRINT', `${this.question(j)} bricks`);
+      this.setTask(repair ? 'DAMAGE REPORT' : 'THE BLUEPRINT', `${this.question(j)} ${this.W.many}`);
       howTo(this, cards, () => {
         this.busy = false;
         go();
@@ -218,11 +234,11 @@ export class WallForge extends Phaser.Scene {
     if (this.mode === 'build' && needsIntro('rows')) {
       out.push({
         concept: 'rows',
-        title: 'ROWS OF BRICKS',
+        title: `ROWS OF ${this.W.many.toUpperCase()}`,
         steps: [
-          `This wall has ${r} rows. Every row has ${c} bricks.`,
+          `This ${this.W.panel} has ${r} rows. Every row has ${c} ${this.W.many}.`,
           `Count by ${c}s, one row at a time: ${skip}${r > 4 ? ', ...' : ''}.`,
-          `So ${r} rows of ${c} is ${r * c} bricks!`,
+          `So ${r} rows of ${c} is ${r * c} ${this.W.many}!`,
         ],
       });
     }
@@ -240,10 +256,10 @@ export class WallForge extends Phaser.Scene {
     if (this.mode === 'repair' && needsIntro('wall-fix')) {
       out.push({
         concept: 'wall-fix',
-        title: 'FIX A WALL',
+        title: `FIX THE ${this.W.panel.toUpperCase()}`,
         steps: [
-          'Whole rows of bricks got knocked out!',
-          `Count the missing rows. Each one needs ${c} bricks.`,
+          `Whole rows of ${this.W.many} got knocked out!`,
+          `Count the missing rows. Each one needs ${c} ${this.W.many}.`,
           `Count by ${c}s for each missing row.`,
         ],
       });
@@ -251,9 +267,9 @@ export class WallForge extends Phaser.Scene {
     if (this.mode === 'repair' && j.extra > 0 && needsIntro('wall-extra')) {
       out.push({
         concept: 'wall-extra',
-        title: 'ROWS AND LOOSE BRICKS',
+        title: `ROWS AND LOOSE ${this.W.many.toUpperCase()}`,
         steps: [
-          `This time some loose bricks fell out too: ${j.extra} of them.`,
+          `This time some loose ${this.W.many} fell out too: ${j.extra} of them.`,
           `First count the rows by ${c}s: ${r} rows of ${c} is ${r * c}.`,
           `Then add the loose ones: ${r * c} + ${j.extra} = ${r * c + j.extra}.`,
         ],
@@ -291,7 +307,7 @@ export class WallForge extends Phaser.Scene {
   }
 
   private brick(x: number, y: number, w: number, h: number): Phaser.GameObjects.Rectangle {
-    const b = this.add.rectangle(x, y, w, h, BRICK_COLOR).setStrokeStyle(3, BRICK_EDGE);
+    const b = this.add.rectangle(x, y, w, h, this.W.brick).setStrokeStyle(3, this.W.edge);
     this.wall.add(b);
     return b;
   }
@@ -363,7 +379,7 @@ export class WallForge extends Phaser.Scene {
       if (laid < rows.length) {
         this.setTask(
           repair ? `${j.full} row${j.full === 1 ? '' : 's'} of ${j.cols} knocked out` : `Lay the rows: ${laid} of ${rows.length}`,
-          laid === 0 ? `Tap LAY A ROW: each row is ${j.cols} bricks.` : `${laid} row${laid === 1 ? '' : 's'} of ${j.cols} = ${laid * j.cols}`,
+          laid === 0 ? `Tap LAY A ROW: each row is ${j.cols} ${this.W.many}.` : `${laid} row${laid === 1 ? '' : 's'} of ${j.cols} = ${laid * j.cols}`,
           laid === 0 ? '#ffffff' : '#ffd166',
         );
         const b = button(this, (WALL.left + WALL.right) / 2, 635, 300, 66, `LAY A ROW (+${j.cols})`, () => {
@@ -371,21 +387,21 @@ export class WallForge extends Phaser.Scene {
           this.layRow(rows[laid], (laid + 1) * j.cols);
           laid++;
           this.time.delayedCall(450, next);
-        }, { fill: 0xd96c00, edge: 0xffc27a, size: 26 });
+        }, { ...this.W.btn, size: 26 });
         this.tweens.add({ targets: b, scale: 1.05, duration: 450, yoyo: true, repeat: -1 });
         this.layer.add(b);
         return;
       }
       if (j.extra && this.slots[j.rows - j.full - 1].some((sl) => !sl.brick)) {
-        this.setTask(`${j.full * j.cols} so far`, `Now the ${j.extra} loose bricks: count on from ${j.full * j.cols}.`, '#ffd166');
+        this.setTask(`${j.full * j.cols} so far`, `Now the ${j.extra} loose ${this.W.many}: count on from ${j.full * j.cols}.`, '#ffd166');
         const b = button(this, (WALL.left + WALL.right) / 2, 635, 300, 66, `ADD ${j.extra} MORE`, () => {
           b.destroy();
           this.layLoose(j.full * j.cols, next);
-        }, { fill: 0xd96c00, edge: 0xffc27a, size: 26 });
+        }, { ...this.W.btn, size: 26 });
         this.layer.add(b);
         return;
       }
-      this.setTask('HOW MANY BRICKS?', `${this.question(j)} = ?`);
+      this.setTask(`HOW MANY ${this.W.many.toUpperCase()}?`, `${this.question(j)} = ?`);
       this.onAnswer = (v) => this.check(v, false);
     };
     next();
@@ -395,7 +411,7 @@ export class WallForge extends Phaser.Scene {
   private soloRun() {
     const j = this.job;
     this.setTask(
-      this.mode === 'repair' ? 'HOW MANY BRICKS TO FIX IT?' : 'HOW MANY BRICKS FILL THIS WALL?',
+      this.mode === 'repair' ? `HOW MANY ${this.W.many.toUpperCase()} TO FIX IT?` : `HOW MANY ${this.W.many.toUpperCase()} FILL THIS ${this.W.panel.toUpperCase()}?`,
       `${this.question(j)} = ?`,
     );
     this.onAnswer = (v) => this.check(v, true);
@@ -428,7 +444,7 @@ export class WallForge extends Phaser.Scene {
       this.wall.add(glow);
       const last = row[row.length - 1];
       this.wall.add(text(this, last.x + last.w / 2 + 34, last.y, String(j.cols), 26, '#ffd166').setStroke('#000000', 5));
-      toast(this, CX, 680, `One row is ${j.cols} bricks. Count by ${j.cols}s, one row at a time!`, '#ff9f9f', 24);
+      toast(this, CX, 680, `One row is ${j.cols} ${this.W.many}. Count by ${j.cols}s, one row at a time!`, '#ff9f9f', 24);
       return;
     }
     this.busy = true;
@@ -459,9 +475,9 @@ export class WallForge extends Phaser.Scene {
     const points = n * BRICK;
     const sign = this.rowsText(j.full, j.cols).includes('×');
     const line = j.extra
-      ? `${j.full} × ${j.cols} + ${j.extra} = ${n} bricks`
-      : sign ? `${j.full} × ${j.cols} = ${n} bricks!` : `${j.full} rows of ${j.cols} = ${n} bricks!`;
-    this.setTask(`Every brick is ${BRICK} armor: ${formatNumber(points)} armor`, line, '#06d6a0');
+      ? `${j.full} × ${j.cols} + ${j.extra} = ${n} ${this.W.many}`
+      : sign ? `${j.full} × ${j.cols} = ${n} ${this.W.many}!` : `${j.full} rows of ${j.cols} = ${n} ${this.W.many}!`;
+    this.setTask(`Every ${this.W.one} is ${BRICK} armor: ${formatNumber(points)} armor`, line, '#06d6a0');
     sparks(this, (WALL.left + WALL.right) / 2, (WALL.top + WALL.bottom) / 2, 0xffb347, 30);
     const s = save();
     const d = rig(s);
@@ -515,7 +531,7 @@ export class WallForge extends Phaser.Scene {
     this.pad?.destroy();
     this.pad = null;
     this.pips.forEach((p) => p.setFillStyle(0x06d6a0));
-    let title = 'WALLS FIXED!';
+    let title = `${this.W.fixed} FIXED!`;
     if (this.mode === 'build') {
       const d = rig(s);
       const before = d.gear.armor;
@@ -524,7 +540,7 @@ export class WallForge extends Phaser.Scene {
       if (this.mark > 1 && d.gear.armor > before) s.scrap = Math.max(0, s.scrap - BUILD_COST[this.mark]);
       persist();
       if (d.gear.armor > before) {
-        onUpgradeBuilt('titan');
+        onUpgradeBuilt(this.bot);
         actionDone(s);
       }
       title = `MARK ${ROMAN[this.mark]} WALLS COMPLETE!`;
@@ -537,8 +553,8 @@ export class WallForge extends Phaser.Scene {
     const t = text(this, CX, 270, title, 44, '#06d6a0').setStroke('#000000', 7).setScale(0.3);
     this.tweens.add({ targets: t, scale: 1, duration: 300, ease: 'Back.easeOut' });
     const total = REGIONS.reduce((n, r) => n + (rig(s).armor?.[r]?.max ?? 0), 0);
-    text(this, CX, 345, `Brick walls: ${formatNumber(total)} armor`, 30, '#ffffff');
-    text(this, CX, 395, 'TITAN can take a beating now!', 24, '#ffd8a8');
+    text(this, CX, 345, `${this.bot === 'titan' ? 'Brick walls' : 'Hull tiles'}: ${formatNumber(total)} armor`, 30, '#ffffff');
+    text(this, CX, 395, `${botName(this.bot)} can take a beating now!`, 24, this.W.light);
     const next = this.then;
     if (next === 'engineering' || (next && upgradeRequired(next))) {
       if (next !== 'engineering') text(this, CX, 440, 'Now build an upgrade to beat that mission!', 24, '#ffd166');

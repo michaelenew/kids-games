@@ -5,7 +5,7 @@ import { REGIONS, type Region, armorMark, lookFromSave, plateTarget, regionName,
 import { music, sfx } from '../audio';
 import { type PlaceCounts, type SpecFormat, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
 import {
-  BUILD_COST, JET_COLOR, actionDone, activeBot, amazonUnlocked, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, persist, recordSkill, rig, save,
+  BUILD_COST, actionDone, activeBot, botColor, amazonUnlocked, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, persist, recordSkill, rig, save,
 } from '../state';
 import { Jet } from '../three/jet';
 import { launchMission } from './launch';
@@ -145,7 +145,7 @@ export class ArmorForge extends Phaser.Scene {
         return { region, target, spec: specText(target, format), format, misses: 0 };
       });
       this.places = this.mark === 3 ? [0, 1, 2, 3] : [1, 2, 3];
-      const who = activeBot() === 'jet' ? `${botName('jet')} ` : '';
+      const who = activeBot() !== 'bolt' ? `${botName(activeBot())} ` : '';
       text(this, (LEFT + RIGHT) / 2, 46, `${who}ARMOR FORGE · MARK ${ROMAN[this.mark]}`, 40, '#ffd166').setStroke('#000000', 8);
       if (!this.jobs.length) {
         this.allDone();
@@ -154,7 +154,7 @@ export class ArmorForge extends Phaser.Scene {
     } else {
       this.jobs = repairsNeeded(rig(s).armor ?? {}).map(({ region, missing }) => ({ region, target: missing, spec: formatNumber(missing), format: 'digits' as SpecFormat, misses: 0 }));
       this.places = [1, 2, 3];
-      text(this, (LEFT + RIGHT) / 2, 46, activeBot() === 'jet' ? `${botName('jet')} REPAIR BAY` : 'REPAIR BAY', 44, '#ffd166').setStroke('#000000', 8);
+      text(this, (LEFT + RIGHT) / 2, 46, activeBot() !== 'bolt' ? `${botName(activeBot())} REPAIR BAY` : 'REPAIR BAY', 44, '#ffd166').setStroke('#000000', 8);
       if (!this.jobs.length) {
         this.allDone();
         return;
@@ -250,7 +250,7 @@ export class ArmorForge extends Phaser.Scene {
 
   private pieceColor(place: number): number {
     // STRIKER's pieces are all its yellow, like the plates they build.
-    if (activeBot() === 'jet') return JET_COLOR;
+    if (activeBot() !== 'bolt') return botColor(activeBot());
     return [0xb388ff, save().color, 0x4cc9f0, 0xffd166][place];
   }
 
@@ -324,8 +324,9 @@ export class ArmorForge extends Phaser.Scene {
     const plate = rig().armor![this.job.region]!;
     const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
     const kind = borrowKind(plate.max, plate.hp);
-    // Walked through the first two times, and the first time each new kind comes up.
-    const guided = guideCount('written') < 2 || guideCount(`written-${kind}`) < 1;
+    // Always column by column for now: asked for the whole answer first, he'd start
+    // typing the ones digit and get told he's wrong.
+    const guided = true;
     this.busy = true;
     const go = () => writtenSubtractPanel(this, {
       top: plate.max, bottom: plate.hp, guided, area, title: 'MISSING POINTS: TAKE AWAY',
@@ -358,14 +359,8 @@ export class ArmorForge extends Phaser.Scene {
     const plate = rig().armor![this.job.region]!;
     const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
     const stage = guideCount('ramp');
+    // The real repair is always counted up jump by jump (never "type the whole answer").
     const real = () => {
-      const digits = String(plate.max).length;
-      // Index of the "on his own" ramp step for numbers this size.
-      const soloAt = RAMP.findIndex((r) => r.digits === Math.min(4, digits) && !r.guided);
-      if (guideCount('ramp') > soloAt) {
-        this.busy = false;
-        return;
-      }
       countUpPanel(this, {
         from: plate.hp, to: plate.max, guided: true, area, title: 'COUNT UP: MISSING POINTS',
         onDone: () => {
@@ -384,11 +379,11 @@ export class ArmorForge extends Phaser.Scene {
     const step = RAMP[stage];
     const p = rampProblem(Math.random, step.digits);
     countUpPanel(this, {
-      from: p.from, to: p.to, guided: step.guided, area,
+      from: p.from, to: p.to, guided: true, area,
       title: `WARM-UP: COUNT UP (${step.digits === 1 ? '1 digit' : `${step.digits} digits`})`,
       onDone: (solo) => {
-        // The "on your own" steps only count when he managed without the walk-through.
-        if (step.guided || solo) bumpGuide('ramp');
+        // Step by step every time for now, so each warm-up moves the ramp on.
+        bumpGuide('ramp');
         recordSkill('countup', solo);
         real();
       },
@@ -433,7 +428,7 @@ export class ArmorForge extends Phaser.Scene {
     const sc = this.robot.holder.scale.x;
     const [pw, ph] = this.robot.plateSize(j.region);
     this.patch?.group.removeFromParent();
-    this.patch = new PlatePatch([have[1], have[2], have[3]], [miss[1], miss[2], miss[3]], activeBot(s) === 'jet' ? JET_COLOR : s.color, pw * sc, ph * sc);
+    this.patch = new PlatePatch([have[1], have[2], have[3]], [miss[1], miss[2], miss[3]], botColor(activeBot(s), s), pw * sc, ph * sc);
     if (this.subtracting) this.patch.coverHoles();
     getStage().content.add(this.patch.group);
     this.placePatch();

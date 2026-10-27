@@ -28,7 +28,7 @@ function beatenThrough(id: string) {
 
 describe('STRIKER, the jet', () => {
   it('flies all five Egypt missions', () => {
-    const egypt = MISSIONS.filter((m) => m.env === 'desert');
+    const egypt = MISSIONS.filter((m) => m.env === 'desert' && !m.pick);
     expect(egypt).toHaveLength(5);
     expect(egypt.every((m) => missionBot(m.id) === 'jet')).toBe(true);
     // The first one starts with BOLT and hands over halfway.

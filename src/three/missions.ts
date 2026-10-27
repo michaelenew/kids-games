@@ -1,4 +1,4 @@
-import type { BotId } from '../state';
+import { type BotId, save } from '../state';
 import type { Line } from '../ui/widgets';
 
 /**
@@ -33,6 +33,8 @@ export type Step =
    * mission); TITAN drops in for STRIKER (the first canyon mission).
    */
   | { kind: 'swap' }
+  /** Reinforcements: a second robot from his collection joins in and fights alongside. */
+  | { kind: 'reinforce' }
   | { kind: 'boss'; banner: string };
 
 export interface Mission {
@@ -47,11 +49,15 @@ export interface Mission {
   /** Where the boss stands (boss missions). */
   boss?: [number, number, number];
   /** Where it happens (default the city). */
-  env?: 'city' | 'desert' | 'jungle' | 'canyon';
+  env?: 'city' | 'desert' | 'jungle' | 'canyon' | 'arctic' | 'ocean';
   /** Who flies it (default BOLT). A mission with a swap starts with `swapFrom` and ends with this one. */
   bot?: BotId;
   /** Who starts a hand-over mission (default BOLT). */
   swapFrom?: BotId;
+  /** He picks which of his robots plays it (the Counterattack missions). */
+  pick?: boolean;
+  /** Which column it sits in on the Garage (default: where it happens). */
+  area?: 'tour';
   /** Skip mission control before it (the jet's story mission opens straight into the action). */
   noControl?: boolean;
   /** Boss health multiplier (default 1). */
@@ -588,6 +594,419 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'DRILL WALKER!' },
     ],
   },
+  // ---- The Arctic: RHINO, the tank robot, takes over. All review: no new math here --------
+  {
+    id: 'arc-drop',
+    // Meant to be easy: TITAN walks in, then RHINO drops in and takes over.
+    dmg: 0.45, hp: 1, fire: 0.9, extra: 0.4,
+    env: 'arctic',
+    bot: 'tank',
+    swapFrom: 'titan',
+    noControl: true,
+    title: 'Invasion 21: Into the Snow',
+    blurb: 'Follow the last alien ship north to the Arctic.',
+    seed: 191,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -90], [-6, 0, -160], [0, 0, -210], [6, 0, -260], [-6, 0, -310], [4, 0, -360], [0, 0, -400], [0, 0, -430]],
+    plazas: [[0.4, 0.55]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Brrr! Their last ship landed in the Arctic. Walkers are coming out of the ice. Go get them, TITAN!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1.5, 'left'), kr(3, 'roofR')] },
+      { kind: 'wave', banner: 'ICE PATROL!', spawns: [kr(0, 'roofL'), kr(1, 'roofR'), sk(2, 'above'), kr(3.5, 'ahead')] },
+      { kind: 'move', to: 4, speed: 6, vehicle: 'foot' },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'TITAN\'s feet keep slipping on the ice! We need tracks out here.' },
+          { who: 'sprocket', text: 'I was hoping you\'d say that. Say hello to my newest robot... a TANK! RHINO, DROP!' },
+        ],
+      },
+      { kind: 'swap' },
+      {
+        kind: 'say', lines: [
+          { who: 'sprocket', text: 'Meet RHINO, the tank robot! Tracks for the ice, a big cannon, and it\'s tough as a rhino. TITAN, go warm up!' },
+        ],
+      },
+      { kind: 'wave', banner: 'SNOW WALKERS!', spawns: [kr(0, 'roofL'), kr(1.2, 'roofR'), sk(2.5, 'above')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR')] },
+      { kind: 'wave', banner: 'OUT OF THE ICE!', spawns: [kr(0, 'ahead'), kr(0.8, 'roofL'), sk(2, 'right'), kr(3, 'roofR')] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [sk(1.5, 'right'), kr(3, 'roofL')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofR'), sk(0.8, 'left'), kr(2, 'ahead'), sk(3, 'above')] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'arc-tundra',
+    dmg: 0.56, hp: 1.2, fire: 0.85, extra: 0.7,
+    env: 'arctic',
+    bot: 'tank',
+    title: 'Invasion 22: Tundra Run',
+    blurb: 'Tank mode across the frozen tundra!',
+    seed: 193,
+    path: [[0, 0, 20], [0, 0, -20], [6, 0, -70], [-10, 0, -150], [12, 0, -240], [-8, 0, -330], [6, 0, -400], [-4, 0, -450], [0, 0, -500], [0, 0, -530]],
+    plazas: [[0, 0.12], [0.85, 1]],
+    steps: [
+      { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
+      { kind: 'wave', banner: 'SNOWDRIFT AMBUSH!', spawns: [kr(0, 'roofL'), kr(0.8, 'roofR'), sk(2, 'above'), kr(3, 'ahead')] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Raiders on snow-bikes, right behind you! TANK MODE, RHINO!' }] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1.5, 'behindL'), rd(3, 'behindR'), sk(4.5, 'above'), rd(6, 'behindL'), rd(7.5, 'behindR')] },
+      { kind: 'move', to: 6, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2, 'behindL'), sk(3, 'above')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Walkers dug in up ahead. Stand up and blast them!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'TUNDRA WALKERS!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), sk(1.8, 'above'), kr(3, 'ahead'), sk(4, 'right', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL'), sk(2, 'left')] },
+      { kind: 'wave', banner: 'WHITEOUT!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), kr(1.2, 'roofR', true), sk(2.5, 'above', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'arc-river',
+    dmg: 0.19, hp: 1.35, fire: 0.8, extra: 0.9,
+    env: 'arctic',
+    bot: 'tank',
+    title: 'Invasion 23: The Frozen River',
+    blurb: 'Race along the frozen river!',
+    seed: 197,
+    path: [[0, 0, 20], [0, 0, -20], [-8, 0, -90], [10, 0, -170], [-6, 0, -250], [8, 0, -320], [-10, 0, -400], [6, 0, -470], [0, 0, -530], [0, 0, -560]],
+    plazas: [[0.3, 0.45], [0.8, 1]],
+    steps: [
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR'), sk(4, 'above', true)] },
+      { kind: 'wave', banner: 'ON THE ICE!', spawns: [sk(0, 'above'), sk(0.5, 'above', true), kr(1.5, 'roofL'), kr(2.2, 'roofR'), sk(3.5, 'left')] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2, 'behindR'), sk(3.5, 'above', true), rd(5, 'behindL'), rd(6, 'behindR'), rd(7.5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'ICE BRIDGE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.5, 'above', true), kr(2.5, 'ahead'), sk(3.5, 'left', true), kr(4.5, 'roofR')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [sk(1, 'right', true), kr(2.5, 'roofL')] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 8, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'RIVER MOUTH!', spawns: [kr(0, 'ahead', true), sk(0.6, 'above', true), kr(1.2, 'roofL', true), sk(2, 'left'), kr(3, 'roofR', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'arc-base',
+    dmg: 0.16, hp: 1.5, fire: 0.78, extra: 1.1,
+    env: 'arctic',
+    bot: 'tank',
+    title: 'Invasion 24: The Research Base',
+    blurb: 'Take back the old research base!',
+    seed: 199,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.2, 0.35], [0.55, 0.7], [0.9, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They took over the old research base. The scientists need it back!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'THE GATE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'THE DOMES!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true), sk(4.5, 'right')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead')] },
+      { kind: 'wave', banner: 'THE RADIO MAST!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true), kr(3.5, 'ahead', true), sk(4.5, 'right', true)] },
+      { kind: 'move', to: 9, speed: 6, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'arc-core',
+    dmg: 0.36, hp: 2.2, fire: 0.74, extra: 1.4,
+    env: 'arctic',
+    bot: 'tank',
+    title: 'Invasion 25: The Ice Walker',
+    blurb: 'Their last machine, under the ice. Boss!',
+    seed: 211,
+    path: [[0, 0, 20], [0, 0, -20], [10, 0, -110], [-10, 0, -200], [8, 0, -290], [0, 0, -360], [0, 0, -410], [0, 0, -450]],
+    plazas: [[0.8, 1]],
+    boss: [0, -8, -520],
+    bossHp: 3,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their biggest walker is breaking out of the ice. This is it, RHINO!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'ICE GUARDS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(2, 'above', true), sk(3, 'left', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'ICE WALKER!' },
+    ],
+  },
+  // ---- The Counterattack: aliens everywhere at once. He picks any robot; all review ----------
+  {
+    id: 'tour-city',
+    dmg: 1.3, hp: 1.4, fire: 0.8, extra: 1,
+    env: 'city',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 26: Back to the City',
+    blurb: 'Pick any robot!',
+    seed: 223,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re back in the city, right where it all started! Show them what your robot can do now.' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'DOWNTOWN!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), sk(1.5, 'above', true), kr(2.5, 'ahead'), sk(3.5, 'right')] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1.2, 'behindL'), rd(2.5, 'behindR'), sk(3.5, 'above'), rd(5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'CITY HALL!', spawns: [kr(0, 'ahead', true), kr(0.5, 'roofL', true), sk(1.4, 'above', true), sk(2.2, 'left'), kr(3.2, 'roofR', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL'), sk(2.5, 'right', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofR', true), sk(0.6, 'above', true), kr(1.4, 'ahead', true), sk(2.4, 'left', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-sands',
+    dmg: 0.75, hp: 1.5, fire: 0.8, extra: 1.1,
+    env: 'desert',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 27: Sandstorm Strike',
+    blurb: 'Pick a robot. Reinforcements coming!',
+    seed: 227,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'A sandstorm full of saucers is rolling over the pyramids. Here they come!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'SANDSTORM!', spawns: [sk(0, 'left', true), sk(0.5, 'right', true), kr(1.2, 'roofL'), sk(2, 'above', true), kr(3, 'ahead', true), sk(4, 'right')] },
+      { kind: 'move', to: 3, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true)] },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'There are too many of them! We need REINFORCEMENTS!' },
+          { who: 'sprocket', text: 'Sending one more robot in. Two robots, double the blasting!' },
+        ],
+      },
+      { kind: 'reinforce' },
+      { kind: 'wave', banner: 'TEAM UP!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), sk(1, 'above', true), sk(1.6, 'left', true), kr(2.4, 'ahead', true), sk(3.2, 'right', true), kr(4.2, 'roofL', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 6, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2, 'behindR'), sk(3, 'above', true), rd(4.5, 'behindL'), rd(5.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'THE SPHINX!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR', true), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.4, 'ahead', true), sk(4.4, 'right', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead', true)] },
+      { kind: 'wave', banner: 'BLOW THEM AWAY!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.2, 'above', true), sk(2, 'left', true), kr(3, 'ahead', true), sk(4, 'right', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-jungle',
+    dmg: 0.75, hp: 1.5, fire: 0.8, extra: 1.1,
+    env: 'jungle',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 28: Jungle Rescue',
+    blurb: 'Pick any robot!',
+    seed: 229,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re back in the Amazon, under the giant trees. Clear the old causeway!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'TREETOP AMBUSH!', spawns: [sk(0, 'above', true), sk(0.5, 'left', true), kr(1.2, 'roofL', true), kr(2, 'roofR'), sk(3, 'right', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'THE RUINS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true)] },
+      { kind: 'move', to: 7, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead')] },
+      { kind: 'wave', banner: 'HIVE PODS!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.6, 'left', true), kr(3.6, 'ahead', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-canyon',
+    dmg: 0.73, hp: 1.6, fire: 0.8, extra: 1.2,
+    env: 'canyon',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 29: Canyon Siege',
+    blurb: 'Pick a robot. Reinforcements coming!',
+    seed: 233,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re attacking the canyon from both rims at once. Hold the river road!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'FROM THE RIMS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.2, 'above', true), kr(2, 'ahead', true), sk(3, 'left', true), sk(4, 'right', true)] },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Walkers on BOTH rims! We need reinforcements, now!' },
+          { who: 'sprocket', text: 'On its way! Look up!' },
+        ],
+      },
+      { kind: 'reinforce' },
+      { kind: 'wave', banner: 'TEAM UP!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), sk(1, 'above', true), sk(1.6, 'left', true), kr(2.4, 'ahead', true), sk(3.2, 'right', true), kr(4.2, 'roofL', true)] },
+      { kind: 'move', to: 4, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 7, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR'), rd(6.5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'DRILL RIGS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR', true), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.4, 'ahead', true), sk(4.4, 'right', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-ice',
+    dmg: 1.22, hp: 2.2, fire: 0.8, extra: 1.4,
+    env: 'arctic',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 30: The Last Stand',
+    blurb: 'Pick a robot, call reinforcements. Final boss!',
+    seed: 239,
+    path: [[0, 0, 20], [0, 0, -20], [10, 0, -110], [-10, 0, -200], [8, 0, -290], [0, 0, -360], [0, 0, -410], [0, 0, -450]],
+    plazas: [[0.8, 1]],
+    boss: [0, -8, -520],
+    bossHp: 3.5,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Every alien that\'s left is heading for the Arctic. This is their last stand!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'ICE FORTRESS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(2, 'above', true), sk(3, 'left', true)] },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Their biggest walker is waking up under the ice. We need everyone!' },
+          { who: 'sprocket', text: 'Reinforcements, GO!' },
+        ],
+      },
+      { kind: 'reinforce' },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'MEGA ICE WALKER!' },
+    ],
+  },
+  // ---- The Deep: TRIDENT, the submarine robot. Dividing is the one new thing here ----------
+  {
+    id: 'sea-drop',
+    // Meant to be easy: RHINO rolls into the shallows, then TRIDENT drops in and takes over.
+    dmg: 0.4, hp: 1, fire: 0.9, extra: 0.4,
+    env: 'ocean',
+    bot: 'sub',
+    swapFrom: 'tank',
+    noControl: true,
+    title: 'Invasion 31: Into the Deep',
+    blurb: 'The aliens dove into the ocean. Follow them!',
+    seed: 241,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -90], [-6, 0, -160], [0, 0, -210], [6, 0, -260], [-6, 0, -310], [4, 0, -360], [0, 0, -400], [0, 0, -430]],
+    plazas: [[0.4, 0.55]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'The last of them dove under the ocean! RHINO, roll in and see how deep it goes.' }] },
+      { kind: 'move', to: 2, speed: 5, vehicle: 'foot', spawns: [sk(1.5, 'left'), kr(3, 'roofR')] },
+      { kind: 'wave', banner: 'SEA FLOOR PATROL!', spawns: [kr(0, 'roofL'), kr(1, 'roofR'), sk(2, 'above'), kr(3.5, 'ahead')] },
+      { kind: 'move', to: 4, speed: 5, vehicle: 'foot' },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'RHINO is way too heavy down here. It can hardly move!' },
+          { who: 'sprocket', text: 'Then it\'s time for my best robot yet. A SUBMARINE! TRIDENT, DIVE!' },
+        ],
+      },
+      { kind: 'swap' },
+      {
+        kind: 'say', lines: [
+          { who: 'sprocket', text: 'Meet TRIDENT, the submarine robot! It swims, it torpedoes, and it LOVES the deep. RHINO, go dry off!' },
+        ],
+      },
+      { kind: 'wave', banner: 'DEEP WALKERS!', spawns: [kr(0, 'roofL'), kr(1.2, 'roofR'), sk(2.5, 'above')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR')] },
+      { kind: 'wave', banner: 'ALIEN DOMES!', spawns: [kr(0, 'ahead'), kr(0.8, 'roofL'), sk(2, 'right'), kr(3, 'roofR')] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [sk(1.5, 'right'), kr(3, 'roofL')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofR'), sk(0.8, 'left'), kr(2, 'ahead'), sk(3, 'above')] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'sea-kelp',
+    dmg: 1.37, hp: 1.2, fire: 0.85, extra: 0.7,
+    env: 'ocean',
+    bot: 'sub',
+    title: 'Invasion 32: The Kelp Forest',
+    blurb: 'Swim through the swaying kelp forest!',
+    seed: 251,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0, 0.12], [0.85, 1]],
+    steps: [
+      { kind: 'move', to: 1, speed: 5, vehicle: 'foot' },
+      { kind: 'wave', banner: 'IN THE KELP!', spawns: [kr(0, 'roofL'), kr(0.8, 'roofR'), sk(2, 'above'), kr(3, 'ahead')] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Alien jet-skis coming up behind you! SUB MODE, TRIDENT!' }] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1.5, 'behindL'), rd(3, 'behindR'), sk(4.5, 'above'), rd(6, 'behindL'), rd(7.5, 'behindR')] },
+      { kind: 'move', to: 6, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2, 'behindL'), sk(3, 'above')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Walkers in the clearing. Stand up and fight!' }] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'KELP CLEARING!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), sk(1.8, 'above'), kr(3, 'ahead'), sk(4, 'right', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL'), sk(2, 'left')] },
+      { kind: 'wave', banner: 'OUT OF THE WEEDS!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), kr(1.2, 'roofR', true), sk(2.5, 'above', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'sea-wreck',
+    dmg: 0.52, hp: 1.35, fire: 0.8, extra: 0.9,
+    env: 'ocean',
+    bot: 'sub',
+    title: 'Invasion 33: The Sunken Ship',
+    blurb: 'Aliens are hiding in an old shipwreck!',
+    seed: 257,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.3, 0.45], [0.8, 1]],
+    steps: [
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR'), sk(4, 'above', true)] },
+      { kind: 'wave', banner: 'THE WRECK!', spawns: [sk(0, 'above'), sk(0.5, 'above', true), kr(1.5, 'roofL'), kr(2.2, 'roofR'), sk(3.5, 'left')] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2, 'behindR'), sk(3.5, 'above', true), rd(5, 'behindL'), rd(6, 'behindR'), rd(7.5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'CAPTAIN\'S CABIN!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.5, 'above', true), kr(2.5, 'ahead'), sk(3.5, 'left', true), kr(4.5, 'roofR')] },
+      { kind: 'move', to: 7, speed: 6, vehicle: 'foot', spawns: [sk(1, 'right', true), kr(2.5, 'roofL')] },
+      { kind: 'wave', banner: 'TREASURE GUARDS!', spawns: [kr(0, 'ahead', true), sk(0.6, 'above', true), kr(1.2, 'roofL', true), sk(2, 'left'), kr(3, 'roofR', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'sea-reef',
+    dmg: 0.38, hp: 1.5, fire: 0.78, extra: 1.1,
+    env: 'ocean',
+    bot: 'sub',
+    title: 'Invasion 34: Coral Canyon',
+    blurb: 'Chase them through the coral reef!',
+    seed: 263,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.2, 0.35], [0.55, 0.7], [0.9, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re draining power from the coral reef. Stop them before it goes dark!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'THE REEF!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'CORAL CAVES!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true), sk(4.5, 'right')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead')] },
+      { kind: 'wave', banner: 'POWER PODS!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true), kr(3.5, 'ahead', true), sk(4.5, 'right', true)] },
+      { kind: 'move', to: 9, speed: 6, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'sea-deep',
+    dmg: 1.06, hp: 2.2, fire: 0.74, extra: 1.4,
+    env: 'ocean',
+    bot: 'sub',
+    title: 'Invasion 35: The Abyss',
+    blurb: 'Their last machine, at the very bottom. Boss!',
+    seed: 269,
+    path: [[0, 0, 20], [0, 0, -20], [10, 0, -110], [-10, 0, -200], [8, 0, -290], [0, 0, -360], [0, 0, -410], [0, 0, -450]],
+    plazas: [[0.8, 1]],
+    boss: [0, -8, -520],
+    bossHp: 3,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'At the very bottom of the ocean... their biggest walker yet. Go get it, TRIDENT!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'ABYSS GUARDS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(2, 'above', true), sk(3, 'left', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'KRAKEN WALKER!' },
+    ],
+  },
 ];
 
 export function missionById(id: string): Mission {
@@ -602,14 +1021,22 @@ export const MISSION_IDS = MISSIONS.map((m) => m.id);
  */
 export function alertMission(done: string[], rng: () => number = Math.random): string | undefined {
   const next = MISSIONS.find((m) => !done.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
-  const current = next.bot ?? 'bolt';
-  const pool = MISSIONS.filter((m) => done.includes(m.id) && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
+  // In the pick-your-robot missions any robot can go on patrol.
+  const current = next.pick ? null : (next.bot ?? 'bolt');
+  const pool = MISSIONS.filter((m) => done.includes(m.id) && !m.pick && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
   return pool.length ? pool[Math.floor(rng() * pool.length)].id : undefined;
 }
 
 /** Who flies a mission (by the end of it). */
 export function missionBot(id: string): BotId {
-  return MISSIONS.find((m) => m.id === id)?.bot ?? 'bolt';
+  const m = MISSIONS.find((x) => x.id === id);
+  if (m?.pick) return save().picks?.[id] ?? 'bolt';
+  return m?.bot ?? 'bolt';
+}
+
+/** A mission where he picks the robot. */
+export function isPick(id: string): boolean {
+  return !!MISSIONS.find((m) => m.id === id)?.pick;
 }
 
 /** A mission where the next robot takes over partway through. */
@@ -621,5 +1048,5 @@ export function isHandOver(id: string): boolean {
 export function startBot(id: string): BotId {
   const m = MISSIONS.find((x) => x.id === id);
   if (!m) return 'bolt';
-  return isHandOver(id) ? (m.swapFrom ?? 'bolt') : (m.bot ?? 'bolt');
+  return isHandOver(id) ? (m.swapFrom ?? 'bolt') : missionBot(id);
 }

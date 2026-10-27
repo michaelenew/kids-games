@@ -1,6 +1,6 @@
 import { randInt, type Rng } from './skills/rng';
 import { borrowKind } from './skills/steps';
-import { type BotData, type BotId, type Mark, type SaveData, activeBot, botColor, botData } from './state';
+import { type BotData, type BotId, type Mark, type SaveData, activeBot, botColor, botData, gadgetOf } from './state';
 
 /**
  * The robot's armor is five plates. Each plate is worth a number of armor
@@ -40,8 +40,27 @@ export const TITAN_REGION_NAMES: Record<Region, string> = {
   legR: 'Right leg wall',
 };
 
+/** RHINO's plates: the hull, the arms and the tracks. */
+export const TANK_REGION_NAMES: Record<Region, string> = {
+  chest: 'Hull plate',
+  armL: 'Left arm plate',
+  armR: 'Right arm plate',
+  legL: 'Left track plate',
+  legR: 'Right track plate',
+};
+
+/** TRIDENT's plates are rows of hull tiles. */
+export const SUB_REGION_NAMES: Record<Region, string> = {
+  chest: 'Chest hull',
+  armL: 'Left arm hull',
+  armR: 'Right arm hull',
+  legL: 'Left leg hull',
+  legR: 'Right leg hull',
+};
+
 export function regionName(r: Region, bot: BotId): string {
-  return (bot === 'jet' ? JET_REGION_NAMES : bot === 'titan' ? TITAN_REGION_NAMES : REGION_NAMES)[r];
+  const names = { bolt: REGION_NAMES, jet: JET_REGION_NAMES, titan: TITAN_REGION_NAMES, tank: TANK_REGION_NAMES, sub: SUB_REGION_NAMES };
+  return names[bot][r];
 }
 
 export interface Plate {
@@ -203,7 +222,7 @@ export function lookFromSave(s: SaveData, bot: BotId = activeBot(s)): import('./
   return {
     kind: bot, color: botColor(bot, s),
     armor: armorMark(d.armor ?? {}), blaster: d.gear.blaster, boots: d.gear.boots, plates,
-    gadget: bot === 'jet' ? s.gadget : undefined,
+    gadget: gadgetOf(bot, s),
   };
 }
 
@@ -257,6 +276,25 @@ export function wallTarget(rng: Rng, mark: 1 | 2 | 3, region: Region, index: num
 }
 
 /** Where a robot's armor is built and fixed: TITAN's brick walls have their own yard. */
-export function forgeScene(bot: BotId): 'ArmorForge' | 'WallForge' {
-  return bot === 'titan' ? 'WallForge' : 'ArmorForge';
+export function forgeScene(bot: BotId): 'ArmorForge' | 'WallForge' | 'HullForge' {
+  return bot === 'titan' ? 'WallForge' : bot === 'sub' ? 'HullForge' : 'ArmorForge';
+}
+
+/**
+ * TRIDENT's hull blueprint for a new mark: a pile of tiles shared equally
+ * into rows (rows × tiles per row). Mark I shares into 2 or 5 rows, with
+ * small piles; Mark II shares into 3s and 4s; Mark III is bigger.
+ */
+export function hullTarget(rng: Rng, mark: 1 | 2 | 3, region: Region, index: number): { rows: number; cols: number } {
+  const big = region === 'chest';
+  if (mark === 1) {
+    const rows = [2, 5, 2, 5, 2][index % 5];
+    return { rows, cols: big ? 5 : randInt(rng, 2, rows === 5 ? 3 : 5) };
+  }
+  if (mark === 2) {
+    const rows = [3, 4, 3, 4, 2][index % 5];
+    return { rows, cols: big ? randInt(rng, 5, 6) : randInt(rng, 2, 5) };
+  }
+  const rows = [5, 4, 6, 3, 4][index % 5];
+  return { rows, cols: big ? randInt(rng, 6, 7) : randInt(rng, 3, 6) };
 }

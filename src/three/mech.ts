@@ -1,13 +1,15 @@
 import type * as THREE from 'three';
 import type { RobotLook } from '../art';
 import { Jet } from './jet';
+import { Sub } from './sub';
+import { Tank } from './tank';
 import { Titan } from './titan';
 import { type Region, Robot } from './robot';
 
 /**
  * What every playable robot can do, so the showroom, the forge and the
  * arcade missions work the same with BOLT (the walking robot) and STRIKER
- * (the fighter jet) and TITAN (the construction robot).
+ * (the fighter jet), TITAN (the construction robot) and RHINO (the tank).
  */
 export interface Mech {
   readonly holder: THREE.Group;
@@ -35,11 +37,20 @@ export interface Mech {
   setVehicle(on: boolean): void;
   readonly isVehicle: boolean;
   readonly vehicleAmount: number;
+  /** How its upgraded boots get it out of a shot's way (the jet rolls, on its own terms). */
+  readonly dodgeStyle?: 'swat' | 'dash';
+  /** Start that dodge. */
+  evade?(): void;
+  readonly evading?: boolean;
+  /** Where its Drone Wingmen gadget's drones are (empty without them). */
+  droneWorld?(): THREE.Vector3[];
   dispose(): void;
 }
 
 export function makeMech(look: RobotLook): Mech {
   if (look.kind === 'jet') return new Jet(look);
   if (look.kind === 'titan') return new Titan(look);
+  if (look.kind === 'tank') return new Tank(look);
+  if (look.kind === 'sub') return new Sub(look);
   return new Robot(look);
 }

@@ -258,7 +258,9 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 - **BOLT**: his first robot, transforms into a car. Flies the city missions.
 - **STRIKER** (built): a yellow fighter jet that also transforms into a walking robot. Takes over halfway through the first Egypt mission and does Egypt and the Amazon. Same three benches, its own flashy parts, plus one-mission super gadgets from the Super Lab.
 - **TITAN** (built): an orange construction robot that transforms into a bulldozer. Drops in for STRIKER in the first Grand Canyon mission and does the canyon. Its armor is brick walls built in rows, which is where multiplying lives; its repairs are missing rows of bricks.
-- **Planned**: a submarine robot and a robot with invisibility powers. Each gets its own missions and an Engineering Zone tab, and may use different kinds of problems on its benches.
+- **RHINO** (built): an army-green camo tank robot that transforms into a tank. Drops in for TITAN in the first Arctic mission. Review only: its armor uses the regular forge.
+- **TRIDENT** (built): a sea-teal submarine robot with a glass dome helmet. Drops in for RHINO in the first ocean mission. Its armor is hull tiles shared into equal rows, which is where dividing lives.
+- **Planned**: a robot with invisibility powers.
 
 ### Where each skill lives, by area
 
@@ -268,6 +270,9 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 | Egypt (6–10) | STRIKER | Time, money, count-up subtraction, bar graphs, adding | City skills on the benches |
 | Amazon (11–15) | STRIKER | Written subtraction, picture graphs, estimating | Time, money, adding; patrol alerts with BOLT |
 | Grand Canyon (16–20) | TITAN | Multiplying: walls in rows, supply drops (equal groups) | Every report kind in turn, time, money; alerts with BOLT and STRIKER |
+| Arctic (21–25) | RHINO (tank) | Nothing new: a review round | Place value and written subtraction (RHINO's armor), multiplying (supply drops), every report kind, time, money |
+| Counterattack (26–30) | Any robot he picks | Nothing new: a review round, with reinforcements | All of the above, on whichever robot he takes; gadgets for every robot |
+| The Deep (31–35) | TRIDENT (submarine) | Dividing: sharing hull tiles equally into rows | Multiplying (missing rows on repairs), every report kind, time, money |
 
 ---
 

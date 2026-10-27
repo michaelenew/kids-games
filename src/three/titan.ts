@@ -4,6 +4,7 @@ import { canvasTex } from './city';
 import {
   METAL, clamp01, coneGeo, cylGeo, glow, glowSprite, group, lerp, mesh, paint, rboxGeo, setGlow, smooth, sphereGeo, torusGeo,
 } from './kit';
+import { GadgetKit } from './gadgets';
 import type { Mech } from './mech';
 import { REGIONS, type Region } from './robot';
 
@@ -59,7 +60,7 @@ function bricks(): THREE.Texture {
 }
 
 let hazardTex: THREE.Texture | null = null;
-function hazard(): THREE.Texture {
+export function hazard(): THREE.Texture {
   if (hazardTex) return hazardTex;
   hazardTex = canvasTex(64, 64, (g) => {
     g.fillStyle = '#ffd60a';
@@ -91,6 +92,7 @@ interface FlyIn {
 export class Titan implements Mech {
   readonly holder = new THREE.Group();
   readonly size = 2.5;
+  readonly dodgeStyle = 'swat' as const;
   private readonly root = new THREE.Group();
   private readonly j = {} as Record<J, THREE.Object3D>;
   private readonly parts = new Map<string, THREE.Object3D[]>();
@@ -113,6 +115,7 @@ export class Titan implements Mech {
   };
   private look: RobotLook;
   private flyIns: FlyIn[] = [];
+  private gadgets!: GadgetKit;
 
   spin: number | null = null;
   facing = 1;
@@ -176,6 +179,11 @@ export class Titan implements Mech {
     this.buildPlates();
     this.buildWeapons();
     this.buildTreads();
+    this.gadgets = new GadgetKit({
+      part: (k, p, x, y, z) => this.part(k, p, x, y, z),
+      torso: this.j.torso, shoulder: new THREE.Vector3(-0.36, 0.95, -0.05), back: new THREE.Vector3(0, 0.45, -0.32),
+      base: this.root, fieldY: 1.25, fieldSize: new THREE.Vector3(1.15, 1.45, 0.95), droneY: 2.8, scale: 1.1,
+    });
     this.applyLook();
   }
 
@@ -425,7 +433,8 @@ export class Titan implements Mech {
       if (key.startsWith('plate:')) {
         const [, region, n] = key.split(':');
         on = this.plateOf(region as Region).mark >= Number(n);
-      } else if (key.startsWith('blaster')) on = L.blaster === Number(key.slice(-1));
+      } else if (key.startsWith('gadget:')) on = L.gadget === key.slice(7);
+      else if (key.startsWith('blaster')) on = L.blaster === Number(key.slice(-1));
       else if (key.startsWith('boots')) on = L.boots === Number(key.slice(-1));
       for (const o of list) {
         o.visible = on;
@@ -524,6 +533,15 @@ export class Titan implements Mech {
     return this.blockT >= 0;
   }
 
+  /** A joint, for the mega bot to fold the legs away and clamp armor on (see megabot.ts). */
+  jointOf(name: 'body' | 'torso' | 'head' | 'shL' | 'shR' | 'hipL' | 'hipR'): THREE.Object3D {
+    return this.j[name];
+  }
+
+  get color() {
+    return this.look.color;
+  }
+
   setVehicle(on: boolean) {
     this.dozerTarget = on ? 1 : 0;
   }
@@ -540,6 +558,11 @@ export class Titan implements Mech {
     const m = (this.lastMuzzle?.parent?.visible ? this.lastMuzzle : null) ?? this.muzzles.find((mz) => mz.mark === this.look.blaster)?.obj ?? this.muzzles[0].obj;
     this.holder.updateMatrixWorld(true);
     return m.getWorldPosition(out);
+  }
+
+  droneWorld(): THREE.Vector3[] {
+    this.holder.updateMatrixWorld(true);
+    return this.gadgets.droneWorld(this.look.gadget === 'drones');
   }
 
   regionWorld(r: Region, out = new THREE.Vector3()): THREE.Vector3 {
@@ -606,6 +629,7 @@ export class Titan implements Mech {
     J.dozer.scale.setScalar(Math.max(0.001, smooth(clamp01((this.dozerT - 0.2) / 0.6))));
     J.beacon.rotation.y += dt * 6;
 
+    this.gadgets.update(dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt * 6);
     this.drillSpeed = Math.max(0, this.drillSpeed - dt * 50);
     for (const dr of this.drills) dr.rotation.y += this.drillSpeed * dt;

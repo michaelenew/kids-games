@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { pickLetters, recordLetter, letterPool } from './learn';
+import { lessonNext, letterPool, noteMoment, pickLetters, recordLetter } from './learn';
+import { say } from './speak';
+import { sfx } from './sfx';
 import { persist, save } from './state';
 import { Fx } from './three/fx';
 import type { Stage } from './three/stage';
@@ -77,3 +79,56 @@ export function stats(ctx: Ctx): void {
 }
 
 export const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+
+/**
+ * Is this spot a lesson (say a letter) or just for fun (tap it)? Decided by
+ * the fun-first pacing, and remembered.
+ */
+export function lessonMoment(): boolean {
+  const sv = save();
+  const lesson = lessonNext(sv.pace);
+  noteMoment(sv.pace, lesson);
+  persist();
+  return lesson;
+}
+
+/** One more activity done (learning ramps up with these). */
+export function finishedActivity(): void {
+  save().pace.played++;
+  persist();
+}
+
+/**
+ * A just-for-fun moment: a bouncing finger points at something, and a tap
+ * anywhere sets it off. Gives up waiting after a while, so it never stalls.
+ */
+export function tapIt(ctx: Ctx, where: () => THREE.Vector3, line?: string): Promise<void> {
+  const { stage, ui } = ctx;
+  if (line) void say(line);
+  return new Promise((resolve) => {
+    const v = new THREE.Vector3();
+    const offFrame = stage.onFrame(() => {
+      v.copy(where()).project(stage.camera);
+      ui.pointAt(((v.x + 1) / 2) * innerWidth, ((1 - v.y) / 2) * innerHeight);
+    });
+    const nudge = setTimeout(() => void say('Tap it!'), 7000);
+    const giveUp = setTimeout(done, 16000);
+    const tap = (e: Event) => {
+      if (e.target === stage.renderer.domElement || e.target === ui.hand) done();
+    };
+    const key = () => done();
+    window.addEventListener('pointerdown', tap);
+    window.addEventListener('keydown', key);
+    function done() {
+      clearTimeout(nudge);
+      clearTimeout(giveUp);
+      window.removeEventListener('pointerdown', tap);
+      window.removeEventListener('keydown', key);
+      offFrame();
+      ui.pointAt(null);
+      sfx.pop();
+      resolve();
+    }
+    if (import.meta.env.DEV) (window as unknown as { tap: () => void }).tap = done;
+  });
+}

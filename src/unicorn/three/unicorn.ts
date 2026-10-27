@@ -184,17 +184,18 @@ export class Unicorn {
 
     // Tail: a chain of fluffy balls that sways.
     let parent: THREE.Object3D = this.body;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) {
       const seg = new THREE.Group();
       if (i === 0) {
         seg.position.set(0, 0.25, -0.88);
-        seg.rotation.x = 2.3;
+        // Pointing back and down, away from the rump.
+        seg.rotation.x = -2.7;
       } else {
-        seg.position.y = 0.18;
-        seg.rotation.x = -0.12;
+        seg.position.y = 0.16;
+        seg.rotation.x = 0.14;
       }
       const puff = mesh(sphere, toon(mane[i % mane.length]));
-      const s = 0.15 + Math.sin((i / 6) * Math.PI) * 0.09;
+      const s = 0.14 + Math.sin((i / 5) * Math.PI) * 0.08;
       puff.scale.set(s, 0.16, s);
       puff.position.y = 0.08;
       seg.add(puff);
@@ -289,9 +290,10 @@ export class Unicorn {
     const sway = 0.15 + g * 0.3;
     this.tail.forEach((seg, i) => {
       seg.rotation.z = Math.sin(this.t * 3 - i * 0.6) * sway * 0.6;
-      if (i > 0) seg.rotation.x = -0.12 - g * 0.25 + Math.sin(this.t * 5 - i) * 0.05 * g;
+      if (i > 0) seg.rotation.x = 0.14 + g * 0.12 + Math.sin(this.t * 5 - i) * 0.05 * g;
     });
-    if (this.tail[0]) this.tail[0].rotation.x = 2.3 - g * 0.6;
+    // It streams out behind at a gallop.
+    if (this.tail[0]) this.tail[0].rotation.x = -2.7 + g * 0.8;
     this.mane.forEach((m, i) => {
       m.rotation.z = Math.sin(this.t * 4 - i * 0.7) * (0.1 + g * 0.3);
     });

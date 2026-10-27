@@ -1,5 +1,5 @@
 import { ALL_LETTER_WORDS, LETTERS, lettersIn } from '../letters';
-import { type CaseMode, MATH_LEVELS, MAX_BOX } from '../learn';
+import { type CaseMode, lessonShare, MATH_LEVELS, MAX_BOX, MAX_LESSON_SHARE } from '../learn';
 import { hush } from '../speak';
 import { persist, resetSave, save } from '../state';
 import type { UI } from '../ui';
@@ -41,6 +41,9 @@ export function openGrownups(ui: UI, onChange: () => void): void {
       ${voice.status === 'failed' || voice.status === 'off' ? '<button class="opt" data-act="retry">Try the microphone again</button>' : ''}
       ${voice.ready ? '<button class="opt" data-act="check">Voice check: say every letter</button>' : ''}
     </div>
+    <h3>Play and learning</h3>
+    <div class="note">It starts as pure play, then mixes in letters (and the Feed math) a little more after each activity, up to about half.
+      Right now: about ${Math.round(lessonShare(sv.pace.played) * 100)}% learning (${sv.pace.played} activities played; tops out at ${MAX_LESSON_SHARE * 100}%).</div>
     <h3>Answer by</h3>
     <div class="row">${opt('tap', '0', '🎤 Talking', !sv.tapMode)}${opt('tap', '1', '👆 Tapping', sv.tapMode)}</div>
     <h3>Letters</h3>

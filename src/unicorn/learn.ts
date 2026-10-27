@@ -159,3 +159,54 @@ export function freshName(taken: string[], rand: Rand): string {
   const list = free.length ? free : NAMES;
   return list[Math.floor(rand() * list.length)];
 }
+
+// ---- Pacing: fun first, learning layered in -------------------------------
+
+/**
+ * Like Mecha Forge: the game starts as pure play and brings learning in
+ * slowly. Each spot that could ask a question (a trail crystal, a race gate,
+ * a wild unicorn) is a "moment"; it's either a lesson (say a letter) or just
+ * fun (tap it). The share of lessons grows with how many activities she's
+ * played, and never goes past about half.
+ */
+export const FREE_ACTIVITIES = 3;
+export const MAX_LESSON_SHARE = 0.5;
+const WINDOW = 10;
+const MAX_LESSONS_IN_A_ROW = 2;
+
+/** The share of moments that should be lessons, after `played` activities. */
+export function lessonShare(played: number): number {
+  if (played < FREE_ACTIVITIES) return 0;
+  return Math.min(MAX_LESSON_SHARE, 0.2 + (played - FREE_ACTIVITIES) * 0.05);
+}
+
+export interface Pace {
+  /** Activities finished so far. */
+  played: number;
+  /** The most recent moments: true = lesson, false = fun. */
+  moments: boolean[];
+}
+
+export function newPace(): Pace {
+  return { played: 0, moments: [] };
+}
+
+/** Should the next moment be a lesson? Doesn't record it (see noteMoment). */
+export function lessonNext(p: Pace): boolean {
+  const share = lessonShare(p.played);
+  if (share <= 0) return false;
+  const recent = p.moments.slice(-(WINDOW - 1));
+  const tail = recent.slice(-MAX_LESSONS_IN_A_ROW);
+  if (tail.length === MAX_LESSONS_IN_A_ROW && tail.every(Boolean)) return false;
+  const lessons = recent.filter(Boolean).length + 1;
+  return lessons / (recent.length + 1) <= share + 1e-9;
+}
+
+export function noteMoment(p: Pace, lesson: boolean): void {
+  p.moments = [...p.moments, lesson].slice(-WINDOW * 2);
+}
+
+/** Feeding time (the math) shows up once learning has started. */
+export function feedUnlocked(p: Pace): boolean {
+  return p.played >= FREE_ACTIVITIES + 1;
+}

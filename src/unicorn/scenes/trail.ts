@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { askLetter } from '../ask';
-import { type Ctx, freshPlace, nextLetters, noteLetter, praise, seconds, tween } from '../ctx';
+import { type Ctx, freshPlace, lessonMoment, nextLetters, noteLetter, praise, seconds, tapIt, tween } from '../ctx';
 import { freshName } from '../learn';
 import { say } from '../speak';
 import { sfx } from '../sfx';
@@ -107,8 +107,11 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
   const ride = fav ? new Unicorn(fav.look) : null;
   if (ride) w.add(ride.holder);
 
-  const letters = nextLetters(6);
-  const stones = [0.15, 0.38, 0.61].map((u, i) => makeStone(ctx, curve, u, letters[i], theme.crystal));
+  // Each crystal is a letter to say, or (early on, and in between) just one to tap.
+  const letters = nextLetters(3);
+  const lessons = [0, 1, 2].map(() => lessonMoment());
+  const stones = [0.15, 0.38, 0.61].map((u, i) => makeStone(ctx, curve, u, lessons[i] ? letters[i] : null, theme.crystal));
+  const bubbles = floatingBubbles(ctx, curve, fx);
   const bloomSets = [0.19, 0.42, 0.65].map((u) => bloomFlowers(curve, u, h, w));
 
   let s = 0;
@@ -163,14 +166,19 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
       });
     });
 
-  void say(sv.unicorns.length ? `Let's explore ${theme.name}! Look out for magic letters!` : `Let's explore ${theme.name}! Look out for magic letters!`);
+  void say(lessons.some(Boolean) ? `Let's explore ${theme.name}! Look out for magic letters!` : `Let's explore ${theme.name}! Tap the bubbles to pop them!`);
 
   for (let i = 0; i < stones.length; i++) {
     const st = stones[i];
     await goTo(st.at - (ride ? 8 : 11));
+    st.sparkleWith(fx);
     st.wake();
-    const a = await askLetter(ui, letters[i], i === 0 ? 'A magic crystal is blocking the path! What letter is this?' : 'What letter is this?');
-    noteLetter(letters[i], a.firstTry);
+    if (lessons[i]) {
+      const a = await askLetter(ui, letters[i], i === 0 ? 'A magic crystal is blocking the path! What letter is this?' : 'What letter is this?');
+      noteLetter(letters[i], a.firstTry);
+    } else {
+      await tapIt(ctx, st.center, i === 0 ? 'A magic crystal is blocking the path! Tap it!' : 'Another crystal! Tap it!');
+    }
     st.burst(fx);
     ui.toast(praise());
     if (ride) {
@@ -195,28 +203,37 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
   stage.onFrame((dt) => wild.update(dt));
   await goTo(gladeAt - 13);
 
+  bubbles.stop();
   await say('Look! A wild unicorn! It is a little shy.');
   const tameLetters = nextLetters(3);
-  void say('Say the magic letters to make friends!');
+  const tameLessons = [0, 1, 2].map(() => lessonMoment());
+  void say(tameLessons[0] ? 'Say the magic letters to make friends!' : "Let's make friends!");
   for (let i = 0; i < 3; i++) {
-    const glyph = tameLetters[i];
-    const bubble = glyphSprite(glyph, { size: 2.2, ring: '#ffd43b' });
-    const from = wild.hornTip();
-    bubble.position.copy(from);
-    bubble.scale.setScalar(0.01);
-    w.add(bubble);
-    sfx.twinkle();
-    const above = wild.holder.position.clone().add(new THREE.Vector3(0, 4.2, 0)).addScaledVector(gt, -1.5);
-    await tween(ctx, 0.8, (k) => {
-      bubble.position.lerpVectors(from, above, k);
-      bubble.scale.setScalar(0.01 + k * 2.2);
-    });
-    const bob2 = stage.onFrame(() => (bubble.position.y = above.y + Math.sin(stage.time * 3) * 0.15));
-    const a = await askLetter(ui, glyph, i === 0 ? 'What letter is this?' : 'And this one?');
-    noteLetter(glyph, a.firstTry);
-    bob2();
-    fx.sparkles(bubble.position, { count: 70, colors: [0xffd43b, ...PASTEL] });
-    w.remove(bubble);
+    if (tameLessons[i]) {
+      const glyph = tameLetters[i];
+      const bubble = glyphSprite(glyph, { size: 2.2, ring: '#ffd43b' });
+      const from = wild.hornTip();
+      bubble.position.copy(from);
+      bubble.scale.setScalar(0.01);
+      w.add(bubble);
+      sfx.twinkle();
+      // Float the letter to the upper middle of the view, wherever the unicorn is.
+      const above = stage.camera.localToWorld(new THREE.Vector3(0, 1.1, -7));
+      await tween(ctx, 0.8, (k) => {
+        bubble.position.lerpVectors(from, above, k);
+        bubble.scale.setScalar(0.01 + k * 2.2);
+      });
+      const bob2 = stage.onFrame(() => (bubble.position.y = above.y + Math.sin(stage.time * 3) * 0.12));
+      const a = await askLetter(ui, glyph, i === 0 ? 'What letter is this?' : 'And this one?');
+      noteLetter(glyph, a.firstTry);
+      bob2();
+      fx.sparkles(bubble.position, { count: 70, colors: [0xffd43b, ...PASTEL] });
+      w.remove(bubble);
+    } else {
+      await tapIt(ctx, () => wild.hornTip().add(new THREE.Vector3(0, -0.4, 0)), ['Pet the unicorn! Tap it!', 'Pet it again!', 'One more pat!'][i]);
+      sfx.neigh();
+      fx.sparkles(wild.hornTip(), { count: 50, colors: [0xffd43b, ...PASTEL] });
+    }
     fx.hearts(wild.holder.position.clone().add(new THREE.Vector3(0, 2.8, 0)), 4);
     ui.toast(praise());
     // It trots a little closer each time.
@@ -253,7 +270,7 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
 }
 
 /** A glowing crystal with a letter in front of it, standing on the path. */
-function makeStone(ctx: Ctx, curve: THREE.CatmullRomCurve3, u: number, glyph: string, color: number) {
+function makeStone(ctx: Ctx, curve: THREE.CatmullRomCurve3, u: number, glyph: string | null, color: number) {
   const L = curve.getLength();
   const p = curve.getPointAt(u);
   const grp = new THREE.Group();
@@ -272,20 +289,29 @@ function makeStone(ctx: Ctx, curve: THREE.CatmullRomCurve3, u: number, glyph: st
     r.position.set(Math.cos(a) * 1.3, 0.15, Math.sin(a) * 1.3);
     grp.add(r);
   }
-  const sprite = glyphSprite(glyph, { size: 2.3 });
+  // A letter crystal has its letter floating above it; a tap crystal is bigger and sparklier.
+  const sprite = glyph ? glyphSprite(glyph, { size: 2.3 }) : new THREE.Object3D();
   const t = curve.getTangentAt(u);
   sprite.position.set(-t.x * 0.6, 3.8, -t.z * 0.6);
   grp.add(sprite);
+  if (!glyph) crystal.scale.multiplyScalar(1.3);
   ctx.stage.world.add(grp);
   let awake = false;
   const off = ctx.stage.onFrame((dt) => {
     crystal.rotation.y += dt * (awake ? 2 : 0.6);
     crystal.position.y = 1.6 + Math.sin(ctx.stage.time * 2) * 0.15;
     sprite.position.y = 3.8 + Math.sin(ctx.stage.time * 2 + 1) * 0.12;
+    if (!glyph && awake && Math.random() < dt * 6) burstTwinkle();
     (crystal.material as THREE.MeshStandardMaterial).emissiveIntensity = awake ? 0.8 + Math.sin(ctx.stage.time * 6) * 0.3 : 0.5;
   });
+  const twinkles: (() => void)[] = [];
+  const burstTwinkle = () => twinkles.forEach((f) => f());
   return {
     at: u * L,
+    center: () => crystal.getWorldPosition(new THREE.Vector3()),
+    sparkleWith(fx: import('../three/fx').Fx) {
+      twinkles.push(() => fx.sparkles(crystal.getWorldPosition(new THREE.Vector3()), { count: 4, speed: 1.5, up: 0.5, life: 0.8, size: 0.3 }));
+    },
     wake() {
       awake = true;
       sfx.twinkle();
@@ -331,4 +357,51 @@ function bloomFlowers(curve: THREE.CatmullRomCurve3, u0: number, h: (x: number, 
   grow(0);
   w.add(inst);
   return { grow };
+}
+
+/**
+ * Shiny bubbles floating along the trail, just for fun: tap one to pop it.
+ * Returns stop(), which ends the popping (the rest float on).
+ */
+function floatingBubbles(ctx: Ctx, curve: THREE.CatmullRomCurve3, fx: import('../three/fx').Fx) {
+  const { stage } = ctx;
+  const geo = new THREE.SphereGeometry(0.7, 18, 14);
+  const shineGeo = new THREE.SphereGeometry(0.12, 8, 6);
+  const bubbles: THREE.Mesh[] = [];
+  for (let i = 0; i < 22; i++) {
+    const u = 0.06 + (i / 22) * 0.84 + Math.sin(i * 7.3) * 0.015;
+    const p = curve.getPointAt(u);
+    const t = curve.getTangentAt(u);
+    const off = (1.2 + ((i * 37) % 10) / 4) * (i % 2 ? 1 : -1);
+    const color = RAINBOW[i % RAINBOW.length];
+    const b = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5, transparent: true, opacity: 0.6, roughness: 0.05, metalness: 0.1 }));
+    const shine = new THREE.Mesh(shineGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    shine.position.set(-0.28, 0.32, 0.38);
+    b.add(shine);
+    b.position.set(p.x - t.z * off, p.y + 1.6 + ((i * 13) % 7) * 0.3, p.z + t.x * off);
+    b.userData.y0 = b.position.y;
+    b.userData.phase = i;
+    stage.world.add(b);
+    bubbles.push(b);
+  }
+  stage.onFrame(() => {
+    for (const b of bubbles) b.position.y = b.userData.y0 + Math.sin(stage.time * 1.5 + b.userData.phase) * 0.3;
+  });
+  const ray = new THREE.Raycaster();
+  let popped = 0;
+  const tap = (e: PointerEvent) => {
+    if (e.target !== stage.renderer.domElement) return;
+    ray.setFromCamera(new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), stage.camera);
+    // Generous: count a tap near a bubble, not just on it.
+    const hit = bubbles.find((b) => b.parent && ray.ray.distanceToPoint(b.position) < 1.1);
+    if (!hit) return;
+    stage.world.remove(hit);
+    fx.sparkles(hit.position, { count: 40, colors: RAINBOW, speed: 4, up: 1 });
+    sfx.pop();
+    sfx.twinkle();
+    popped++;
+    if (popped % 5 === 0) ctx.ui.toast(['Pop!', 'Pop pop!', 'Bubbles!'][(popped / 5) % 3 | 0], 900);
+  };
+  window.addEventListener('pointerdown', tap);
+  return { stop: () => window.removeEventListener('pointerdown', tap) };
 }

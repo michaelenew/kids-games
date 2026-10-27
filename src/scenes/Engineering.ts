@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
-import { REGIONS, lookFromSave } from '../armor';
+import { REGIONS, forgeScene, lookFromSave } from '../armor';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import {
@@ -26,6 +26,11 @@ const STORY: Record<BotId, Record<GearId, string>> = {
     armor: 'Build brick walls, row by row.',
     blaster: 'Cut new rivet barrels for bigger shots.',
     boots: 'Pump up the treads so its digger arm swats shots.',
+  },
+  sub: {
+    armor: 'Share hull tiles out into equal rows.',
+    blaster: 'Cut new torpedo tubes for bigger shots.',
+    boots: 'Fuel the jet fins to dash past shots.',
   },
   tank: {
     armor: 'Forge heavy tank plates so hits hurt less.',
@@ -88,6 +93,11 @@ export class EngineeringScene extends Phaser.Scene {
         { who: 'sprocket', text: 'This is my favorite place! Each bench builds one kind of upgrade.' },
         { who: 'sprocket', text: 'Building takes scrap, and a little brain power. Pick whatever you like!' },
       ], () => markSeen('engineering-intro'));
+    } else if (bot === 'sub' && !hasSeen('engineering-sub')) {
+      dialog(this, [
+        { who: 'sprocket', text: 'TRIDENT\'s benches! Hull tiles, torpedoes and jet fins.' },
+        { who: 'sprocket', text: 'The hull bay is new: you share tiles out into equal rows. That\'s DIVIDING!' },
+      ], () => markSeen('engineering-sub'));
     } else if (bot === 'tank' && !hasSeen('engineering-tank')) {
       dialog(this, [
         { who: 'sprocket', text: 'RHINO\'s benches! Heavy tank plates, a big cannon and rocket boosters.' },
@@ -235,7 +245,7 @@ export class EngineeringScene extends Phaser.Scene {
       // First buy the power core from the junk trader (money), then build.
       // TITAN's armor is brick walls, built in the wall yard.
       const then = gear === 'armor'
-        ? { key: bot === 'titan' ? 'WallForge' : 'ArmorForge', data: { mode: 'build', mark: next } }
+        ? { key: forgeScene(bot), data: { mode: 'build', mark: next } }
         : { key: BENCH_SCENE[gear], data: { gear, mark: next, practice: false } };
       if (egyptUnlocked()) this.scene.start('Trader', { gear, mark: next, then });
       else this.scene.start(then.key, then.data);

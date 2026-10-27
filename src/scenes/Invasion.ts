@@ -581,8 +581,22 @@ export class InvasionScene extends Phaser.Scene {
       } else if (this.mission.id === 'tour-ice' && firstWin) {
         dialog(this, [
           { who: 'volt', text: 'The Mega Ice Walker is down! The counterattack is over!' },
-          { who: 'volt', text: 'BOLT, STRIKER, TITAN and RHINO... what a team. Earth is safe. For now...' },
+          { who: 'volt', text: 'But the last of them just dove into the OCEAN. They\'re hiding at the bottom of the sea!' },
+          { who: 'sprocket', text: 'Under the water? Then I\'d better finish my secret project... a robot that can SWIM.' },
         ], after);
+      } else if (this.mission.id === 'sea-drop' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'TRIDENT! Our submarine robot is down in the deep!' },
+          { who: 'sprocket', text: 'TRIDENT does the ocean missions. Its armor is hull tiles, and every row has to be EVEN or it leaks!' },
+          { who: 'sprocket', text: 'Let\'s go build its first hull. We\'ll share the tiles out fairly, one row at a time.' },
+        ], after);
+      } else if (this.mission.id === 'sea-deep' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Kraken Walker is scrap! The aliens are gone, from the city to the bottom of the sea!' },
+          { who: 'volt', text: 'BOLT, STRIKER, TITAN, RHINO and TRIDENT... the best team on the planet.' },
+        ], after);
+      } else if (next.key === 'HullForge' || (next.key === 'WallForge' && this.bot === 'sub')) {
+        dialog(this, [{ who: 'sprocket', text: 'TRIDENT lost some hull tiles. Let\'s put the rows back, before it springs a leak!' }], after);
       } else if (next.key === 'WallForge') {
         dialog(this, [{ who: 'sprocket', text: 'TITAN\'s walls lost some bricks. Let\'s rebuild them, row by row!' }], after);
       } else if (next.key === 'ArmorForge' && (next.data as { mode: string }).mode === 'build') {

@@ -13,9 +13,11 @@ import type { AlienKind, Mission, Spawn, Step, Vehicle } from './missions';
 import { Jet } from './jet';
 import { type Mech, makeMech } from './mech';
 import type { Stage } from './stage';
+import { Sub } from './sub';
 import { Tank } from './tank';
 import { Titan } from './titan';
 import { ARCTIC_FOG, arcticSky, buildArctic } from './arctic';
+import { OCEAN_FOG, buildOcean, oceanSky } from './ocean';
 import { CANYON_FOG, buildCanyon, canyonSky } from './canyon';
 import { BOTS } from '../state';
 
@@ -207,9 +209,11 @@ export class Invasion {
     const jungle = mission.env === 'jungle';
     const canyon = mission.env === 'canyon';
     const arctic = mission.env === 'arctic';
+    const ocean = mission.env === 'ocean';
     const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas };
     this.city = desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
-      : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where) : buildCity(this.curve, where);
+      : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
+        : ocean ? buildOcean(this.curve, where) : buildCity(this.curve, where);
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
@@ -242,7 +246,12 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    if (arctic) {
+    if (ocean) {
+      // Murky blue water: things fade out sooner than on land.
+      stage.activate(oceanSky(), new THREE.Fog(OCEAN_FOG, 40, 300));
+      stage.key.color.setHex(0xbff6ff);
+      stage.key.intensity = 2.4;
+    } else if (arctic) {
       stage.activate(arcticSky(), new THREE.Fog(ARCTIC_FOG, 90, 560));
       // Low, cold polar sun (dimmer than elsewhere: snow reflects a lot).
       stage.key.color.setHex(0xdfe9ff);
@@ -306,7 +315,7 @@ export class Invasion {
     const j = jc * jc * (3 - 2 * jc);
     const off = CAM_ROBOT.clone().lerp(CAM_CAR, k).lerp(CAM_JET, j);
     // TITAN and RHINO are wide: sit the camera a bit further back and higher so it doesn't fill the view.
-    if (this.robot instanceof Titan || this.robot instanceof Tank) off.add(TITAN_CAM_EXTRA.clone().multiplyScalar(1 - k));
+    if (this.robot instanceof Titan || this.robot instanceof Tank || this.robot instanceof Sub) off.add(TITAN_CAM_EXTRA.clone().multiplyScalar(1 - k));
     const look = LOOK_ROBOT.clone().lerp(LOOK_CAR, k).lerp(LOOK_JET, j);
     if (this.vehicle === 'foot' && this.speed > 0.5) off.y += Math.abs(Math.sin(this.t * 7)) * 0.06;
     const pos = this.rig.localToWorld(off);

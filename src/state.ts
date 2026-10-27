@@ -1,7 +1,7 @@
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
-/** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot) and RHINO (the tank). */
-export type BotId = 'bolt' | 'jet' | 'titan' | 'tank';
+/** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot), RHINO (the tank) and TRIDENT (the submarine). */
+export type BotId = 'bolt' | 'jet' | 'titan' | 'tank' | 'sub';
 
 /** One robot's upgrades and armor plates. */
 export interface BotData {
@@ -315,10 +315,24 @@ export const BOTS: Record<BotId, BotSpec> = {
       },
     },
   },
+  // TRIDENT, the submarine robot, for the ocean. Its armor is where dividing comes in.
+  sub: {
+    name: 'TRIDENT', color: 0x1fb5c4, nameColor: '#7ff7ff', joinsAt: 'sea-drop',
+    damage: [3, 4, 6, 8], cooldown: [0.22, 0.2, 0.17, 0.12], dodge: [0, 0.12, 0.22, 0.32], vehicle: 'SUB',
+    tab: { icon: '🔱', fill: 0x0f7f8c, edge: 0x9ff7ff, card: 0x1fb5c4 },
+    gear: {
+      armor: { title: 'Hull Tiles', skill: 'Dividing', perks: ['No hull tiles', 'Hull tile armor', 'Steel-framed tiles', 'Gold-trimmed tiles + spikes'] },
+      blaster: {
+        title: 'Torpedoes', skill: 'Measuring',
+        perks: ['Harpoon gun, damage 3', 'Torpedo launcher, damage 4', 'Twin torpedoes + mini-missiles, damage 6', 'Plasma trident, damage 8'],
+      },
+      boots: { title: 'Jet Fins', skill: 'Adding & subtracting', perks: ['Plain flippers', 'Jet fins: dashes past some shots', 'Twin jet fins: dashes past more', 'Turbo fins: dashes past lots of shots'] },
+    },
+  },
 };
 
 /** Robots in the order they join. */
-export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank'];
+export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank', 'sub'];
 
 /** STRIKER's paint. */
 export const JET_COLOR = BOTS.jet.color;
@@ -423,6 +437,7 @@ const GADGET_NAMES: Record<BotId, Record<GadgetId, string>> = {
   jet: { mega: 'Mega Cannon', shield: 'Energy Armor', drones: 'Drone Wingmen', hyper: 'Hyper Boosters' },
   titan: { mega: 'Mega Jackhammer', shield: 'Steel Fortress', drones: 'Drone Crew', hyper: 'Rocket Treads' },
   tank: { mega: 'Mega Railgun', shield: 'Energy Armor', drones: 'Drone Wingmen', hyper: 'Hyper Boosters' },
+  sub: { mega: 'Mega Torpedo', shield: 'Bubble Shield', drones: 'Robo Dolphins', hyper: 'Turbo Props' },
 };
 
 /** A gadget as a robot calls it. BOLT, TITAN and RHINO dash aside where the jet does rainbow rolls. */
@@ -435,6 +450,8 @@ export function gadgetInfo(bot: BotId, g: GadgetId): (typeof GADGETS)[GadgetId] 
 /** The Super Lab opens for STRIKER after the first Amazon mission, and for every robot once the Arctic is done. */
 export function superLabUnlocked(bot: BotId = 'jet', s: SaveData = save()): boolean {
   if (bot === 'jet') return s.levelsDone.includes('amz-landing');
+  // TRIDENT joins after the Counterattack: its lab opens when it does.
+  if (bot === 'sub') return botUnlocked('sub', s);
   return s.levelsDone.includes('arc-core') && botUnlocked(bot, s);
 }
 

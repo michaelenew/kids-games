@@ -733,7 +733,7 @@ export const MISSIONS: Mission[] = [
   // ---- The Counterattack: aliens everywhere at once. He picks any robot; all review ----------
   {
     id: 'tour-city',
-    dmg: 1, hp: 1.4, fire: 0.8, extra: 1,
+    dmg: 1.3, hp: 1.4, fire: 0.8, extra: 1,
     env: 'city',
     area: 'tour',
     pick: true,
@@ -757,7 +757,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'tour-sands',
-    dmg: 1, hp: 1.5, fire: 0.8, extra: 1.1,
+    dmg: 0.75, hp: 1.5, fire: 0.8, extra: 1.1,
     env: 'desert',
     area: 'tour',
     pick: true,
@@ -790,7 +790,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'tour-jungle',
-    dmg: 1, hp: 1.5, fire: 0.8, extra: 1.1,
+    dmg: 0.75, hp: 1.5, fire: 0.8, extra: 1.1,
     env: 'jungle',
     area: 'tour',
     pick: true,
@@ -814,7 +814,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'tour-canyon',
-    dmg: 1, hp: 1.6, fire: 0.8, extra: 1.2,
+    dmg: 0.73, hp: 1.6, fire: 0.8, extra: 1.2,
     env: 'canyon',
     area: 'tour',
     pick: true,
@@ -845,7 +845,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'tour-ice',
-    dmg: 1, hp: 2.2, fire: 0.8, extra: 1.4,
+    dmg: 1.45, hp: 2.2, fire: 0.8, extra: 1.4,
     env: 'arctic',
     area: 'tour',
     pick: true,

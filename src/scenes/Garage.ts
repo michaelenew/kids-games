@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
 import { LEVELS } from '../levels';
 import {
-  BLASTER_DAMAGE, BUILD_COST, type BotId, type GearId, JET_DAMAGE, JET_DODGE, TITAN_BLOCK, TITAN_DAMAGE, activeBot, botData, botName,
+  BLASTER_DAMAGE, BUILD_COST, type BotId, type GearId, JET_DAMAGE, JET_DODGE, TITAN_DODGE, TITAN_DAMAGE, activeBot, botData, botName,
   botsUnlocked, endPreview, gearInfo, alerts, hasSeen, inPreview, jetUnlocked, markSeen, persist, resetSave, save, setActiveBot,
   startPreview, titanUnlocked,
 } from '../state';
@@ -36,10 +36,10 @@ const SKILL_LABELS: Record<string, string> = {
   addition: 'Mission report: add the biggest hits (2-digit, three at a time)',
   graphs: 'Mission report: read a bar graph',
   written: 'Repairs (Amazon on): written subtraction with borrowing',
-  multiply: 'TITAN walls: rows of bricks (multiplying)',
+  multiply: 'TITAN armor: rows of armor blocks (multiplying)',
 };
 
-const NAME_COLOR: Record<BotId, string> = { bolt: '#ffd166', jet: '#ffd60a', titan: '#ffb347' };
+const NAME_COLOR: Record<BotId, string> = { bolt: '#ffd166', jet: '#ffd60a', titan: '#9dff6a' };
 
 /** True if any gear (on either robot) has a next mark he has enough scrap for. */
 export function upgradeAffordable(): boolean {
@@ -95,8 +95,8 @@ export class GarageScene extends Phaser.Scene {
     text(this, 300, 70, botName(bot, s), 52, NAME_COLOR[bot]).setStroke('#000000', 8);
     const stats = bot === 'titan' ? [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
-      `Rivet power ${TITAN_DAMAGE[d.gear.blaster]}`,
-      `Swats ${Math.round(TITAN_BLOCK[d.gear.boots] * 100)}% of shots`,
+      `Cannon power ${TITAN_DAMAGE[d.gear.blaster]}`,
+      `Dodge ${Math.round(TITAN_DODGE[d.gear.boots] * 100)}%`,
     ] : bot === 'jet' ? [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
       `Cannon power ${JET_DAMAGE[d.gear.blaster]}`,
@@ -120,12 +120,12 @@ export class GarageScene extends Phaser.Scene {
     }
 
     if ((carUnlocked() && bot === 'bolt') || bot !== 'bolt') {
-      // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a bulldozer.
-      const tf = button(this, 300, 660, 260, 70, bot === 'titan' ? 'DOZER MODE ⇄' : 'TRANSFORM ⇄', () => {
+      // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a tank.
+      const tf = button(this, 300, 660, 260, 70, bot === 'titan' ? 'TANK MODE ⇄' : 'TRANSFORM ⇄', () => {
         robot.setVehicle(!robot.isVehicle);
         const vehicleNow = robot.isVehicle;
         tf.label.setText(bot === 'jet' ? (vehicleNow ? 'TRANSFORM ⇄' : 'JET MODE ⇄')
-          : bot === 'titan' ? (vehicleNow ? 'ROBOT MODE ⇄' : 'DOZER MODE ⇄')
+          : bot === 'titan' ? (vehicleNow ? 'ROBOT MODE ⇄' : 'TANK MODE ⇄')
             : (vehicleNow ? 'ROBOT MODE ⇄' : 'TRANSFORM ⇄'));
         show.sparkle(0);
       }, { fill: 0x7b2cbf, edge: 0xd0a7ff, size: 28 });
@@ -222,7 +222,7 @@ export class GarageScene extends Phaser.Scene {
     const fixFor = [bot, ...all.filter((b) => b !== bot)].find((b) => needsFirstArmor(b) || needsRepairs(b));
     if (fixFor) {
       const first = needsFirstArmor(fixFor);
-      const label = `${first ? (fixFor === 'titan' ? 'BUILD WALLS' : 'BUILD ARMOR') : 'REPAIR'}${fixFor !== bot ? ` ${botName(fixFor, s)}` : ''}!`;
+      const label = `${first ? 'BUILD ARMOR' : 'REPAIR'}${fixFor !== bot ? ` ${botName(fixFor, s)}` : ''}!`;
       const rb = button(this, 300, 175, 340, 70, label, () => {
         setActiveBot(fixFor);
         this.scene.start(forgeScene(fixFor), first ? { mode: 'build', mark: 1 } : { mode: 'repair' });

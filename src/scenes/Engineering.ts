@@ -23,13 +23,13 @@ const STORY: Record<BotId, Record<GearId, string>> = {
     boots: 'Pump up the afterburners to roll past shots.',
   },
   titan: {
-    armor: 'Build brick walls, row by row.',
-    blaster: 'Cut new rivet barrels for bigger shots.',
-    boots: 'Pump up the treads so its digger arm swats shots.',
+    armor: 'Bolt on armor blocks, row by row.',
+    blaster: 'Cut new cannon barrels for bigger shots.',
+    boots: 'Fuel the rocket boosters to dash past shots.',
   },
 };
 const TAB: Record<BotId, { icon: string; fill: number; edge: number; card: number }> = {
-  titan: { icon: '🚜', fill: 0xd96c00, edge: 0xffc27a, card: 0xff8c1a },
+  titan: { icon: '🪖', fill: 0x3f7d22, edge: 0xb8ff8a, card: 0x5a9a2e },
   jet: { icon: '✈', fill: 0xd4a800, edge: 0xfff3a0, card: 0xffd60a },
   bolt: { icon: '🤖', fill: 0x1f6feb, edge: 0x9ad1ff, card: 0xf77f00 },
 };
@@ -86,8 +86,8 @@ export class EngineeringScene extends Phaser.Scene {
       ], () => markSeen('engineering-intro'));
     } else if (bot === 'titan' && !hasSeen('engineering-titan')) {
       dialog(this, [
-        { who: 'sprocket', text: 'TITAN\'s benches! Its armor isn\'t plates, it\'s BRICK WALLS.' },
-        { who: 'sprocket', text: 'Walls are built in rows. Rows of bricks are where multiplying comes in!' },
+        { who: 'sprocket', text: 'TITAN\'s benches! Its armor isn\'t plates, it\'s ARMOR BLOCKS, like a real tank.' },
+        { who: 'sprocket', text: 'The blocks go on in rows. Rows of blocks are where multiplying comes in!' },
       ], () => markSeen('engineering-titan'));
     } else if (twoBots && !hasSeen('engineering-jet')) {
       dialog(this, [
@@ -211,7 +211,7 @@ export class EngineeringScene extends Phaser.Scene {
     const b = button(this, x, 600, 320, 80, label, () => {
       // Armor is built plate by plate in the forge.
       // First buy the power core from the junk trader (money), then build.
-      // TITAN's armor is brick walls, built in the wall yard.
+      // TITAN's armor is rows of armor blocks, built in its own armor bay.
       const then = gear === 'armor'
         ? { key: bot === 'titan' ? 'WallForge' : 'ArmorForge', data: { mode: 'build', mark: next } }
         : { key: BENCH_SCENE[gear], data: { gear, mark: next, practice: false } };

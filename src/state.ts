@@ -1,6 +1,6 @@
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
-/** The robots he can build up: BOLT (his first), STRIKER (the yellow fighter jet) and TITAN (the construction robot). */
+/** The robots he can build up: BOLT (his first), STRIKER (the yellow fighter jet) and TITAN (the tank robot). */
 export type BotId = 'bolt' | 'jet' | 'titan';
 
 /** One robot's upgrades and armor plates. */
@@ -49,7 +49,7 @@ export interface SaveData {
    * so saves from before the jet keep working.
    */
   jet?: BotData;
-  /** TITAN's gear and plates (its plates are brick walls). */
+  /** TITAN's gear and plates (its plates are rows of armor blocks). */
   titan?: BotData;
   /** Which robot the Engineering Zone, benches and forge are working on. */
   bot?: BotId;
@@ -223,8 +223,8 @@ export function jetUnlocked(s: SaveData = save()): boolean {
   return s.levelsDone.includes('egy-drop');
 }
 
-/** TITAN's paint: construction orange. */
-export const TITAN_COLOR = 0xff8c1a;
+/** TITAN's paint: army green (with camo on the hull). */
+export const TITAN_COLOR = 0x5a9a2e;
 
 /** TITAN joins in the first Grand Canyon mission (it takes over from STRIKER). */
 export function titanUnlocked(s: SaveData = save()): boolean {
@@ -296,26 +296,26 @@ export const JET_GEAR_INFO: Record<GearId, { title: string; skill: string; perks
   },
 };
 
-/** TITAN hits hard but slowly: rivets, then a jackhammer drill. */
+/** TITAN hits hard but slowly: tank cannons, then a plasma railgun. */
 export const TITAN_DAMAGE = [3, 4, 6, 8];
-/** Chance TITAN's digger arm swats an incoming shot away, by treads mark. */
-export const TITAN_BLOCK = [0, 0.12, 0.22, 0.32];
+/** Chance TITAN's rocket boosters dash it sideways out of a shot's way, by boosters mark. */
+export const TITAN_DODGE = [0, 0.12, 0.22, 0.32];
 
 export const TITAN_GEAR_INFO: Record<GearId, { title: string; skill: string; perks: string[] }> = {
   armor: {
-    title: 'Brick Walls',
+    title: 'Armor Blocks',
     skill: 'Multiplying',
-    perks: ['No walls', 'Brick wall armor', 'Steel-framed walls', 'Gold-framed walls + spikes'],
+    perks: ['No armor blocks', 'Armor blocks', 'Steel-framed armor blocks', 'Gold-trimmed blocks + spikes'],
   },
   blaster: {
-    title: 'Rivet Cannon',
+    title: 'Tank Cannon',
     skill: 'Measuring',
-    perks: ['Nail gun, damage 3', 'Rivet cannon, damage 4', 'Twin rivets + rock launcher, damage 6', 'Plasma jackhammer, damage 8'],
+    perks: ['Machine gun, damage 3', 'Tank cannon, damage 4', 'Twin cannons + missiles, damage 6', 'Plasma railgun, damage 8'],
   },
   boots: {
-    title: 'Treads',
+    title: 'Rocket Boosters',
     skill: 'Adding & subtracting',
-    perks: ['Plain feet', 'Treads: swats some shots away', 'Hydraulic treads: swats more', 'Power treads + jump jets: swats lots'],
+    perks: ['No boosters', 'Boosters: dashes past some shots', 'Twin boosters: dashes past more', 'Mega boosters: dashes past lots of shots'],
   },
 };
 
@@ -417,7 +417,7 @@ export function writtenStage(s: SaveData = save()): 0 | 1 | null {
   return n < 2 ? 0 : n < 5 ? 1 : null;
 }
 
-/** TITAN's wall repairs: whole rows only for the first two, then rows plus loose bricks. */
+/** TITAN's armor repairs: whole rows only for the first two, then rows plus loose blocks. */
 export function wallStage(s: SaveData = save()): 0 | 1 {
   return (s.guide?.['wall-fix'] ?? 0) < 2 ? 0 : 1;
 }

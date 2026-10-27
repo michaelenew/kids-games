@@ -845,7 +845,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'tour-ice',
-    dmg: 1.45, hp: 2.2, fire: 0.8, extra: 1.4,
+    dmg: 1.22, hp: 2.2, fire: 0.8, extra: 1.4,
     env: 'arctic',
     area: 'tour',
     pick: true,
@@ -915,7 +915,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'sea-kelp',
-    dmg: 1, hp: 1.2, fire: 0.85, extra: 0.7,
+    dmg: 1.37, hp: 1.2, fire: 0.85, extra: 0.7,
     env: 'ocean',
     bot: 'sub',
     title: 'Invasion 32: The Kelp Forest',
@@ -941,7 +941,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'sea-wreck',
-    dmg: 1, hp: 1.35, fire: 0.8, extra: 0.9,
+    dmg: 0.52, hp: 1.35, fire: 0.8, extra: 0.9,
     env: 'ocean',
     bot: 'sub',
     title: 'Invasion 33: The Sunken Ship',
@@ -963,7 +963,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'sea-reef',
-    dmg: 1.1, hp: 1.5, fire: 0.78, extra: 1.1,
+    dmg: 0.48, hp: 1.5, fire: 0.78, extra: 1.1,
     env: 'ocean',
     bot: 'sub',
     title: 'Invasion 34: Coral Canyon',
@@ -986,7 +986,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'sea-deep',
-    dmg: 1.4, hp: 2.2, fire: 0.74, extra: 1.4,
+    dmg: 1.06, hp: 2.2, fire: 0.74, extra: 1.4,
     env: 'ocean',
     bot: 'sub',
     title: 'Invasion 35: The Abyss',

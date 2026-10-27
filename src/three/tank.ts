@@ -34,7 +34,7 @@ const PLATE_SIZE: Record<Region, [number, number]> = {
 
 /** Armor blocks: a grid of square tiles, each with a bolt, like reactive armor on a tank. */
 let blockTex: THREE.Texture | null = null;
-function blocks(): THREE.Texture {
+export function blocks(): THREE.Texture {
   if (blockTex) return blockTex;
   blockTex = canvasTex(128, 128, (g) => {
     g.fillStyle = '#ffffff';
@@ -58,7 +58,7 @@ function blocks(): THREE.Texture {
 
 /** Camo: soft dark blotches on white, so the paint color shows through. */
 let camoTex: THREE.Texture | null = null;
-function camo(): THREE.Texture {
+export function camo(): THREE.Texture {
   if (camoTex) return camoTex;
   camoTex = canvasTex(128, 128, (g) => {
     g.fillStyle = '#ffffff';
@@ -121,9 +121,6 @@ export class Tank implements Mech {
   vy = 0;
   thrust = 0;
   holdAim = false;
-  /** Combined with TITAN (see megabot.ts): the turret slides forward to make room on the deck. */
-  docked = false;
-  private dockT = 0;
 
   private t = 0;
   private phase = 0;
@@ -577,6 +574,15 @@ export class Tank implements Mech {
     this.tankTarget = on ? 1 : 0;
   }
 
+  /** The turret (with its gun), so the mega bot can move it onto TITAN's shoulder. */
+  get turret(): THREE.Object3D {
+    return this.j.turret;
+  }
+
+  get color() {
+    return this.look.color;
+  }
+
   get isVehicle() {
     return this.tankTarget === 1;
   }
@@ -664,8 +670,6 @@ export class Tank implements Mech {
     J.head.rotation.y = this.aimYaw * 0.3;
     // The tank rises around it, and its turret tracks the target.
     J.tank.scale.setScalar(Math.max(0.001, smooth(clamp01((this.tankT - 0.25) / 0.6))));
-    this.dockT += ((this.docked ? 1 : 0) - this.dockT) * Math.min(1, dt * 3);
-    J.turret.position.z = lerp(-0.05, 0.55, this.dockT);
     J.turret.rotation.y = this.aimYaw * 0.8;
     J.barrel.rotation.x = -this.aimPitch * 0.8;
     J.barrel.position.z = 0.42 - this.recoil * 0.12;

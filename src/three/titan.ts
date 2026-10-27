@@ -60,7 +60,7 @@ function bricks(): THREE.Texture {
 }
 
 let hazardTex: THREE.Texture | null = null;
-function hazard(): THREE.Texture {
+export function hazard(): THREE.Texture {
   if (hazardTex) return hazardTex;
   hazardTex = canvasTex(64, 64, (g) => {
     g.fillStyle = '#ffd60a';
@@ -531,6 +531,15 @@ export class Titan implements Mech {
 
   get evading() {
     return this.blockT >= 0;
+  }
+
+  /** A joint, for the mega bot to fold the legs away and clamp armor on (see megabot.ts). */
+  jointOf(name: 'body' | 'torso' | 'head' | 'shL' | 'shR' | 'hipL' | 'hipR'): THREE.Object3D {
+    return this.j[name];
+  }
+
+  get color() {
+    return this.look.color;
   }
 
   setVehicle(on: boolean) {

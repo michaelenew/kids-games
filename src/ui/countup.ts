@@ -53,7 +53,9 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
   const lineL = left + 30;
   const lineR = left + w - 260;
   const cx = (lineL + lineR) / 2;
-  const lineY = top + 228;
+  // Where the number line sits; it moves down and shrinks once the jumps are being added up.
+  let lineY = top + 228;
+  let lift = 1;
 
   const bg = add(scene.add.graphics());
   bg.fillStyle(0x0b1022, 0.98).fillRoundedRect(left, top, w, h, 18);
@@ -77,24 +79,46 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
     scene.tweens.add({ targets: task, scale: 1, duration: 220, ease: 'Back.easeOut' });
   };
 
-  // The number line, with a stop after each jump.
+  // The number line: a hopping arrow for each jump, from the small number up to the big one.
+  // Bigger kinds of jump (tens, hundreds) hop higher, so they look bigger.
   const line = add(scene.add.graphics());
+  const hopG = add(scene.add.graphics());
   const stopX = (i: number) => lineL + ((lineR - lineL) * i) / Math.max(1, steps.length);
-  const arc = (i: number, color: number, width: number) => {
+  const HOP_HEIGHT = { ones: 20, tens: 30, hundreds: 40, thousands: 46 };
+  const arcH = (i: number) => HOP_HEIGHT[jumpKind(steps[i])] * lift;
+  const arcPt = (i: number, t: number) => {
     const a = stopX(i);
     const b = stopX(i + 1);
-    line.lineStyle(width, color, 1);
-    line.beginPath();
-    const segs = 16;
-    for (let k = 0; k <= segs; k++) {
-      const t = k / segs;
-      const px = a + (b - a) * t;
-      const py = lineY - 12 - Math.sin(Math.PI * t) * 36;
-      if (k === 0) line.moveTo(px, py);
-      else line.lineTo(px, py);
-    }
-    line.strokePath();
+    return { x: a + (b - a) * t, y: lineY - 8 - Math.sin(Math.PI * t) * arcH(i) };
   };
+  /** Draw jump `i` as an arc, up to `upTo` of the way along, with an arrowhead once it lands. */
+  const arc = (g: Phaser.GameObjects.Graphics, i: number, color: number, width: number, upTo = 1) => {
+    g.lineStyle(width, color, 1);
+    g.beginPath();
+    const segs = 24;
+    for (let k = 0; k <= segs; k++) {
+      const p = arcPt(i, (upTo * k) / segs);
+      if (k === 0) g.moveTo(p.x, p.y);
+      else g.lineTo(p.x, p.y);
+    }
+    g.strokePath();
+    if (upTo < 1) return;
+    const end = arcPt(i, 1);
+    const before = arcPt(i, 0.9);
+    const dx = end.x - before.x;
+    const dy = end.y - before.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const s = 6 + width * 1.5;
+    g.fillStyle(color, 1).fillTriangle(
+      end.x, end.y,
+      end.x - ux * s - uy * s * 0.6, end.y - uy * s + ux * s * 0.6,
+      end.x - ux * s + uy * s * 0.6, end.y - uy * s - ux * s * 0.6,
+    );
+  };
+  /** Jumps already hopped (drawn green). */
+  let hopped = 0;
   /** Jumps before `done` are drawn green; jump `current` (if any) is yellow. */
   const drawLine = (done: number, current = -1) => {
     line.clear();
@@ -102,21 +126,51 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
     for (let i = 0; i <= steps.length; i++) {
       line.lineStyle(3, 0xffffff, 0.9).lineBetween(stopX(i), lineY - 10, stopX(i), lineY + 10);
     }
-    for (let i = 0; i < done; i++) arc(i, 0x06d6a0, 4);
-    if (current >= 0) arc(current, 0xffd166, 6);
+    for (let i = 0; i < done; i++) arc(line, i, 0x06d6a0, 4);
+    if (current >= 0) arc(line, current, 0xffd166, 5);
   };
+  // The hopper: a little marker that sits on the line and hops each jump.
+  const hopper = add(scene.add.circle(stopX(0), lineY - 8, 10, 0xffd166).setStrokeStyle(3, 0xffffff));
   const stopLabels: Phaser.GameObjects.Text[] = [];
   const jumpLabels: Phaser.GameObjects.Text[] = [];
   for (let i = 0; i <= steps.length; i++) {
     const v = i === 0 ? o.from : steps[i - 1].to;
-    stopLabels.push(add(text(scene, stopX(i), lineY + 28, F(v), 18, i === 0 || i === steps.length ? '#ffffff' : '#9ad1ff')));
+    stopLabels.push(add(text(scene, stopX(i), lineY + 28, F(v), steps.length >= 6 ? 15 : 18, i === 0 || i === steps.length ? '#ffffff' : '#9ad1ff')));
     if (i > 0 && i < steps.length) stopLabels[i].setAlpha(0);
   }
   for (let i = 0; i < steps.length; i++) {
-    jumpLabels.push(add(text(scene, (stopX(i) + stopX(i + 1)) / 2, lineY - 64, '', 22, '#06d6a0', { fontStyle: 'bold' }).setAlpha(0)));
+    // Many jumps means narrow hops: smaller labels so they don't run together.
+    jumpLabels.push(add(text(scene, (stopX(i) + stopX(i + 1)) / 2, lineY - 64, '', steps.length >= 6 ? 16 : steps.length >= 5 ? 18 : 22, '#06d6a0', { fontStyle: 'bold' }).setAlpha(0)));
   }
+  const placeJumpLabel = (i: number) => jumpLabels[i].setPosition((stopX(i) + stopX(i + 1)) / 2, lineY - 8 - arcH(i) - 16);
+  jumpLabels.forEach((_, i) => placeJumpLabel(i));
   const showJump = (i: number, value: string, color: string) => {
     jumpLabels[i].setText(value).setColor(color).setAlpha(1);
+  };
+  /** The hopper hops along jump `i`, drawing the arrow behind it, then lands on the next stop. */
+  const hop = (i: number, done: () => void) => {
+    const anim = { t: 0 };
+    hopper.setPosition(stopX(i), lineY - 8);
+    sfx.tick();
+    scene.tweens.add({
+      targets: anim, t: 1, duration: 560, ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        hopG.clear();
+        arc(hopG, i, 0xffd166, 5, anim.t);
+        const p = arcPt(i, anim.t);
+        hopper.setPosition(p.x, p.y);
+      },
+      onComplete: () => {
+        hopG.clear();
+        hopped = Math.max(hopped, i + 1);
+        drawLine(hopped);
+        hopper.setPosition(stopX(i + 1), lineY - 8);
+        scene.tweens.add({ targets: hopper, scaleY: { from: 0.6, to: 1 }, duration: 220, ease: 'Back.easeOut' });
+        stopLabels[i + 1].setAlpha(1).setScale(1.4);
+        scene.tweens.add({ targets: stopLabels[i + 1], scale: 1, duration: 220 });
+        done();
+      },
+    });
   };
   // How to count it: smaller, under the line.
   const hint = add(scene.add.text(lineL - 6, lineY + 54, '', {
@@ -171,20 +225,36 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
   /** True once the jumps are stacked up for long addition (the number line is hidden). */
   let stacked = false;
   const finish = (solo: boolean) => {
+    // Answered: nothing more to type while the hops play.
+    onEnter = () => {};
     sfx.success();
-    if (!stacked) {
-      drawLine(steps.length);
-      stopLabels.forEach((l) => l.setAlpha(1));
-      steps.forEach((st, i) => showJump(i, `+${F(st.gap)}`, '#06d6a0'));
-    }
-    setTask('DONE!', `${F(o.from)} up to ${F(o.to)} = ${F(total)}`);
-    task.setColor('#06d6a0').setFontStyle('bold');
+    if (!stacked && hopped < steps.length) solvedFlash(`${F(o.from)} → ${F(o.to)}`, total);
     hint.setText('');
     arrow.setAlpha(0);
-    scene.time.delayedCall(1700, () => {
-      items.forEach((it) => it.destroy());
-      o.onDone(solo);
-    });
+    const wrapUp = () => {
+      setTask(steps.length > 1 ? `DONE! ${gaps.map(F).join(' + ')} = ${F(total)}` : 'DONE!', `${F(o.from)} up to ${F(o.to)} = ${F(total)}`);
+      task.setColor('#06d6a0').setFontStyle('bold');
+      scene.time.delayedCall(2000, () => {
+        items.forEach((it) => it.destroy());
+        o.onDone(solo);
+      });
+    };
+    // Any jumps not hopped yet (on his own he types the total first): hop them now, one by one.
+    const hopFrom = (i: number) => {
+      if (stacked || i >= steps.length) {
+        wrapUp();
+        return;
+      }
+      if (i < hopped) {
+        hopFrom(i + 1);
+        return;
+      }
+      hop(i, () => {
+        showJump(i, `+${F(steps[i].gap)}`, '#06d6a0');
+        scene.time.delayedCall(150, () => hopFrom(i + 1));
+      });
+    };
+    hopFrom(0);
   };
 
   /** Plain words for one jump. */
@@ -208,13 +278,22 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
 
   /** Long addition of the jumps, stacked up, one column at a time. */
   const addJumps = (stepNo: number) => {
-    // The number line has done its job; the stacked sum takes its place.
+    // The stacked sum takes the middle; the number line shrinks to the bottom and
+    // stays, so he can see each number in the stack is one of his jumps.
     stacked = true;
-    line.clear();
-    [...stopLabels, ...jumpLabels].forEach((l) => l.setAlpha(0));
     hint.setText('');
+    lineY = top + h - 30;
+    lift = 0.4;
+    drawLine(steps.length);
+    hopper.setPosition(stopX(steps.length), lineY - 8).setRadius(7);
+    stopLabels.forEach((l, k) => l.setPosition(stopX(k), lineY + 18).setFontSize(15).setAlpha(1));
+    jumpLabels.forEach((l, k) => {
+      placeJumpLabel(k);
+      l.setFontSize(steps.length >= 6 ? 14 : 18).setAlpha(1);
+    });
     const DIG = 24;
-    const ROW = 21;
+    // Rows squeeze together a little when there are many jumps, to leave room for the line below.
+    const ROW = gaps.length >= 4 ? 18 : 21;
     const stackR = lineL + 150;
     const y0 = top + 166;
     const digitX = (p: number) => stackR - p * DIG;
@@ -312,10 +391,14 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
         }
         sfx.success();
         solvedFlash(q, st.gap);
-        stopLabels[i + 1].setColor('#9ad1ff');
-        showJump(i, `+${F(st.gap)}`, '#06d6a0');
-        i++;
-        scene.time.delayedCall(900, ask);
+        onEnter = () => {};
+        // Hop it: the arrow is drawn as the hopper jumps, and it lands with the jump written on top.
+        hop(i, () => {
+          stopLabels[i + 1].setColor('#9ad1ff');
+          showJump(i, `+${F(st.gap)}`, '#06d6a0');
+          i++;
+          scene.time.delayedCall(700, ask);
+        });
       };
     };
     ask();
@@ -347,6 +430,7 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
     wrong('Let\'s do it together, one jump at a time.');
     scene.time.delayedCall(900, () => {
       jumpLabels.forEach((l) => l.setAlpha(0));
+      hopper.setPosition(stopX(0), lineY - 8);
       guidedRun();
     });
   };

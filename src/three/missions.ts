@@ -703,7 +703,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'arc-core',
-    dmg: 0.42, hp: 2.2, fire: 0.74, extra: 1.4,
+    dmg: 0.36, hp: 2.2, fire: 0.74, extra: 1.4,
     env: 'arctic',
     bot: 'tank',
     title: 'Invasion 25: The Ice Walker',

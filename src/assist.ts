@@ -1,5 +1,5 @@
 import { LEVELS } from './levels';
-import { MISSION_IDS, isHandOver, startBot } from './three/missions';
+import { MISSION_IDS, isHandOver, isPick, startBot } from './three/missions';
 import { BOT_ORDER, BUILD_COST, GADGETS, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save, superLabUnlocked } from './state';
 
 /**
@@ -102,7 +102,7 @@ function upgradesFor(s: SaveData, bot: BotId): number {
 
 function allMaxed(s: SaveData, bot: BotId) {
   // With the Super Lab open there's always a gadget to build.
-  if (bot === 'jet' && superLabUnlocked(s)) return false;
+  if (superLabUnlocked(bot, s)) return false;
   const g = botData(bot, s).gear;
   return (Object.keys(g) as GearId[]).every((k) => g[k] >= 3);
 }
@@ -115,7 +115,8 @@ function allMaxed(s: SaveData, bot: BotId) {
 export function needsUpgrade(id: string, s: SaveData = save()): boolean {
   const i = MISSION_IDS.indexOf(id);
   const bot = botFor(id);
-  if (i <= 0 || s.levelsDone.includes(id) || allMaxed(s, bot) || isHandOver(id)) return false;
+  // Pick-your-robot missions are review: they never wait on an upgrade.
+  if (i <= 0 || s.levelsDone.includes(id) || allMaxed(s, bot) || isHandOver(id) || isPick(id)) return false;
   const before = clearedFor(s, bot)[MISSION_IDS[i - 1]];
   if (before === undefined) return false;
   return upgradesFor(s, bot) <= before;
@@ -162,7 +163,7 @@ export function upgradeRequired(id: string, s: SaveData = save()): boolean {
 export function cheapestUpgrade(s: SaveData = save(), bot: BotId = 'bolt'): number {
   const g = botData(bot, s).gear;
   const costs = (Object.keys(g) as GearId[]).filter((k) => g[k] < 3).map((k) => BUILD_COST[g[k] + 1]);
-  if (bot === 'jet' && superLabUnlocked(s)) costs.push(GADGETS.mega.cost);
+  if (superLabUnlocked(bot, s)) costs.push(GADGETS.mega.cost);
   return costs.length ? Math.min(...costs) : 0;
 }
 

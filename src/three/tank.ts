@@ -4,6 +4,7 @@ import { canvasTex } from './city';
 import {
   METAL, clamp01, coneGeo, cylGeo, glow, glowSprite, group, lerp, mesh, paint, rboxGeo, setGlow, smooth, sphereGeo, torusGeo,
 } from './kit';
+import { GadgetKit } from './gadgets';
 import type { Mech } from './mech';
 import { REGIONS, type Region } from './robot';
 
@@ -111,6 +112,7 @@ export class Tank implements Mech {
   };
   private look: RobotLook;
   private flyIns: FlyIn[] = [];
+  private gadgets!: GadgetKit;
 
   spin: number | null = null;
   facing = 1;
@@ -178,6 +180,11 @@ export class Tank implements Mech {
     this.buildPlates();
     this.buildWeapons();
     this.buildBoosters();
+    this.gadgets = new GadgetKit({
+      part: (k, p, x, y, z) => this.part(k, p, x, y, z),
+      torso: this.j.torso, shoulder: new THREE.Vector3(-0.36, 0.95, -0.05), back: new THREE.Vector3(0, 0.45, -0.32),
+      base: this.root, fieldY: 1.25, fieldSize: new THREE.Vector3(1.15, 1.45, 0.95), droneY: 2.8, scale: 1.1, vehicleMount: this.j.turret,
+    });
     this.applyLook();
   }
 
@@ -457,7 +464,8 @@ export class Tank implements Mech {
       if (key.startsWith('plate:')) {
         const [, region, n] = key.split(':');
         on = this.plateOf(region as Region).mark >= Number(n);
-      } else if (key.startsWith('blaster')) on = L.blaster === Number(key.slice(-1));
+      } else if (key.startsWith('gadget:')) on = L.gadget === key.slice(7);
+      else if (key.startsWith('blaster')) on = L.blaster === Number(key.slice(-1));
       else if (key.startsWith('boots')) on = L.boots === Number(key.slice(-1));
       for (const o of list) {
         o.visible = on;
@@ -582,6 +590,11 @@ export class Tank implements Mech {
     return m.getWorldPosition(out);
   }
 
+  droneWorld(): THREE.Vector3[] {
+    this.holder.updateMatrixWorld(true);
+    return this.gadgets.droneWorld(this.look.gadget === 'drones');
+  }
+
   regionWorld(r: Region, out = new THREE.Vector3()): THREE.Vector3 {
     this.holder.updateMatrixWorld(true);
     return this.anchors[r].getWorldPosition(out);
@@ -652,6 +665,7 @@ export class Tank implements Mech {
     J.barrel.rotation.x = -this.aimPitch * 0.8;
     J.barrel.position.z = 0.42 - this.recoil * 0.12;
 
+    this.gadgets.update(dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt * 6);
     this.coilSpin = Math.max(0, this.coilSpin - dt * 40);
     for (const c of this.coils) c.rotation.z += (2 + this.coilSpin) * dt;

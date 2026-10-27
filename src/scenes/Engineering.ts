@@ -4,8 +4,8 @@ import { REGIONS, lookFromSave } from '../armor';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import {
-  BOTS, BUILD_COST, GADGETS, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, botsUnlocked, egyptUnlocked,
-  gearInfo, hasSeen, markSeen, save, setActiveBot, superLabUnlocked,
+  BOTS, BUILD_COST, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, botsUnlocked, egyptUnlocked,
+  gadgetInfo, gadgetOf, gearInfo, hasSeen, markSeen, save, setActiveBot, superLabUnlocked,
 } from '../state';
 import { W, button, dialog, scrapBadge, text } from '../ui/widgets';
 
@@ -35,6 +35,9 @@ const STORY: Record<BotId, Record<GearId, string>> = {
 };
 const TAB = (b: BotId) => BOTS[b].tab;
 
+/** Robots whose Super Lab is open. */
+const labBots = (s = save()) => botsUnlocked(s).filter((b) => superLabUnlocked(b, s));
+
 /**
  * The upgrade benches. Once STRIKER (the jet) has joined, a menu at the top
  * picks which robot to work on; the newest robot is the one picked by default.
@@ -48,7 +51,7 @@ export class EngineeringScene extends Phaser.Scene {
   }
 
   init(data?: { lab?: boolean }) {
-    this.lab = !!data?.lab && superLabUnlocked();
+    this.lab = !!data?.lab && labBots().length > 0;
   }
 
   create() {
@@ -103,48 +106,60 @@ export class EngineeringScene extends Phaser.Scene {
     }
   }
 
-  /** Big tabs: STRIKER, BOLT, and (once found) the Super Lab. */
+  /** Big tabs: the robots, and (once found) the Super Lab. In the lab, the robot tabs pick whose gadgets. */
   private botMenu(bot: BotId) {
-    const lab = superLabUnlocked();
+    const lab = labBots().length > 0;
     const tabs: { id: BotId | 'lab'; label: string; fill: number; edge: number }[] = [
       ...botsUnlocked().map((b) => ({ id: b, label: `${TAB(b).icon} ${botName(b)}`, fill: TAB(b).fill, edge: TAB(b).edge })),
       ...(lab ? [{ id: 'lab' as const, label: '⚡ SUPER LAB', fill: 0x7b2cbf, edge: 0xe0aaff }] : []),
     ];
-    const w = tabs.length > 3 ? 200 : 220;
+    // The tabs share the space right of the Garage button.
+    const left = 200;
+    const slot = Math.min(240, (W - left - 20) / tabs.length);
+    const w = slot - 16;
+    const x0 = tabs.length * slot < W - 2 * left ? W / 2 - (tabs.length * slot) / 2 : left;
     tabs.forEach((t, i) => {
-      const x = W / 2 + (i - (tabs.length - 1) / 2) * (w + 20);
-      const on = this.lab ? t.id === 'lab' : t.id === bot;
+      const x = x0 + slot * (i + 0.5);
+      const on = t.id === 'lab' ? this.lab : t.id === bot;
       const b = button(this, x, 92, w, 46, t.label, () => {
         if (on) return;
         if (t.id === 'lab') {
-          setActiveBot('jet');
+          if (!labBots().includes(bot)) setActiveBot(labBots()[0]);
           this.scene.restart({ lab: true });
           return;
         }
         setActiveBot(t.id);
-        this.scene.restart({ lab: false });
+        // In the lab, switching robots stays in the lab when that robot has one.
+        this.scene.restart({ lab: this.lab && labBots().includes(t.id) });
       }, { fill: on ? t.fill : 0x2b2f3a, edge: on ? t.edge : 0x5c677d, size: 22 });
       if (!on) b.label.setColor('#9aa3b5');
     });
   }
 
   /**
-   * The Super Lab: STRIKER's over-the-top gadgets. One at a time, good for
-   * one mission, then it burns out and he can build another.
+   * The Super Lab: over-the-top gadgets for the robot picked up top. One per
+   * robot at a time, good for one mission, then it blows off and he can build
+   * another, as often as he likes.
    */
   private createLab() {
     const s = save();
-    setActiveBot('jet', s);
+    const bot = labBots(s).includes(activeBot(s)) ? activeBot(s) : labBots(s)[0];
+    setActiveBot(bot, s);
     new Showcase(getStage(this.game.canvas), GADGET_IDS.map((g, i) => ({
-      look: { ...lookFromSave(s, 'jet'), gadget: g }, x: 165 + i * 317, y: 380, height: 190, spin: 0.6, yaw: 0.5 + i,
+      look: { ...lookFromSave(s, bot), gadget: g }, x: 165 + i * 317, y: bot === 'jet' ? 380 : 400, height: 190, spin: 0.6, yaw: 0.5 + i,
     })));
     this.add.graphics().fillStyle(0x0b0f1a, 0.75).fillRect(0, 0, W, 122).fillStyle(0x7b2cbf, 1).fillRect(0, 120, W, 6);
     text(this, W / 2, 42, 'ENGINEERING ZONE', 44, '#ffd166').setStroke('#6a040f', 10);
     scrapBadge(this, W - 180, 60, s.scrap);
     button(this, 105, 60, 170, 64, '◀ Garage', () => this.scene.start('Garage'), { size: 26, fill: 0x3d4458 });
-    this.botMenu('jet');
-    GADGET_IDS.forEach((g, i) => this.gadgetCard(g, 165 + i * 317));
-    if (!hasSeen('super-lab')) {
+    this.botMenu(bot);
+    GADGET_IDS.forEach((g, i) => this.gadgetCard(bot, g, 165 + i * 317));
+    if (bot !== 'jet' && !hasSeen('super-lab-all')) {
+      dialog(this, [
+        { who: 'sprocket', text: 'Big news: I figured out the alien tech! Now EVERY robot can get super gadgets.' },
+        { who: 'sprocket', text: 'Tap a robot up top to see its gadgets. Build one before a mission, and watch it blow off at the end!' },
+      ], () => markSeen('super-lab-all'));
+    } else if (!hasSeen('super-lab')) {
       dialog(this, [
         { who: 'sprocket', text: 'The alien tech from the jungle ruins! With it I can build SUPER gadgets for STRIKER.' },
         { who: 'sprocket', text: 'They\'re so powerful they burn out after one mission. But you can always build another!' },
@@ -152,11 +167,12 @@ export class EngineeringScene extends Phaser.Scene {
     }
   }
 
-  private gadgetCard(g: GadgetId, x: number) {
+  private gadgetCard(bot: BotId, g: GadgetId, x: number) {
     const s = save();
-    const info = GADGETS[g];
-    const built = s.gadget === g;
-    const other = s.gadget && !built ? GADGETS[s.gadget].title : null;
+    const info = gadgetInfo(bot, g);
+    const have = gadgetOf(bot, s);
+    const built = have === g;
+    const other = have && !built ? gadgetInfo(bot, have).title : null;
     const afford = s.scrap >= info.cost;
     const card = this.add.graphics();
     card.fillStyle(0x0b0f1a, 0.55).fillRoundedRect(x - 150, 140, 300, 520, 20);

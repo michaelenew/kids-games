@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { RobotLook } from '../art';
 import { lookFromSave } from '../armor';
-import { GADGETS, type GadgetId, type GearId, activeBot, gearInfo, save } from '../state';
+import { type GadgetId, gadgetInfo, type GearId, activeBot, gearInfo, save } from '../state';
 import { Jet } from '../three/jet';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
@@ -50,7 +50,7 @@ export class InstallScene extends Phaser.Scene {
       flash.setFillStyle(0xffffff, 0.75);
       this.tweens.add({ targets: flash, fillAlpha: 0, duration: 450 });
       this.cameras.main.shake(250, 0.006);
-      head.setText(gadget ? `${GADGETS[gadget].title.toUpperCase()} READY!` : `${gearInfo(activeBot())[gear].title.toUpperCase()} MARK ${ROMAN[mark]} INSTALLED!`).setColor('#06d6a0').setAlpha(1);
+      head.setText(gadget ? `${gadgetInfo(activeBot(), gadget).title.toUpperCase()} READY!` : `${gearInfo(activeBot())[gear].title.toUpperCase()} MARK ${ROMAN[mark]} INSTALLED!`).setColor('#06d6a0').setAlpha(1);
       this.tweens.add({ targets: head, scale: { from: 1.25, to: 1 }, duration: 350, ease: 'Back.easeOut' });
     });
 
@@ -88,7 +88,7 @@ export class InstallScene extends Phaser.Scene {
 
     this.time.delayedCall(2600, () => {
       show.held[0] = false;
-      const perk = gadget ? `${GADGETS[gadget].perk}, for the next mission` : gearInfo(activeBot())[gear].perks[mark];
+      const perk = gadget ? `${gadgetInfo(activeBot(), gadget).perk}, for the next mission` : gearInfo(activeBot())[gear].perks[mark];
       text(this, W / 2, 140, perk, 34, '#ffffff').setStroke('#000000', 6);
       button(this, W / 2 - 330, 660, 300, 80, 'Engineering Zone', () => this.scene.start('Engineering'), {
         fill: 0xf77f00, edge: 0xffd166, size: 26,

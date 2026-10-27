@@ -1,6 +1,6 @@
 import { randInt, type Rng } from './skills/rng';
 import { borrowKind } from './skills/steps';
-import { type BotData, type BotId, type Mark, type SaveData, activeBot, botColor, botData } from './state';
+import { type BotData, type BotId, type Mark, type SaveData, activeBot, botColor, botData, gadgetOf } from './state';
 
 /**
  * The robot's armor is five plates. Each plate is worth a number of armor
@@ -212,7 +212,7 @@ export function lookFromSave(s: SaveData, bot: BotId = activeBot(s)): import('./
   return {
     kind: bot, color: botColor(bot, s),
     armor: armorMark(d.armor ?? {}), blaster: d.gear.blaster, boots: d.gear.boots, plates,
-    gadget: bot === 'jet' ? s.gadget : undefined,
+    gadget: gadgetOf(bot, s),
   };
 }
 

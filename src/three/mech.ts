@@ -41,6 +41,8 @@ export interface Mech {
   /** Start that dodge. */
   evade?(): void;
   readonly evading?: boolean;
+  /** Where its Drone Wingmen gadget's drones are (empty without them). */
+  droneWorld?(): THREE.Vector3[];
   dispose(): void;
 }
 

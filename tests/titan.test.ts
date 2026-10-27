@@ -24,7 +24,7 @@ function beatenThrough(id: string) {
 
 describe('TITAN and the Grand Canyon', () => {
   it('does all five canyon missions, taking over from STRIKER in the first', () => {
-    const canyon = MISSIONS.filter((m) => m.env === 'canyon');
+    const canyon = MISSIONS.filter((m) => m.env === 'canyon' && !m.pick);
     expect(canyon).toHaveLength(5);
     expect(canyon.every((m) => missionBot(m.id) === 'titan')).toBe(true);
     expect(isHandOver('cyn-drop')).toBe(true);

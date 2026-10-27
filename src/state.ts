@@ -53,6 +53,8 @@ export interface SaveData {
   jet?: BotData;
   /** TITAN's gear and plates (its plates are brick walls). */
   titan?: BotData;
+  /** Which robot he picked for each pick-your-robot mission. */
+  picks?: Record<string, BotId>;
   /** Gear and plates of the robots that joined later (RHINO the tank, and on). */
   bots?: Partial<Record<BotId, BotData>>;
   /** Which robot the Engineering Zone, benches and forge are working on. */
@@ -63,8 +65,10 @@ export interface SaveData {
    * pre-launch check comes up: practice from earlier, or the current focus.
    */
   alerts?: { count: number; next: 'practice' | 'focus'; mission?: string };
-  /** A super gadget built for STRIKER's next mission (it breaks at the end of it). */
+  /** Old saves: STRIKER's gadget (now in `gadgets`). */
   gadget?: GadgetId;
+  /** A super gadget built for each robot's next mission (it breaks at the end of it). */
+  gadgets?: Partial<Record<BotId, GadgetId>>;
   /** Forced math between missions (see `pace` below). */
   pace?: { run: number; next: 'control' | 'recap' };
   skills: Record<string, SkillStat>;
@@ -144,6 +148,11 @@ export function endPreview(): void {
  * story); scrap, BOLT's upgrades and everything learned are kept.
  */
 function migrate(s: SaveData): SaveData {
+  // Gadgets used to be STRIKER's only.
+  if (s.gadget) {
+    (s.gadgets ??= {}).jet = s.gadget;
+    s.gadget = undefined;
+  }
   if (s.seen.includes('jet-era')) return s;
   if (!s.jet) {
     const old = (id: string) => id.startsWith('egy-');
@@ -389,10 +398,13 @@ export function gearInfo(bot: BotId): GearInfo {
 // ---- Super gadgets ------------------------------------------------------------
 
 /**
- * Over-the-top, one-mission gadgets for STRIKER, from the alien tech in the
- * Amazon ruins. One at a time; it's built in the Super Lab (the junk trader,
- * then a short two-problem bench job), shows on STRIKER right away, and burns
- * out at the end of the next mission, win or lose. Then he can build another.
+ * Over-the-top, one-mission gadgets, from the alien tech in the Amazon ruins.
+ * STRIKER gets them first (after the first Amazon mission); every robot gets
+ * its own set once the Arctic is done, so a fully upgraded robot still has
+ * something cool to build. One per robot at a time; it's built in the Super
+ * Lab (the junk trader, then a short two-problem bench job), flies onto the
+ * robot right away, and blows off at the end of its next mission, win or
+ * lose. He can build them again as often as he likes.
  */
 export type GadgetId = 'mega' | 'shield' | 'drones' | 'hyper';
 
@@ -405,9 +417,36 @@ export const GADGETS: Record<GadgetId, { title: string; perk: string; story: str
 
 export const GADGET_IDS = Object.keys(GADGETS) as GadgetId[];
 
-/** The Super Lab opens after the first Amazon mission (alien tech found in the ruins). */
-export function superLabUnlocked(s: SaveData = save()): boolean {
-  return s.levelsDone.includes('amz-landing');
+/** Each robot's names for the four gadgets (the effects are the same). */
+const GADGET_NAMES: Record<BotId, Record<GadgetId, string>> = {
+  bolt: { mega: 'Mega Blaster', shield: 'Energy Armor', drones: 'Drone Buddies', hyper: 'Rocket Pack' },
+  jet: { mega: 'Mega Cannon', shield: 'Energy Armor', drones: 'Drone Wingmen', hyper: 'Hyper Boosters' },
+  titan: { mega: 'Mega Jackhammer', shield: 'Steel Fortress', drones: 'Drone Crew', hyper: 'Rocket Treads' },
+  tank: { mega: 'Mega Railgun', shield: 'Energy Armor', drones: 'Drone Wingmen', hyper: 'Hyper Boosters' },
+};
+
+/** A gadget as a robot calls it. BOLT, TITAN and RHINO dash aside where the jet does rainbow rolls. */
+export function gadgetInfo(bot: BotId, g: GadgetId): (typeof GADGETS)[GadgetId] {
+  const base = GADGETS[g];
+  const perk = g === 'hyper' && bot !== 'jet' ? 'Violet rocket flames: dashes past most shots' : base.perk;
+  return { ...base, title: GADGET_NAMES[bot][g], perk };
+}
+
+/** The Super Lab opens for STRIKER after the first Amazon mission, and for every robot once the Arctic is done. */
+export function superLabUnlocked(bot: BotId = 'jet', s: SaveData = save()): boolean {
+  if (bot === 'jet') return s.levelsDone.includes('amz-landing');
+  return s.levelsDone.includes('arc-core') && botUnlocked(bot, s);
+}
+
+/** The gadget fitted on a robot for its next mission, if any. */
+export function gadgetOf(bot: BotId, s: SaveData = save()): GadgetId | undefined {
+  return s.gadgets?.[bot];
+}
+
+export function setGadget(bot: BotId, g: GadgetId | undefined, s: SaveData = save()): void {
+  s.gadgets ??= {};
+  if (g) s.gadgets[bot] = g;
+  else delete s.gadgets[bot];
 }
 
 // ---- Patrol alerts ----------------------------------------------------------------

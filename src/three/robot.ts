@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { RobotLook } from '../art';
+import { GadgetKit } from './gadgets';
 import {
   METAL, clamp01, coneGeo, cylGeo, glow, glowSprite, group, lerp, mesh, paint, rboxGeo, setGlow,
   smooth, sphereGeo, torusGeo,
@@ -177,8 +178,34 @@ export class Robot {
     this.mats.flame.userData.disposable = true;
     this.holder.add(this.root);
     this.build();
+    this.gadgets = new GadgetKit({
+      part: (k, p, x, y, z) => this.part(k, p, x, y, z),
+      torso: this.joints.waist, shoulder: new THREE.Vector3(-0.42, 1.0, 0.1), back: new THREE.Vector3(0, 0.45, -0.3),
+      base: this.root, fieldY: 1.25, fieldSize: new THREE.Vector3(0.95, 1.4, 0.8), droneY: 2.7, scale: 1.25,
+    });
     this.applyLook();
     this.update(0);
+  }
+
+  private gadgets!: GadgetKit;
+  /** The Rocket Pack gadget: a quick sideways dash out of a shot's way (BOLT has no dodge of its own). */
+  readonly dodgeStyle = 'dash' as const;
+  private dashT = -1;
+  private dashDir = 1;
+
+  evade() {
+    if (this.dashT >= 0) return;
+    this.dashT = 0;
+    this.dashDir = Math.random() < 0.5 ? -1 : 1;
+  }
+
+  get evading() {
+    return this.dashT >= 0;
+  }
+
+  droneWorld(): THREE.Vector3[] {
+    this.holder.updateMatrixWorld(true);
+    return this.gadgets.droneWorld(this.look.gadget === 'drones');
   }
 
   // ---- Construction ------------------------------------------------------
@@ -682,6 +709,8 @@ export class Robot {
       if (key.startsWith('plate:')) {
         const [, region, n] = key.split(':');
         on = this.plateOf(region as Region).mark >= Number(n);
+      } else if (key.startsWith('gadget:')) {
+        on = L.gadget === key.slice(7);
       } else {
         const kind = key.replace(/\d/, '');
         const n = Number(key.slice(-1));
@@ -798,6 +827,14 @@ export class Robot {
     this.aim += (aimTarget - this.aim) * Math.min(1, dt * 16);
     this.recoil = Math.max(0, this.recoil - dt * 8);
     this.hitFlash = Math.max(0, this.hitFlash - dt * 6);
+    this.gadgets.update(dt);
+    let dash = 0;
+    if (this.dashT >= 0) {
+      this.dashT += dt / 0.45;
+      dash = Math.sin(Math.min(1, this.dashT) * Math.PI) * this.dashDir;
+      if (this.dashT >= 1) this.dashT = -1;
+    }
+    this.root.position.x = dash * 0.9;
 
     const pose = {} as Record<JointName, Pose>;
     for (const j of JOINTS) pose[j] = zero();

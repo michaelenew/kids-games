@@ -17,7 +17,7 @@ function beatenThrough(id: string) {
 
 describe('RHINO and the Arctic (review round)', () => {
   it('does all five Arctic missions, taking over from TITAN in the first', () => {
-    const arctic = MISSIONS.filter((m) => m.env === 'arctic');
+    const arctic = MISSIONS.filter((m) => m.env === 'arctic' && !m.pick);
     expect(arctic).toHaveLength(5);
     expect(arctic.every((m) => missionBot(m.id) === 'tank')).toBe(true);
     expect(isHandOver('arc-drop')).toBe(true);

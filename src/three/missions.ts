@@ -1,4 +1,4 @@
-import type { BotId } from '../state';
+import { type BotId, save } from '../state';
 import type { Line } from '../ui/widgets';
 
 /**
@@ -33,6 +33,8 @@ export type Step =
    * mission); TITAN drops in for STRIKER (the first canyon mission).
    */
   | { kind: 'swap' }
+  /** Reinforcements: a second robot from his collection joins in and fights alongside. */
+  | { kind: 'reinforce' }
   | { kind: 'boss'; banner: string };
 
 export interface Mission {
@@ -52,6 +54,10 @@ export interface Mission {
   bot?: BotId;
   /** Who starts a hand-over mission (default BOLT). */
   swapFrom?: BotId;
+  /** He picks which of his robots plays it (the Counterattack missions). */
+  pick?: boolean;
+  /** Which column it sits in on the Garage (default: where it happens). */
+  area?: 'tour';
   /** Skip mission control before it (the jet's story mission opens straight into the action). */
   noControl?: boolean;
   /** Boss health multiplier (default 1). */
@@ -724,6 +730,150 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'ICE WALKER!' },
     ],
   },
+  // ---- The Counterattack: aliens everywhere at once. He picks any robot; all review ----------
+  {
+    id: 'tour-city',
+    dmg: 1, hp: 1.4, fire: 0.8, extra: 1,
+    env: 'city',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 26: Back to the City',
+    blurb: 'Pick any robot!',
+    seed: 223,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re back in the city, right where it all started! Show them what your robot can do now.' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'DOWNTOWN!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), sk(1.5, 'above', true), kr(2.5, 'ahead'), sk(3.5, 'right')] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1.2, 'behindL'), rd(2.5, 'behindR'), sk(3.5, 'above'), rd(5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'CITY HALL!', spawns: [kr(0, 'ahead', true), kr(0.5, 'roofL', true), sk(1.4, 'above', true), sk(2.2, 'left'), kr(3.2, 'roofR', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL'), sk(2.5, 'right', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofR', true), sk(0.6, 'above', true), kr(1.4, 'ahead', true), sk(2.4, 'left', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-sands',
+    dmg: 1, hp: 1.5, fire: 0.8, extra: 1.1,
+    env: 'desert',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 27: Sandstorm Strike',
+    blurb: 'Pick a robot. Reinforcements coming!',
+    seed: 227,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'A sandstorm full of saucers is rolling over the pyramids. Here they come!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'SANDSTORM!', spawns: [sk(0, 'left', true), sk(0.5, 'right', true), kr(1.2, 'roofL'), sk(2, 'above', true), kr(3, 'ahead', true), sk(4, 'right')] },
+      { kind: 'move', to: 3, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true)] },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'There are too many of them! We need REINFORCEMENTS!' },
+          { who: 'sprocket', text: 'Sending one more robot in. Two robots, double the blasting!' },
+        ],
+      },
+      { kind: 'reinforce' },
+      { kind: 'wave', banner: 'TEAM UP!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), sk(1, 'above', true), sk(1.6, 'left', true), kr(2.4, 'ahead', true), sk(3.2, 'right', true), kr(4.2, 'roofL', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 6, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2, 'behindR'), sk(3, 'above', true), rd(4.5, 'behindL'), rd(5.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'THE SPHINX!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR', true), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.4, 'ahead', true), sk(4.4, 'right', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead', true)] },
+      { kind: 'wave', banner: 'BLOW THEM AWAY!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.2, 'above', true), sk(2, 'left', true), kr(3, 'ahead', true), sk(4, 'right', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-jungle',
+    dmg: 1, hp: 1.5, fire: 0.8, extra: 1.1,
+    env: 'jungle',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 28: Jungle Rescue',
+    blurb: 'Pick any robot!',
+    seed: 229,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re back in the Amazon, under the giant trees. Clear the old causeway!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'TREETOP AMBUSH!', spawns: [sk(0, 'above', true), sk(0.5, 'left', true), kr(1.2, 'roofL', true), kr(2, 'roofR'), sk(3, 'right', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'THE RUINS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true)] },
+      { kind: 'move', to: 7, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead')] },
+      { kind: 'wave', banner: 'HIVE PODS!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.6, 'left', true), kr(3.6, 'ahead', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-canyon',
+    dmg: 1, hp: 1.6, fire: 0.8, extra: 1.2,
+    env: 'canyon',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 29: Canyon Siege',
+    blurb: 'Pick a robot. Reinforcements coming!',
+    seed: 233,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.45, 0.6], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re attacking the canyon from both rims at once. Hold the river road!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'FROM THE RIMS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.2, 'above', true), kr(2, 'ahead', true), sk(3, 'left', true), sk(4, 'right', true)] },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Walkers on BOTH rims! We need reinforcements, now!' },
+          { who: 'sprocket', text: 'On its way! Look up!' },
+        ],
+      },
+      { kind: 'reinforce' },
+      { kind: 'wave', banner: 'TEAM UP!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), sk(1, 'above', true), sk(1.6, 'left', true), kr(2.4, 'ahead', true), sk(3.2, 'right', true), kr(4.2, 'roofL', true)] },
+      { kind: 'move', to: 4, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 7, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR'), rd(6.5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'DRILL RIGS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR', true), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.4, 'ahead', true), sk(4.4, 'right', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'tour-ice',
+    dmg: 1, hp: 2.2, fire: 0.8, extra: 1.4,
+    env: 'arctic',
+    area: 'tour',
+    pick: true,
+    title: 'Invasion 30: The Last Stand',
+    blurb: 'Pick a robot, call reinforcements. Final boss!',
+    seed: 239,
+    path: [[0, 0, 20], [0, 0, -20], [10, 0, -110], [-10, 0, -200], [8, 0, -290], [0, 0, -360], [0, 0, -410], [0, 0, -450]],
+    plazas: [[0.8, 1]],
+    boss: [0, -8, -520],
+    bossHp: 3.5,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Every alien that\'s left is heading for the Arctic. This is their last stand!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'ICE FORTRESS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(2, 'above', true), sk(3, 'left', true)] },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Their biggest walker is waking up under the ice. We need everyone!' },
+          { who: 'sprocket', text: 'Reinforcements, GO!' },
+        ],
+      },
+      { kind: 'reinforce' },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'MEGA ICE WALKER!' },
+    ],
+  },
 ];
 
 export function missionById(id: string): Mission {
@@ -738,14 +888,22 @@ export const MISSION_IDS = MISSIONS.map((m) => m.id);
  */
 export function alertMission(done: string[], rng: () => number = Math.random): string | undefined {
   const next = MISSIONS.find((m) => !done.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
-  const current = next.bot ?? 'bolt';
-  const pool = MISSIONS.filter((m) => done.includes(m.id) && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
+  // In the pick-your-robot missions any robot can go on patrol.
+  const current = next.pick ? null : (next.bot ?? 'bolt');
+  const pool = MISSIONS.filter((m) => done.includes(m.id) && !m.pick && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
   return pool.length ? pool[Math.floor(rng() * pool.length)].id : undefined;
 }
 
 /** Who flies a mission (by the end of it). */
 export function missionBot(id: string): BotId {
-  return MISSIONS.find((m) => m.id === id)?.bot ?? 'bolt';
+  const m = MISSIONS.find((x) => x.id === id);
+  if (m?.pick) return save().picks?.[id] ?? 'bolt';
+  return m?.bot ?? 'bolt';
+}
+
+/** A mission where he picks the robot. */
+export function isPick(id: string): boolean {
+  return !!MISSIONS.find((m) => m.id === id)?.pick;
 }
 
 /** A mission where the next robot takes over partway through. */
@@ -757,5 +915,5 @@ export function isHandOver(id: string): boolean {
 export function startBot(id: string): BotId {
   const m = MISSIONS.find((x) => x.id === id);
   if (!m) return 'bolt';
-  return isHandOver(id) ? (m.swapFrom ?? 'bolt') : (m.bot ?? 'bolt');
+  return isHandOver(id) ? (m.swapFrom ?? 'bolt') : missionBot(id);
 }

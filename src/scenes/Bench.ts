@@ -4,7 +4,7 @@ import { lookFromSave } from '../armor';
 import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
 import {
-  BUILD_COST, GADGETS, type GadgetId, type GearId, actionDone, activeBot, botName, gearInfo, persist, recordSkill, rig, save,
+  BUILD_COST, GADGETS, type GadgetId, type GearId, actionDone, activeBot, botName, gadgetInfo, gearInfo, persist, recordSkill, rig, save, setGadget,
 } from '../state';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 import { type HowTo, howTo, needsIntro } from '../ui/howto';
@@ -79,7 +79,7 @@ export abstract class BenchScene extends Phaser.Scene {
     const bot = activeBot();
     const who = bot !== 'bolt' ? `${botName(bot)} · ` : '';
     const title = this.gadget
-      ? `SUPER LAB · ${GADGETS[this.gadget].title.toUpperCase()}`
+      ? `SUPER LAB · ${gadgetInfo(bot, this.gadget).title.toUpperCase()}`
       : `${who}${gearInfo(bot)[this.gear].title.toUpperCase()} BENCH · Mark ${ROMAN[this.mark]}${this.practice ? ' (practice)' : ''}`;
     text(this, W / 2, 50, title, 36, '#ffd166');
     button(this, 80, 50, 120, 60, '◀ Exit', () => this.exit(), { size: 24, fill: 0x3d4458 });
@@ -192,9 +192,9 @@ export abstract class BenchScene extends Phaser.Scene {
     if (this.gadget) {
       // A super gadget: fitted now, good for the next mission.
       s.scrap = Math.max(0, s.scrap - GADGETS[this.gadget].cost);
-      s.gadget = this.gadget;
+      setGadget(activeBot(s), this.gadget, s);
       persist();
-      onUpgradeBuilt('jet');
+      onUpgradeBuilt(activeBot(s));
       actionDone(s);
       this.scene.start('Install', { gear: this.gear, mark: this.mark, before, gadget: this.gadget });
       return;

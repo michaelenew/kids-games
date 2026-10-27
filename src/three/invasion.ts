@@ -12,6 +12,7 @@ import { FX } from './fx';
 import type { AlienKind, Mission, Spawn, Step, Vehicle } from './missions';
 import { Jet } from './jet';
 import { type Mech, makeMech } from './mech';
+import { MegaBot } from './megabot';
 import type { Stage } from './stage';
 import { Sub } from './sub';
 import { Tank } from './tank';
@@ -45,6 +46,8 @@ const LOOK_CAR = new THREE.Vector3(0, 1.2, 25);
 const CAM_JET = new THREE.Vector3(0, 3.4, -7.4);
 const LOOK_JET = new THREE.Vector3(0, 0.9, 25);
 const TITAN_CAM_EXTRA = new THREE.Vector3(-0.4, 0.5, -1.1);
+/** The combined TITAN + RHINO mega bot is much taller: the camera backs off and up. */
+const MEGA_CAM_EXTRA = new THREE.Vector3(-0.9, 2.1, -3.8);
 /** Where reinforcements fight: on his left, a little ahead, so they're in view. */
 const ALLY_AT = new THREE.Vector3(3, 0, 1.5);
 /** The jet is drawn a bit bigger in missions so its gear reads from behind. */
@@ -125,6 +128,9 @@ export interface InvasionEvents {
   swapped?(): void;
   /** Reinforcements landed. */
   allyJoined?(): void;
+  /** TITAN and RHINO start combining, and then lock together into the mega bot. */
+  combining?(): void;
+  combined?(): void;
   /** The jet rolled past a shot, or TITAN swatted one away. */
   dodged?(how: 'roll' | 'swat' | 'dash'): void;
 }
@@ -315,8 +321,11 @@ export class Invasion {
     const j = jc * jc * (3 - 2 * jc);
     const off = CAM_ROBOT.clone().lerp(CAM_CAR, k).lerp(CAM_JET, j);
     // TITAN and RHINO are wide: sit the camera a bit further back and higher so it doesn't fill the view.
-    if (this.robot instanceof Titan || this.robot instanceof Tank || this.robot instanceof Sub) off.add(TITAN_CAM_EXTRA.clone().multiplyScalar(1 - k));
+    const mega = this.robot instanceof MegaBot ? this.robot.amount : 0;
+    if (this.robot instanceof Titan || this.robot instanceof Tank || this.robot instanceof Sub || this.robot instanceof MegaBot) off.add(TITAN_CAM_EXTRA.clone().multiplyScalar(1 - k));
+    off.add(MEGA_CAM_EXTRA.clone().multiplyScalar(mega));
     const look = LOOK_ROBOT.clone().lerp(LOOK_CAR, k).lerp(LOOK_JET, j);
+    look.y -= mega * 1.6;
     if (this.vehicle === 'foot' && this.speed > 0.5) off.y += Math.abs(Math.sin(this.t * 7)) * 0.06;
     const pos = this.rig.localToWorld(off);
     const at = this.rig.localToWorld(look);
@@ -402,7 +411,7 @@ export class Invasion {
   // ---- Reinforcements ---------------------------------------------------------
 
   /** A second robot fighting alongside, on his left. It shoots by itself and never gets hurt. */
-  private ally: { mech: Mech; t: number; landed: boolean; cooldown: number } | null = null;
+  private ally: { mech: Mech; t: number; landed: boolean; cooldown: number; landedAt: number } | null = null;
 
   private startAlly() {
     const look = this.opts.allyLook;
@@ -418,7 +427,7 @@ export class Invasion {
     mech.grounded = false;
     this.rig.add(mech.holder);
     mech.holder.position.set(ALLY_AT.x, 16, 34);
-    this.ally = { mech, t: 0, landed: false, cooldown: 1 };
+    this.ally = { mech, t: 0, landed: false, cooldown: 1, landedAt: 0 };
     sfx.whoosh();
   }
 
@@ -435,6 +444,7 @@ export class Invasion {
       if (k < 1) this.fx.spark(m.regionWorld('chest'), 0xffa23a, 3, 2);
       else {
         a.landed = true;
+        a.landedAt = a.t;
         m.grounded = true;
         m.vy = 0;
         const at = m.regionWorld('legL');
@@ -447,12 +457,16 @@ export class Invasion {
       m.update(dt);
       return;
     }
-    // Keep pace with him, and change form when he does.
-    m.speed = this.robot.speed;
-    m.grounded = this.robot.grounded;
-    const wantVehicle = this.vehicle !== 'foot';
-    if (m.isVehicle !== wantVehicle) m.setVehicle(wantVehicle);
-    m.update(dt);
+    // TITAN and RHINO together: a moment after landing, they combine.
+    if (!(this.robot instanceof MegaBot) && this.canCombine(m) && a.t - a.landedAt > 0.9) this.startMega(m);
+    if (!(this.robot instanceof MegaBot)) {
+      // Keep pace with him, and change form when he does.
+      m.speed = this.robot.speed;
+      m.grounded = this.robot.grounded;
+      const wantVehicle = this.vehicle !== 'foot';
+      if (m.isVehicle !== wantVehicle) m.setVehicle(wantVehicle);
+      m.update(dt);
+    }
     a.cooldown -= dt;
     if (a.cooldown > 0) return;
     const from = m.muzzleWorld();
@@ -479,6 +493,40 @@ export class Invasion {
       this.fx.tracer(from, at, BOLT_COLOR[mark], 0.05 + mark * 0.02);
       this.damageBoss(i >= 0 ? 'pod' : 'core', i, dmg, at);
     } else a.cooldown = 0.3;
+  }
+
+  // ---- TITAN + RHINO: the mega bot ---------------------------------------------
+
+  private canCombine(ally: Mech) {
+    const r = this.robot;
+    return (r instanceof Titan && ally instanceof Tank) || (r instanceof Tank && ally instanceof Titan);
+  }
+
+  /** The two robots combine into one (see megabot.ts); the mega bot takes the pilot's place. */
+  private startMega(ally: Mech) {
+    const pilot = this.robot;
+    const top = (pilot instanceof Titan ? pilot : ally) as Titan;
+    const base = (pilot instanceof Tank ? pilot : ally) as Tank;
+    const mega = new MegaBot(pilot, top, base);
+    this.rig.add(mega.holder);
+    this.robot = mega;
+    sfx.transform();
+    this.fx.ring(top.regionWorld('chest'), 0xc77dff, 4);
+    this.fx.ring(base.regionWorld('chest'), 0xc77dff, 4);
+    this.events.combining?.();
+    mega.onMerged = () => {
+      const at = top.regionWorld('legL');
+      this.fx.flash(at, 0xe0aaff, 7, 0.4);
+      this.fx.ring(at, 0xc77dff, 7);
+      this.fx.ring(at, 0x4cf0ff, 5);
+      this.fx.spark(at, 0xc77dff, 50, 9);
+      this.fx.spark(at, 0xffd166, 30, 7);
+      sfx.clang(1.6);
+      sfx.success();
+      this.shake = Math.max(this.shake, 1.2);
+      this.slowMoLeft = Math.max(this.slowMoLeft, 0.6);
+      this.events.combined?.();
+    };
   }
 
   // ---- STRIKER takes over ------------------------------------------------------

@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { upgradeRequired } from '../assist';
 import { REGIONS, forgeScene, repairsNeeded } from '../armor';
-import { type BotId, botData, botName, botUnlocked, save, setActiveBot, wantsControl } from '../state';
+import { type BotId, botData, botName, botUnlocked, botsUnlocked, save, setActiveBot, wantsControl } from '../state';
 import { missionById, startBot } from '../three/missions';
 import { dialog } from '../ui/widgets';
 
@@ -10,8 +10,14 @@ import { dialog } from '../ui/widgets';
  * question) only when it's its turn and there hasn't already been two
  * rounds of math in a row (see `pace` in state.ts).
  */
-export function launchMission(scene: Phaser.Scene, id: string) {
+export function launchMission(scene: Phaser.Scene, id: string, backupPicked = false) {
   const m = missionById(id);
+  // A pick-your-robot mission with reinforcements: pick the backup on the way (also after repairs).
+  const main = save().picks?.[id];
+  if (!backupPicked && m.pick && main && m.steps.some((st) => st.kind === 'reinforce') && botsUnlocked().length > 1) {
+    scene.scene.start('Pick', { missionId: id, main });
+    return;
+  }
   if ((m.env ?? 'city') !== 'city' && !m.noControl && wantsControl()) scene.scene.start('Control', { missionId: id });
   else scene.scene.start('Invasion', { missionId: id });
 }

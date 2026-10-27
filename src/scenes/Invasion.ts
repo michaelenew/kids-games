@@ -12,11 +12,14 @@ import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
 /**
- * Reinforcements: his best-upgraded other robot (the newest, on a tie). It
- * only helps; its plates never take damage, so repairs stay the same size.
+ * Reinforcements: the backup he picked (see Pick.ts), or else his
+ * best-upgraded other robot (the newest, on a tie). It only helps; its plates
+ * never take damage, so repairs stay the same size.
  */
-function allyFor(main: BotId, s = save()): BotId {
+function allyFor(main: BotId, missionId: string, s = save()): BotId {
   const others = botsUnlocked(s).filter((b) => b !== main);
+  const picked = s.backups?.[missionId];
+  if (picked && others.includes(picked)) return picked;
   const power = (b: BotId) => Object.values(botData(b, s).gear).reduce((n: number, v) => n + v, 0);
   return others.sort((a, b) => power(b) - power(a))[0] ?? main;
 }
@@ -107,7 +110,7 @@ export class InvasionScene extends Phaser.Scene {
       fireDelay: this.tune.fireDelay,
       dodge: dodgeOf(this.bot),
       swapDodge: dodgeOf(ender),
-      allyLook: this.mission.steps.some((st) => st.kind === 'reinforce') ? lookFromSave(s, allyFor(this.bot, s)) : undefined,
+      allyLook: this.mission.steps.some((st) => st.kind === 'reinforce') ? lookFromSave(s, allyFor(this.bot, this.mission.id, s)) : undefined,
     }, {
       hit: (raw, from) => this.onHit(raw, from),
       kill: (k) => this.onKill(k),
@@ -132,8 +135,11 @@ export class InvasionScene extends Phaser.Scene {
       bossBar: (f) => (this.bossFrac = f),
       complete: () => this.win(),
       allyJoined: () => {
-        this.banner(`${botName(allyFor(this.bot))} JOINS THE FIGHT!`, BOTS[allyFor(this.bot)].nameColor);
+        const ally = allyFor(this.bot, this.mission.id);
+        this.banner(`${botName(ally)} JOINS THE FIGHT!`, BOTS[ally].nameColor);
       },
+      combining: () => this.banner(`${botName('titan')} + ${botName('tank')}: COMBINE!`, '#e0aaff'),
+      combined: () => this.banner(`MEGA ${botName('tank')}-${botName('titan')}!`, '#ffd166'),
       swapped: () => {
         // The new robot does the rest with its own armor.
         this.bot = ender;

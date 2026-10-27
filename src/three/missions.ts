@@ -963,7 +963,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'sea-reef',
-    dmg: 0.48, hp: 1.5, fire: 0.78, extra: 1.1,
+    dmg: 0.38, hp: 1.5, fire: 0.78, extra: 1.1,
     env: 'ocean',
     bot: 'sub',
     title: 'Invasion 34: Coral Canyon',

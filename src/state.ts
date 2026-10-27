@@ -55,6 +55,8 @@ export interface SaveData {
   titan?: BotData;
   /** Which robot he picked for each pick-your-robot mission. */
   picks?: Record<string, BotId>;
+  /** Which robot he picked as backup for each mission with reinforcements. */
+  backups?: Record<string, BotId>;
   /** Gear and plates of the robots that joined later (RHINO the tank, and on). */
   bots?: Partial<Record<BotId, BotData>>;
   /** Which robot the Engineering Zone, benches and forge are working on. */

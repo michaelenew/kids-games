@@ -40,8 +40,17 @@ export const TITAN_REGION_NAMES: Record<Region, string> = {
   legR: 'Right leg wall',
 };
 
+/** RHINO's plates: the hull, the arms and the tracks. */
+export const TANK_REGION_NAMES: Record<Region, string> = {
+  chest: 'Hull plate',
+  armL: 'Left arm plate',
+  armR: 'Right arm plate',
+  legL: 'Left track plate',
+  legR: 'Right track plate',
+};
+
 export function regionName(r: Region, bot: BotId): string {
-  return (bot === 'jet' ? JET_REGION_NAMES : bot === 'titan' ? TITAN_REGION_NAMES : REGION_NAMES)[r];
+  return (bot === 'jet' ? JET_REGION_NAMES : bot === 'titan' ? TITAN_REGION_NAMES : bot === 'tank' ? TANK_REGION_NAMES : REGION_NAMES)[r];
 }
 
 export interface Plate {

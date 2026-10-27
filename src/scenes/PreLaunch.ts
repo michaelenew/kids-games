@@ -3,7 +3,7 @@ import { lookFromSave } from '../armor';
 import { music, sfx } from '../audio';
 import { practiceCheck, type PracticeCheck } from '../skills/checks';
 import { RAMP, rampProblem } from '../skills/steps';
-import { type BotId, alerts, botName, bumpGuide, guideCount, persist, recordSkill, save, setActiveBot, titanUnlocked } from '../state';
+import { BOTS, type BotId, alerts, botName, bumpGuide, guideCount, persist, recordSkill, save, setActiveBot, titanUnlocked } from '../state';
 import { missionById } from '../three/missions';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
@@ -50,7 +50,7 @@ export class PreLaunchScene extends Phaser.Scene {
       { look: lookFromSave(s, bot), x: 260, y: 600, height: bot === 'jet' ? 300 : 400, spin: 0.4, yaw: 0.6 },
     ]);
     const m = missionById(this.job.missionId);
-    text(this, 260, 60, botName(bot, s), 48, bot === 'jet' ? '#ffd60a' : '#ffd166').setStroke('#000000', 8);
+    text(this, 260, 60, botName(bot, s), 48, BOTS[bot].nameColor).setStroke('#000000', 8);
     text(this, 260, 108, `ALERT: ${m.title.replace(/^Invasion \d+: /, '')}`, 22, '#ff9f9f').setStroke('#000000', 5);
     button(this, 80, 670, 130, 56, '◀ Back', () => this.scene.start('Garage'), { size: 22, fill: 0x3d4458 });
 
@@ -64,7 +64,7 @@ export class PreLaunchScene extends Phaser.Scene {
     // In the canyon the focus is multiplying (once he has built a couple of walls).
     const crates = focus && titanUnlocked(s) && guideCount('wall') >= 2;
     const item = crates ? 'Supply crates' : focus ? 'Fuel' : '';
-    const check = focus ? null : practiceCheck(Math.random, bot === 'jet' ? 'jet' : 'bolt', guideCount('prelaunch'));
+    const check = focus ? null : practiceCheck(Math.random, bot === 'bolt' ? 'bolt' : 'later', guideCount('prelaunch'), botName(bot, s));
     const lines = ['✓ Radio', '✓ Engines warm', `☐ ${check?.item ?? item}`];
     this.add.text(RIGHT_X - 330, 80, lines.slice(0, 2).join('     '), { fontFamily: 'Arial', fontSize: '22px', color: '#06d6a0' });
     this.checkText = this.add.text(RIGHT_X + 50, 80, lines[2], { fontFamily: 'Arial', fontSize: '22px', fontStyle: 'bold', color: '#ffd166' });
@@ -171,8 +171,11 @@ export class PreLaunchScene extends Phaser.Scene {
       });
       return;
     }
+    // Typed: numbers without their commas, times as digits (3:45 is 3 4 5), shown with the colon.
+    const isTime = c.answer.includes(':');
+    const want = Number(c.answer.replace(/[:,]/g, ''));
     const pad = numpad(this, RIGHT_X + 210, 300, (v) => {
-      if (String(v) === c.answer) {
+      if (v === want) {
         pad.destroy();
         right();
       } else {
@@ -180,7 +183,7 @@ export class PreLaunchScene extends Phaser.Scene {
         pad.display.setColor('#ef476f');
         this.time.delayedCall(500, () => pad.clear());
       }
-    }, 2);
+    }, String(want).length, isTime ? (t) => (t.length >= 3 ? `${t.slice(0, -2)}:${t.slice(-2)}` : t) : undefined);
   }
 
   /** The thing being checked, drawn. */
@@ -199,10 +202,12 @@ export class PreLaunchScene extends Phaser.Scene {
       });
       this.layer.add(text(this, x0 + 230, 520, c.ask, 44, '#ffd166'));
     } else if (c.kind === 'gauge') {
-      g.fillStyle(0x0b1022, 1).fillRoundedRect(RIGHT_X - 330, 250, 660, 160, 16);
-      g.lineStyle(4, 0x4cc9f0, 1).strokeRoundedRect(RIGHT_X - 330, 250, 660, 160, 16);
-      this.layer.add(text(this, RIGHT_X, 290, 'ARMOR GAUGE', 20, '#4cc9f0'));
-      this.layer.add(text(this, RIGHT_X, 350, c.ask.toUpperCase(), 32, '#ffffff', { wordWrap: { width: 620 } }));
+      // Left of the keypad.
+      g.fillStyle(0x0b1022, 1).fillRoundedRect(RIGHT_X - 350, 250, 420, 220, 16);
+      g.lineStyle(4, 0x4cc9f0, 1).strokeRoundedRect(RIGHT_X - 350, 250, 420, 220, 16);
+      this.layer.add(text(this, RIGHT_X - 140, 290, 'ARMOR GAUGE', 20, '#4cc9f0'));
+      this.layer.add(text(this, RIGHT_X - 140, 370, c.ask.toUpperCase(), 30, '#ffffff', { wordWrap: { width: 380 } }));
+      this.layer.add(text(this, RIGHT_X - 140, 500, 'Type the number', 22, '#9ad1ff'));
     } else if (c.kind === 'barrel') {
       // A ruler (half-inch marks) with the barrel lying on it from 0.
       const x0 = RIGHT_X - 330;
@@ -221,9 +226,10 @@ export class PreLaunchScene extends Phaser.Scene {
       g.lineStyle(2, 0xffd166, 0.9).lineBetween(x0 + len, 400, x0 + len, 440);
       this.layer.add(text(this, RIGHT_X, 280, c.ask, 30, '#ffd166'));
     } else if (c.clock) {
-      const cx = RIGHT_X;
-      const cy = 400;
-      const r = 150;
+      // Left of the keypad.
+      const cx = RIGHT_X - 160;
+      const cy = 420;
+      const r = 140;
       g.fillStyle(0xf8f4e8, 1).fillCircle(cx, cy, r + 8).lineStyle(8, 0x2b2f3a, 1).strokeCircle(cx, cy, r + 8);
       for (let n = 1; n <= 12; n++) {
         const a = (n / 12) * Math.PI * 2 - Math.PI / 2;

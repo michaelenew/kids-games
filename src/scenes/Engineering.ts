@@ -4,7 +4,7 @@ import { REGIONS, lookFromSave } from '../armor';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import {
-  BUILD_COST, GADGETS, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, botsUnlocked, egyptUnlocked,
+  BOTS, BUILD_COST, GADGETS, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, botsUnlocked, egyptUnlocked,
   gearInfo, hasSeen, markSeen, save, setActiveBot, superLabUnlocked,
 } from '../state';
 import { W, button, dialog, scrapBadge, text } from '../ui/widgets';
@@ -27,12 +27,13 @@ const STORY: Record<BotId, Record<GearId, string>> = {
     blaster: 'Cut new rivet barrels for bigger shots.',
     boots: 'Pump up the treads so its digger arm swats shots.',
   },
+  tank: {
+    armor: 'Forge heavy tank plates so hits hurt less.',
+    blaster: 'Cut new cannon barrels for bigger shots.',
+    boots: 'Fuel the rocket boosters to dash past shots.',
+  },
 };
-const TAB: Record<BotId, { icon: string; fill: number; edge: number; card: number }> = {
-  titan: { icon: '🚜', fill: 0xd96c00, edge: 0xffc27a, card: 0xff8c1a },
-  jet: { icon: '✈', fill: 0xd4a800, edge: 0xfff3a0, card: 0xffd60a },
-  bolt: { icon: '🤖', fill: 0x1f6feb, edge: 0x9ad1ff, card: 0xf77f00 },
-};
+const TAB = (b: BotId) => BOTS[b].tab;
 
 /**
  * The upgrade benches. Once STRIKER (the jet) has joined, a menu at the top
@@ -84,6 +85,11 @@ export class EngineeringScene extends Phaser.Scene {
         { who: 'sprocket', text: 'This is my favorite place! Each bench builds one kind of upgrade.' },
         { who: 'sprocket', text: 'Building takes scrap, and a little brain power. Pick whatever you like!' },
       ], () => markSeen('engineering-intro'));
+    } else if (bot === 'tank' && !hasSeen('engineering-tank')) {
+      dialog(this, [
+        { who: 'sprocket', text: 'RHINO\'s benches! Heavy tank plates, a big cannon and rocket boosters.' },
+        { who: 'sprocket', text: 'It\'s all stuff you already know how to build. Show RHINO what you can do!' },
+      ], () => markSeen('engineering-tank'));
     } else if (bot === 'titan' && !hasSeen('engineering-titan')) {
       dialog(this, [
         { who: 'sprocket', text: 'TITAN\'s benches! Its armor isn\'t plates, it\'s BRICK WALLS.' },
@@ -101,7 +107,7 @@ export class EngineeringScene extends Phaser.Scene {
   private botMenu(bot: BotId) {
     const lab = superLabUnlocked();
     const tabs: { id: BotId | 'lab'; label: string; fill: number; edge: number }[] = [
-      ...botsUnlocked().map((b) => ({ id: b, label: `${TAB[b].icon} ${botName(b)}`, fill: TAB[b].fill, edge: TAB[b].edge })),
+      ...botsUnlocked().map((b) => ({ id: b, label: `${TAB(b).icon} ${botName(b)}`, fill: TAB(b).fill, edge: TAB(b).edge })),
       ...(lab ? [{ id: 'lab' as const, label: '⚡ SUPER LAB', fill: 0x7b2cbf, edge: 0xe0aaff }] : []),
     ];
     const w = tabs.length > 3 ? 200 : 220;
@@ -186,7 +192,7 @@ export class EngineeringScene extends Phaser.Scene {
     const card = this.add.graphics();
     card.fillStyle(0x0b0f1a, 0.55).fillRoundedRect(x - 190, 140, 380, 520, 20);
     card.fillStyle(0x0b0f1a, 0.85).fillRoundedRect(x - 190, 410, 380, 250, { tl: 0, tr: 0, bl: 20, br: 20 });
-    card.lineStyle(4, maxed ? 0x06d6a0 : TAB[bot].card, 1).strokeRoundedRect(x - 190, 140, 380, 520, 20);
+    card.lineStyle(4, maxed ? 0x06d6a0 : TAB(bot).card, 1).strokeRoundedRect(x - 190, 140, 380, 520, 20);
     text(this, x, 170, `${info.title.toUpperCase()} BENCH`, info.title.length > 10 ? 26 : 30, '#ffffff').setStroke('#000000', 6);
 
     // Mark pips.

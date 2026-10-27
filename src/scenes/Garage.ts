@@ -2,9 +2,9 @@ import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
 import { LEVELS } from '../levels';
 import {
-  BLASTER_DAMAGE, BUILD_COST, type BotId, type GearId, JET_DAMAGE, JET_DODGE, TITAN_BLOCK, TITAN_DAMAGE, activeBot, botData, botName,
-  botsUnlocked, endPreview, gearInfo, alerts, hasSeen, inPreview, jetUnlocked, markSeen, persist, resetSave, save, setActiveBot,
-  startPreview, titanUnlocked,
+  BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName, botUnlocked,
+  botsUnlocked, endPreview, gearInfo, alerts, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
+  startPreview,
 } from '../state';
 import { REGIONS, forgeScene, lookFromSave, repairsNeeded, totalHp, totalMax } from '../armor';
 import { MISSIONS, alertMission, missionById, startBot } from '../three/missions';
@@ -39,7 +39,6 @@ const SKILL_LABELS: Record<string, string> = {
   multiply: 'TITAN walls: rows of bricks (multiplying)',
 };
 
-const NAME_COLOR: Record<BotId, string> = { bolt: '#ffd166', jet: '#ffd60a', titan: '#ffb347' };
 
 /** True if any gear (on either robot) has a next mark he has enough scrap for. */
 export function upgradeAffordable(): boolean {
@@ -53,7 +52,7 @@ export function upgradeAffordable(): boolean {
 /** A robot that has never had armor built, but should by now. */
 function needsFirstArmor(bot: BotId): boolean {
   const s = save();
-  const ready = bot === 'jet' ? jetUnlocked(s) : bot === 'titan' ? titanUnlocked(s) : s.levelsDone.includes('inv-drop');
+  const ready = bot === 'bolt' ? s.levelsDone.includes('inv-drop') : botUnlocked(bot, s);
   return ready && !REGIONS.some((r) => botData(bot, s).armor?.[r]);
 }
 
@@ -92,15 +91,16 @@ export class GarageScene extends Phaser.Scene {
     zone.on('pointerup', release);
     zone.on('pointerout', release);
 
-    text(this, 300, 70, botName(bot, s), 52, NAME_COLOR[bot]).setStroke('#000000', 8);
+    text(this, 300, 70, botName(bot, s), 52, BOTS[bot].nameColor).setStroke('#000000', 8);
+    const spec = BOTS[bot];
     const stats = bot === 'titan' ? [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
-      `Rivet power ${TITAN_DAMAGE[d.gear.blaster]}`,
-      `Swats ${Math.round(TITAN_BLOCK[d.gear.boots] * 100)}% of shots`,
-    ] : bot === 'jet' ? [
+      `Rivet power ${spec.damage[d.gear.blaster]}`,
+      `Swats ${Math.round(spec.dodge[d.gear.boots] * 100)}% of shots`,
+    ] : bot !== 'bolt' ? [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
-      `Cannon power ${JET_DAMAGE[d.gear.blaster]}`,
-      `Dodge ${Math.round(JET_DODGE[d.gear.boots] * 100)}%`,
+      `Cannon power ${spec.damage[d.gear.blaster]}`,
+      `Dodge ${Math.round(spec.dodge[d.gear.boots] * 100)}%`,
     ] : [
       `Armor ${totalHp(d.armor ?? {})} / ${totalMax(d.armor ?? {})}`,
       `Blaster power ${BLASTER_DAMAGE[d.gear.blaster]}`,
@@ -120,13 +120,11 @@ export class GarageScene extends Phaser.Scene {
     }
 
     if ((carUnlocked() && bot === 'bolt') || bot !== 'bolt') {
-      // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a bulldozer.
-      const tf = button(this, 300, 660, 260, 70, bot === 'titan' ? 'DOZER MODE ⇄' : 'TRANSFORM ⇄', () => {
+      // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a bulldozer, RHINO a tank.
+      const label = () => (robot.isVehicle ? 'ROBOT MODE ⇄' : bot === 'bolt' ? 'TRANSFORM ⇄' : `${spec.vehicle} MODE ⇄`);
+      const tf = button(this, 300, 660, 260, 70, label(), () => {
         robot.setVehicle(!robot.isVehicle);
-        const vehicleNow = robot.isVehicle;
-        tf.label.setText(bot === 'jet' ? (vehicleNow ? 'TRANSFORM ⇄' : 'JET MODE ⇄')
-          : bot === 'titan' ? (vehicleNow ? 'ROBOT MODE ⇄' : 'DOZER MODE ⇄')
-            : (vehicleNow ? 'ROBOT MODE ⇄' : 'TRANSFORM ⇄'));
+        tf.label.setText(label());
         show.sparkle(0);
       }, { fill: 0x7b2cbf, edge: 0xd0a7ff, size: 28 });
     }
@@ -166,6 +164,7 @@ export class GarageScene extends Phaser.Scene {
       { env: 'desert', label: 'EGYPT', color: '#ffc98a', fill: 0xb5651d, edge: 0xffc98a },
       { env: 'jungle', label: 'AMAZON', color: '#8ef0a0', fill: 0x2d8a4e, edge: 0x9ff0b8 },
       { env: 'canyon', label: 'GRAND CANYON', color: '#ffb38a', fill: 0xb5482a, edge: 0xffb38a },
+      { env: 'arctic', label: 'ARCTIC', color: '#bfe6ff', fill: 0x2f6f9f, edge: 0xbfe6ff },
     ];
     const envOf = (m: (typeof MISSIONS)[number]) => m.env ?? 'city';
     const nextMission = MISSIONS.find((m) => !s.levelsDone.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];

@@ -1,7 +1,7 @@
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
-/** The robots he can build up: BOLT (his first), STRIKER (the yellow fighter jet) and TITAN (the construction robot). */
-export type BotId = 'bolt' | 'jet' | 'titan';
+/** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot) and RHINO (the tank). */
+export type BotId = 'bolt' | 'jet' | 'titan' | 'tank';
 
 /** One robot's upgrades and armor plates. */
 export interface BotData {
@@ -44,6 +44,8 @@ export interface SaveData {
   /** The jet's upgrade count when each jet mission was first beaten. */
   clearedAtJet?: Record<string, number>;
   clearedAtTitan?: Record<string, number>;
+  /** The same, for the robots that joined later. */
+  clearedAtBy?: Partial<Record<BotId, Record<string, number>>>;
   /**
    * The jet's gear and plates. BOLT's live at the top level (`gear`, `armor`)
    * so saves from before the jet keep working.
@@ -51,6 +53,8 @@ export interface SaveData {
   jet?: BotData;
   /** TITAN's gear and plates (its plates are brick walls). */
   titan?: BotData;
+  /** Gear and plates of the robots that joined later (RHINO the tank, and on). */
+  bots?: Partial<Record<BotId, BotData>>;
   /** Which robot the Engineering Zone, benches and forge are working on. */
   bot?: BotId;
   /**
@@ -215,36 +219,131 @@ export function canDoubleJump(): boolean {
 
 // ---- Robots ------------------------------------------------------------------
 
+type GearInfo = Record<GearId, { title: string; skill: string; perks: string[] }>;
+
+/**
+ * Everything that differs between the robots, in one place. A robot joins
+ * when `joinsAt` (its hand-over mission) is first beaten.
+ */
+export interface BotSpec {
+  name: string;
+  /** Paint (BOLT's is his own pick, saved in the save). */
+  color: number;
+  /** The name's color on screen. */
+  nameColor: string;
+  joinsAt?: string;
+  /** Shot damage and time between shots (seconds), by blaster mark. */
+  damage: number[];
+  cooldown: number[];
+  /** Chance its boots/boosters get it out of a shot's way, by boots mark. */
+  dodge: number[];
+  /** What the Garage transform button says it turns into. */
+  vehicle: string;
+  /** Its Engineering Zone tab. */
+  tab: { icon: string; fill: number; edge: number; card: number };
+  gear: GearInfo;
+}
+
+export const BOTS: Record<BotId, BotSpec> = {
+  bolt: {
+    name: 'BOLT', color: 0x3a86ff, nameColor: '#ffd166',
+    damage: [1, 2, 3, 4], cooldown: [0.2, 0.16, 0.13, 0.075], dodge: [0, 0, 0, 0], vehicle: 'CAR',
+    tab: { icon: '🤖', fill: 0x1f6feb, edge: 0x9ad1ff, card: 0xf77f00 },
+    gear: {
+      armor: { title: 'Armor', skill: 'Place value', perks: ['Armor 300', 'Armor 450', 'Armor 600', 'Armor 800'] },
+      blaster: {
+        title: 'Blaster', skill: 'Measuring',
+        perks: ['Damage 1, breaks wood', 'Damage 2, breaks steel boxes', 'Damage 3, breaks titanium', 'Damage 4, rapid fire, breaks energy blocks'],
+      },
+      boots: { title: 'Jump Boots', skill: 'Adding & subtracting', perks: ['Normal jump', 'Super jump', 'Mega jump', 'Mega jump + DOUBLE JUMP'] },
+    },
+  },
+  // The jet joins late, so its cannons start stronger than BOLT's blaster did.
+  jet: {
+    name: 'STRIKER', color: 0xffd60a, nameColor: '#ffd60a', joinsAt: 'egy-drop',
+    damage: [2, 3, 4, 5], cooldown: [0.15, 0.13, 0.11, 0.075], dodge: [0, 0.12, 0.22, 0.32], vehicle: 'JET',
+    tab: { icon: '✈', fill: 0xd4a800, edge: 0xfff3a0, card: 0xffd60a },
+    gear: {
+      armor: { title: 'Hull Armor', skill: 'Place value', perks: ['No hull plates', 'Hull armor plates', 'Heavy hull + tail spikes', 'Titan hull + gold wing blades'] },
+      blaster: {
+        title: 'Wing Cannons', skill: 'Measuring',
+        perks: ['Nose gun, damage 2', 'Twin wing cannons, damage 3', 'Quad cannons + missiles, damage 4', 'Plasma gatlings, damage 5, rapid fire'],
+      },
+      boots: {
+        title: 'Afterburners', skill: 'Adding & subtracting',
+        perks: ['Plain engine', 'Afterburner: rolls past some shots', 'Twin afterburners: dodges more', 'Hyper boosters: dodges lots of shots'],
+      },
+    },
+  },
+  // TITAN hits hard but slowly: rivets, then a jackhammer drill.
+  titan: {
+    name: 'TITAN', color: 0xff8c1a, nameColor: '#ffb347', joinsAt: 'cyn-drop',
+    damage: [3, 4, 6, 8], cooldown: [0.22, 0.2, 0.17, 0.12], dodge: [0, 0.12, 0.22, 0.32], vehicle: 'DOZER',
+    tab: { icon: '🚜', fill: 0xd96c00, edge: 0xffc27a, card: 0xff8c1a },
+    gear: {
+      armor: { title: 'Brick Walls', skill: 'Multiplying', perks: ['No walls', 'Brick wall armor', 'Steel-framed walls', 'Gold-framed walls + spikes'] },
+      blaster: {
+        title: 'Rivet Cannon', skill: 'Measuring',
+        perks: ['Nail gun, damage 3', 'Rivet cannon, damage 4', 'Twin rivets + rock launcher, damage 6', 'Plasma jackhammer, damage 8'],
+      },
+      boots: { title: 'Treads', skill: 'Adding & subtracting', perks: ['Plain feet', 'Treads: swats some shots away', 'Hydraulic treads: swats more', 'Power treads + jump jets: swats lots'] },
+    },
+  },
+  // RHINO, the tank robot, for the Arctic. Its benches are review: place value armor, measuring, facts.
+  tank: {
+    name: 'RHINO', color: 0x5a9a2e, nameColor: '#9dff6a', joinsAt: 'arc-drop',
+    damage: [3, 4, 6, 8], cooldown: [0.22, 0.2, 0.17, 0.12], dodge: [0, 0.12, 0.22, 0.32], vehicle: 'TANK',
+    tab: { icon: '🪖', fill: 0x3f7d22, edge: 0xb8ff8a, card: 0x5a9a2e },
+    gear: {
+      armor: { title: 'Tank Armor', skill: 'Place value', perks: ['No armor plates', 'Tank armor plates', 'Steel-framed plates', 'Gold-trimmed plates + spikes'] },
+      blaster: {
+        title: 'Tank Cannon', skill: 'Measuring',
+        perks: ['Machine gun, damage 3', 'Tank cannon, damage 4', 'Twin cannons + missiles, damage 6', 'Plasma railgun, damage 8'],
+      },
+      boots: {
+        title: 'Rocket Boosters', skill: 'Adding & subtracting',
+        perks: ['No boosters', 'Boosters: dashes past some shots', 'Twin boosters: dashes past more', 'Mega boosters: dashes past lots of shots'],
+      },
+    },
+  },
+};
+
+/** Robots in the order they join. */
+export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank'];
+
 /** STRIKER's paint. */
-export const JET_COLOR = 0xffd60a;
+export const JET_COLOR = BOTS.jet.color;
+/** TITAN's paint: construction orange. */
+export const TITAN_COLOR = BOTS.titan.color;
+
+export function botUnlocked(bot: BotId, s: SaveData = save()): boolean {
+  const at = BOTS[bot].joinsAt;
+  return !at || s.levelsDone.includes(at);
+}
 
 /** The jet joins after the first Egypt mission (it takes over halfway through). */
 export function jetUnlocked(s: SaveData = save()): boolean {
-  return s.levelsDone.includes('egy-drop');
+  return botUnlocked('jet', s);
 }
-
-/** TITAN's paint: construction orange. */
-export const TITAN_COLOR = 0xff8c1a;
 
 /** TITAN joins in the first Grand Canyon mission (it takes over from STRIKER). */
 export function titanUnlocked(s: SaveData = save()): boolean {
-  return s.levelsDone.includes('cyn-drop');
+  return botUnlocked('titan', s);
 }
 
 /** The robots built so far, newest first. */
 export function botsUnlocked(s: SaveData = save()): BotId[] {
-  const out: BotId[] = [];
-  if (titanUnlocked(s)) out.push('titan');
-  if (jetUnlocked(s)) out.push('jet');
-  out.push('bolt');
-  return out;
+  return [...BOT_ORDER].reverse().filter((b) => botUnlocked(b, s));
 }
 
-/** A robot's gear and plates. BOLT's are the save's own fields. */
+/** A robot's gear and plates. BOLT's are the save's own fields; STRIKER's and TITAN's have their own (older saves). */
 export function botData(bot: BotId, s: SaveData = save()): BotData {
-  if (bot === 'jet') return (s.jet ??= { gear: { armor: 0, blaster: 0, boots: 0 } });
-  if (bot === 'titan') return (s.titan ??= { gear: { armor: 0, blaster: 0, boots: 0 } });
-  return s;
+  const fresh = (): BotData => ({ gear: { armor: 0, blaster: 0, boots: 0 } });
+  if (bot === 'bolt') return s;
+  if (bot === 'jet') return (s.jet ??= fresh());
+  if (bot === 'titan') return (s.titan ??= fresh());
+  s.bots ??= {};
+  return (s.bots[bot] ??= fresh());
 }
 
 /** The robot the workshop screens are working on. */
@@ -254,7 +353,7 @@ export function activeBot(s: SaveData = save()): BotId {
 
 /** Each robot's paint. */
 export function botColor(bot: BotId, s: SaveData = save()): number {
-  return bot === 'jet' ? JET_COLOR : bot === 'titan' ? TITAN_COLOR : s.color;
+  return bot === 'bolt' ? s.color : BOTS[bot].color;
 }
 
 export function setActiveBot(bot: BotId, s: SaveData = save()): void {
@@ -267,60 +366,24 @@ export function rig(s: SaveData = save()): BotData {
   return botData(activeBot(s), s);
 }
 
-export const BOT_NAMES: Record<BotId, string> = { bolt: 'BOLT', jet: 'STRIKER', titan: 'TITAN' };
+export const BOT_NAMES: Record<BotId, string> = Object.fromEntries(BOT_ORDER.map((b) => [b, BOTS[b].name])) as Record<BotId, string>;
 
 export function botName(bot: BotId, s: SaveData = save()): string {
   return bot === 'bolt' ? s.name : BOT_NAMES[bot];
 }
 
-/** The jet's cannon damage by mark (it joins late, so it starts stronger than BOLT did). */
-export const JET_DAMAGE = [2, 3, 4, 5];
+/** The jet's cannon damage by mark. */
+export const JET_DAMAGE = BOTS.jet.damage;
 /** Chance the jet's afterburners roll it past an incoming shot, by mark. */
-export const JET_DODGE = [0, 0.12, 0.22, 0.32];
-
-export const JET_GEAR_INFO: Record<GearId, { title: string; skill: string; perks: string[] }> = {
-  armor: {
-    title: 'Hull Armor',
-    skill: 'Place value',
-    perks: ['No hull plates', 'Hull armor plates', 'Heavy hull + tail spikes', 'Titan hull + gold wing blades'],
-  },
-  blaster: {
-    title: 'Wing Cannons',
-    skill: 'Measuring',
-    perks: ['Nose gun, damage 2', 'Twin wing cannons, damage 3', 'Quad cannons + missiles, damage 4', 'Plasma gatlings, damage 5, rapid fire'],
-  },
-  boots: {
-    title: 'Afterburners',
-    skill: 'Adding & subtracting',
-    perks: ['Plain engine', 'Afterburner: rolls past some shots', 'Twin afterburners: dodges more', 'Hyper boosters: dodges lots of shots'],
-  },
-};
-
-/** TITAN hits hard but slowly: rivets, then a jackhammer drill. */
-export const TITAN_DAMAGE = [3, 4, 6, 8];
+export const JET_DODGE = BOTS.jet.dodge;
+export const JET_GEAR_INFO: GearInfo = BOTS.jet.gear;
+export const TITAN_DAMAGE = BOTS.titan.damage;
 /** Chance TITAN's digger arm swats an incoming shot away, by treads mark. */
-export const TITAN_BLOCK = [0, 0.12, 0.22, 0.32];
+export const TITAN_BLOCK = BOTS.titan.dodge;
+export const TITAN_GEAR_INFO: GearInfo = BOTS.titan.gear;
 
-export const TITAN_GEAR_INFO: Record<GearId, { title: string; skill: string; perks: string[] }> = {
-  armor: {
-    title: 'Brick Walls',
-    skill: 'Multiplying',
-    perks: ['No walls', 'Brick wall armor', 'Steel-framed walls', 'Gold-framed walls + spikes'],
-  },
-  blaster: {
-    title: 'Rivet Cannon',
-    skill: 'Measuring',
-    perks: ['Nail gun, damage 3', 'Rivet cannon, damage 4', 'Twin rivets + rock launcher, damage 6', 'Plasma jackhammer, damage 8'],
-  },
-  boots: {
-    title: 'Treads',
-    skill: 'Adding & subtracting',
-    perks: ['Plain feet', 'Treads: swats some shots away', 'Hydraulic treads: swats more', 'Power treads + jump jets: swats lots'],
-  },
-};
-
-export function gearInfo(bot: BotId): Record<GearId, { title: string; skill: string; perks: string[] }> {
-  return bot === 'jet' ? JET_GEAR_INFO : bot === 'titan' ? TITAN_GEAR_INFO : GEAR_INFO;
+export function gearInfo(bot: BotId): GearInfo {
+  return BOTS[bot].gear;
 }
 
 // ---- Super gadgets ------------------------------------------------------------
@@ -368,23 +431,7 @@ export function countUpgrade(bot: BotId, s: SaveData = save()): void {
   s.upgradesBy[bot] = (s.upgradesBy[bot] ?? 0) + 1;
 }
 
-export const GEAR_INFO: Record<GearId, { title: string; skill: string; perks: string[] }> = {
-  armor: {
-    title: 'Armor',
-    skill: 'Place value',
-    perks: ['Armor 300', 'Armor 450', 'Armor 600', 'Armor 800'],
-  },
-  blaster: {
-    title: 'Blaster',
-    skill: 'Measuring',
-    perks: ['Damage 1, breaks wood', 'Damage 2, breaks steel boxes', 'Damage 3, breaks titanium', 'Damage 4, rapid fire, breaks energy blocks'],
-  },
-  boots: {
-    title: 'Jump Boots',
-    skill: 'Adding & subtracting',
-    perks: ['Normal jump', 'Super jump', 'Mega jump', 'Mega jump + DOUBLE JUMP'],
-  },
-};
+export const GEAR_INFO: GearInfo = BOTS.bolt.gear;
 
 // ---- Pacing ----------------------------------------------------------------
 

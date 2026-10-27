@@ -91,6 +91,7 @@ interface FlyIn {
 export class Titan implements Mech {
   readonly holder = new THREE.Group();
   readonly size = 2.5;
+  readonly dodgeStyle = 'swat' as const;
   private readonly root = new THREE.Group();
   private readonly j = {} as Record<J, THREE.Object3D>;
   private readonly parts = new Map<string, THREE.Object3D[]>();

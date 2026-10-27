@@ -1,6 +1,6 @@
 import { LEVELS } from './levels';
 import { MISSION_IDS, isHandOver, startBot } from './three/missions';
-import { BUILD_COST, GADGETS, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save, superLabUnlocked } from './state';
+import { BOT_ORDER, BUILD_COST, GADGETS, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save, superLabUnlocked } from './state';
 
 /**
  * Behind-the-scenes help. Building an upgrade should always make the next
@@ -91,6 +91,7 @@ function botFor(id: string): BotId {
 function clearedFor(s: SaveData, bot: BotId): Record<string, number> {
   if (bot === 'jet') return (s.clearedAtJet ??= {});
   if (bot === 'titan') return (s.clearedAtTitan ??= {});
+  if (bot !== 'bolt') return ((s.clearedAtBy ??= {})[bot] ??= {});
   return (s.clearedAt ??= {});
 }
 
@@ -136,7 +137,7 @@ export function onMissionFailed(id: string, s: SaveData = save()): number {
 
 /** A mission is beaten: remember the upgrade count, and the next mission's help starts fresh. */
 export function onMissionCleared(id: string, s: SaveData = save()) {
-  for (const bot of ['bolt', 'jet', 'titan'] as BotId[]) {
+  for (const bot of BOT_ORDER) {
     const rec = clearedFor(s, bot);
     if (rec[id] === undefined) rec[id] = upgradesFor(s, bot);
   }

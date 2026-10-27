@@ -3,7 +3,7 @@ import { type Tuning, botForMission, cheapestUpgrade, missionStart, tuning, onMi
 import { MissionArmor, REGIONS, type Region, forgeScene, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import {
-  type BotId, GADGETS, JET_DODGE, TITAN_BLOCK, actionDone, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
+  BOTS, type BotId, GADGETS, actionDone, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
   wallStage, wantsRecap, writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
@@ -84,7 +84,7 @@ export class InvasionScene extends Phaser.Scene {
     const ender = missionBot(this.mission.id);
     this.bot = startBot(this.mission.id);
     // Each robot's own way of beating shots: the jet rolls past them, TITAN swats them.
-    const dodgeOf = (b: BotId) => (b === 'jet' ? JET_DODGE : b === 'titan' ? TITAN_BLOCK : [0, 0, 0, 0])[botData(b, s).gear.boots];
+    const dodgeOf = (b: BotId) => BOTS[b].dodge[botData(b, s).gear.boots];
     // The Energy Armor gadget: a big force field on top of the plates, this mission only.
     if (missionBot(this.mission.id) === 'jet' && s.gadget === 'shield') this.shieldBonus += 1500;
     this.useArmor(this.bot);
@@ -124,7 +124,7 @@ export class InvasionScene extends Phaser.Scene {
         // The new robot does the rest with its own armor.
         this.bot = ender;
         this.useArmor(ender);
-        this.banner(`${botName(ender)}!`, ender === 'titan' ? '#ffb347' : '#ffd60a');
+        this.banner(`${botName(ender)}!`, BOTS[ender].nameColor);
       },
       dodged: (how) => {
         const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, how === 'swat' ? 'SWAT!' : 'DODGE!', 40, how === 'swat' ? '#ffb347' : '#ffd60a').setStroke('#000000', 6).setDepth(25);
@@ -536,7 +536,19 @@ export class InvasionScene extends Phaser.Scene {
       } else if (this.mission.id === 'cyn-core' && firstWin) {
         dialog(this, [
           { who: 'volt', text: 'The Drill Walker is down! The mothership\'s last machine is scrap!' },
-          { who: 'volt', text: 'BOLT, STRIKER and TITAN... you saved the whole planet. Best. Team. Ever.' },
+          { who: 'volt', text: 'But their last ship got away... it\'s heading north. All the way north. To the ARCTIC.' },
+          { who: 'sprocket', text: 'Then TITAN\'s going to need a friend who likes the cold. I\'ve got just the robot...' },
+        ], after);
+      } else if (this.mission.id === 'arc-drop' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'RHINO! Our tank robot made it through the snow!' },
+          { who: 'sprocket', text: 'RHINO does the Arctic missions. Heavy armor, a big cannon, and rocket boosters!' },
+          { who: 'sprocket', text: 'Its plates are bare metal. Let\'s forge RHINO some armor, just like the others!' },
+        ], after);
+      } else if (this.mission.id === 'arc-core' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Ice Walker is down! Their Arctic base is finished!' },
+          { who: 'volt', text: 'BOLT, STRIKER, TITAN and RHINO... what a team. They\'ll think twice before coming back!' },
         ], after);
       } else if (next.key === 'WallForge') {
         dialog(this, [{ who: 'sprocket', text: 'TITAN\'s walls lost some bricks. Let\'s rebuild them, row by row!' }], after);

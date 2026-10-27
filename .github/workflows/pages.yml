@@ -1,5 +1,8 @@
-# Publish the game to GitHub Pages on every push to main, so it can be
-# played from any device (iPad or laptop) at a plain link.
+# Publish the games to GitHub Pages on every push to main, so they can be
+# played from any device (iPad or laptop) at a plain link:
+#   /kids-games/                  the welcome screen (pick a game)
+#   /kids-games/mecha-forge/      Mecha Forge
+#   /kids-games/unicorn-rancher/  Unicorn Rancher
 #
 # A deploy, not a gate: it builds and publishes, nothing more. Run
 # `npm test` and `npm run typecheck` before pushing.
@@ -36,6 +39,13 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Unicorn Rancher's offline speech model (about 40 MB) is too big for
+      # git, so it's downloaded here and kept in the Actions cache.
+      - uses: actions/cache@v4
+        with:
+          path: public/models
+          key: vosk-model-small-en-us-0.15
+      - run: npm run fetch-model
       # The build uses relative paths (vite.config.ts base: './'), so it works
       # under the /kids-games/ project path without extra settings.
       - run: npm run build

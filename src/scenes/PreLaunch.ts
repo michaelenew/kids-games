@@ -83,9 +83,10 @@ export class PreLaunchScene extends Phaser.Scene {
 
   /** Current focus: top up the fuel, by counting up (sized by where his count-up practice is). */
   private fuelCheck(bot: BotId, done: (firstTry: boolean) => void) {
-    // Kept quick: two-digit numbers, guided until he's done two-digit ones on his own.
+    // Kept quick: two-digit numbers, counted up jump by jump.
     const stage = guideCount('ramp');
-    const step = { digits: Math.min(2, RAMP[Math.min(stage, RAMP.length - 1)].digits) as 1 | 2, guided: stage <= 1 };
+    // Always jump by jump for now (never "type the whole answer" first).
+    const step = { digits: Math.min(2, RAMP[Math.min(stage, RAMP.length - 1)].digits) as 1 | 2, guided: true };
     const p = rampProblem(Math.random, step.digits);
     const name = botName(bot);
     text(this, RIGHT_X, 130, `${name}'s fuel tank holds ${p.to}. It has ${p.from} left. How much fuel to fill it up?`, 22, '#ffffff', { wordWrap: { width: 700 } });

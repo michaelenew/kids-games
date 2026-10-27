@@ -324,8 +324,9 @@ export class ArmorForge extends Phaser.Scene {
     const plate = rig().armor![this.job.region]!;
     const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
     const kind = borrowKind(plate.max, plate.hp);
-    // Walked through the first two times, and the first time each new kind comes up.
-    const guided = guideCount('written') < 2 || guideCount(`written-${kind}`) < 1;
+    // Always column by column for now: asked for the whole answer first, he'd start
+    // typing the ones digit and get told he's wrong.
+    const guided = true;
     this.busy = true;
     const go = () => writtenSubtractPanel(this, {
       top: plate.max, bottom: plate.hp, guided, area, title: 'MISSING POINTS: TAKE AWAY',
@@ -358,14 +359,8 @@ export class ArmorForge extends Phaser.Scene {
     const plate = rig().armor![this.job.region]!;
     const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
     const stage = guideCount('ramp');
+    // The real repair is always counted up jump by jump (never "type the whole answer").
     const real = () => {
-      const digits = String(plate.max).length;
-      // Index of the "on his own" ramp step for numbers this size.
-      const soloAt = RAMP.findIndex((r) => r.digits === Math.min(4, digits) && !r.guided);
-      if (guideCount('ramp') > soloAt) {
-        this.busy = false;
-        return;
-      }
       countUpPanel(this, {
         from: plate.hp, to: plate.max, guided: true, area, title: 'COUNT UP: MISSING POINTS',
         onDone: () => {
@@ -384,11 +379,11 @@ export class ArmorForge extends Phaser.Scene {
     const step = RAMP[stage];
     const p = rampProblem(Math.random, step.digits);
     countUpPanel(this, {
-      from: p.from, to: p.to, guided: step.guided, area,
+      from: p.from, to: p.to, guided: true, area,
       title: `WARM-UP: COUNT UP (${step.digits === 1 ? '1 digit' : `${step.digits} digits`})`,
       onDone: (solo) => {
-        // The "on your own" steps only count when he managed without the walk-through.
-        if (step.guided || solo) bumpGuide('ramp');
+        // Step by step every time for now, so each warm-up moves the ramp on.
+        bumpGuide('ramp');
         recordSkill('countup', solo);
         real();
       },

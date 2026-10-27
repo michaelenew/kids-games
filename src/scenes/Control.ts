@@ -4,6 +4,7 @@ import { DAYS, addMinutes, clockText, controlQuestions, makeGroups, type TimeQue
 import { bumpGuide, guideCount, mathDone, recordSkill, titanUnlocked } from '../state';
 import { missionById } from '../three/missions';
 import { getStage } from '../three/stage';
+import { numpad } from '../ui/numpad';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 
 /**
@@ -98,9 +99,12 @@ export class ControlScene extends Phaser.Scene {
     this.layer.add(prompt);
     let buttons: Phaser.GameObjects.GameObject[] = [];
     let misses = 0;
+    let pad: ReturnType<typeof numpad> | null = null;
     const clearButtons = () => {
       buttons.forEach((b) => b.destroy());
       buttons = [];
+      pad?.destroy();
+      pad = null;
     };
     const flash = (msg: string) => {
       prompt.setText(msg).setAlpha(0).setScale(0.9);
@@ -167,44 +171,73 @@ export class ControlScene extends Phaser.Scene {
       const isFinal = !step;
       if (isFinal && steps.length) clock?.arc(0, 0);
       flash(isFinal ? q.prompt : step.prompt);
-      const choices = isFinal ? q.choices : step.choices;
       const answer = isFinal ? q.answer : step.answer;
-      choices.forEach((c, k) => {
-        const b = button(this, 900, 360 + k * 100, 380, 84, c, () => {
-          if (c === answer) {
-            sfx.success();
-            if (!isFinal) {
-              toast(this, 900, 300, step.praise ?? 'Yes!', '#06d6a0', 30);
-              this.time.delayedCall(900, () => show(i + 1));
-              return;
+      const right = () => {
+        sfx.success();
+        if (!isFinal) {
+          toast(this, 900, 300, step.praise ?? 'Yes!', '#06d6a0', 30);
+          this.time.delayedCall(900, () => show(i + 1));
+          return;
+        }
+        recordSkill(q.kind === 'groups' ? 'multiply' : 'time', misses === 0);
+        if (guided) bumpGuide(`time-${q.kind}`);
+        sparks(this, 900, 420, 0x06d6a0, 24);
+        this.shield += SHIELD_PER_ANSWER;
+        this.shieldText.setText(`SHIELD +${this.shield}`);
+        this.tweens.add({ targets: this.shieldText, scale: 1.3, duration: 150, yoyo: true });
+        toast(this, 900, 300, `Right! Shield +${SHIELD_PER_ANSWER}`, '#06d6a0', 34);
+        this.index++;
+        this.time.delayedCall(1100, () => this.ask());
+      };
+      const wrong = () => {
+        misses++;
+        sfx.buzz();
+        if (isFinal && !guided && misses >= 2) {
+          toast(this, 900, 300, `It's ${q.answer}.`, '#ffd166', 34);
+          this.index++;
+          this.time.delayedCall(1800, () => this.ask());
+          return;
+        }
+        const late = q.kind === 'read' && (q.clock?.m ?? 0) >= 30;
+        toast(this, 900, 300, q.kind !== 'read' ? (step?.sweep ? 'Not quite. Tap Watch again and count the lit-up part!' : 'Not quite. Count it out!')
+          : late ? 'Careful: the short hand hasn\'t reached the next number yet!' : 'Look again: the short hand is the hour.', '#ff9f9f', 26);
+      };
+      if (q.kind === 'day' && isFinal) {
+        // Days of the week: tap the day on the list (there are seven to pick from).
+        DAYS.forEach((d, k) => {
+          const b = button(this, 900, 300 + k * 56, 340, 50, d, () => {
+            if (d === answer) right();
+            else {
+              this.tweens.add({ targets: b, x: b.x + 8, duration: 50, yoyo: true, repeat: 3 });
+              wrong();
             }
-            recordSkill(q.kind === 'groups' ? 'multiply' : 'time', misses === 0);
-            if (guided) bumpGuide(`time-${q.kind}`);
-            sparks(this, 900, 360 + k * 100, 0x06d6a0, 24);
-            this.shield += SHIELD_PER_ANSWER;
-            this.shieldText.setText(`SHIELD +${this.shield}`);
-            this.tweens.add({ targets: this.shieldText, scale: 1.3, duration: 150, yoyo: true });
-            toast(this, 900, 300, `Right! Shield +${SHIELD_PER_ANSWER}`, '#06d6a0', 34);
-            this.index++;
-            this.time.delayedCall(1100, () => this.ask());
-            return;
-          }
-          misses++;
-          sfx.buzz();
-          this.tweens.add({ targets: b, x: b.x + 8, duration: 50, yoyo: true, repeat: 3 });
-          if (isFinal && !guided && misses >= 2) {
-            toast(this, 900, 300, `It's ${q.answer}.`, '#ffd166', 34);
-            this.index++;
-            this.time.delayedCall(1800, () => this.ask());
-          } else {
-            const late = q.kind === 'read' && (q.clock?.m ?? 0) >= 30;
-            toast(this, 900, 300, q.kind !== 'read' ? (step?.sweep ? 'Not quite. Tap Watch again and count the lit-up part!' : 'Not quite. Count it out!')
-              : late ? 'Careful: the short hand hasn\'t reached the next number yet!' : 'Look again: the short hand is the hour.', '#ff9f9f', 26);
-          }
-        }, { fill: 0x1f6feb, size: 34 });
-        this.layer.add(b);
-        buttons.push(b);
-      });
+          }, { fill: 0x1f6feb, size: 26 });
+          this.layer.add(b);
+          buttons.push(b);
+        });
+        return;
+      }
+      // Everything else is typed on the keypad, so it can't be guessed by tapping around.
+      // A time is typed as its digits ("3:45" is 3, 4, 5) and shows with its colon.
+      const isTime = answer.includes(':');
+      const want = Number(answer.replace(':', ''));
+      const asTime = (t: string) => (t.length >= 3 ? `${t.slice(0, -2)}:${t.slice(-2)}` : t);
+      if (isTime) {
+        const tip = text(this, 900, 252, 'Type the time: for 3:45, type 3 4 5', 20, '#9ad1ff');
+        this.layer.add(tip);
+        buttons.push(tip);
+      }
+      pad = numpad(this, 900, 335, (v) => {
+        if (v === want) {
+          pad?.display.setColor('#06d6a0');
+          right();
+        } else {
+          pad?.display.setColor('#ef476f');
+          this.time.delayedCall(500, () => pad?.clear());
+          wrong();
+        }
+      }, isTime ? 4 : 3, isTime ? asTime : undefined);
+      pad.objects.forEach((o) => this.layer.add(o));
     };
     show(0);
   }

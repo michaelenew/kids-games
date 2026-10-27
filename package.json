@@ -1,5 +1,5 @@
 {
-  "name": "mecha-forge",
+  "name": "kids-games",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,11 +8,13 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "fetch-model": "bash scripts/fetch-model.sh"
   },
   "dependencies": {
     "phaser": "^3.90.0",
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "vosk-browser": "^0.0.8"
   },
   "devDependencies": {
     "@types/three": "^0.170.0",

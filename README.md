@@ -1,3 +1,10 @@
+# Kids Games
+
+Two games on one site, at **https://michaelenew.github.io/kids-games/**. The welcome screen there picks a game, and each game has its own link (handy for a home-screen icon):
+
+- **Mecha Forge** (`/kids-games/mecha-forge/`): a 3D robot action game for a kid going into 3rd grade. Everything below this list is about it.
+- **Unicorn Rancher** (`/kids-games/unicorn-rancher/`): a 3D unicorn game for a kid going into kindergarten, played by saying letter names out loud, with counting and adding. Speech recognition runs entirely on the device. See [UNICORN_RANCHER.md](UNICORN_RANCHER.md).
+
 # Mecha Forge
 
 A 3D robot action game for a kid going into 3rd grade. You fight an alien invasion in an arcade shooter, blast rust-bots in side-scrolling patrols, collect scrap, transform into a car, forge and repair armor plates, and, if you want to, build upgrades in the **Engineering Zone**. Each upgrade is a short hands-on math job, and each one visibly changes the robot. The math never blocks play; it makes the harder levels easier.
@@ -101,7 +108,7 @@ You can jump on rust-bots' heads to squash them.
 
 ## Playing it
 
-The game is hosted on GitHub Pages at **https://michaelenew.github.io/kids-games/**. Open it in Safari on the iPad (Share → "Add to Home Screen" makes it open full screen like an app) or in any browser on the laptop. It updates automatically a minute or two after every push to `main` (`.github/workflows/pages.yml`).
+The game is hosted on GitHub Pages at **https://michaelenew.github.io/kids-games/mecha-forge/** (the site's front page, `/kids-games/`, lets you pick between the games). Open it in Safari on the iPad (Share → "Add to Home Screen" makes it open full screen like an app) or in any browser on the laptop. It updates automatically a minute or two after every push to `main` (`.github/workflows/pages.yml`).
 
 Progress is saved in each browser separately, so the iPad and the laptop each keep their own robot. To start over: Garage → ⚙ → Start over (tap it twice).
 
@@ -111,10 +118,13 @@ You need [Node.js](https://nodejs.org) 20 or newer.
 
 ```bash
 npm install
+npm run fetch-model   # Unicorn Rancher's speech model (~40 MB), once
 npm run dev
 ```
 
-Vite prints two addresses. `Local` is for the laptop. `Network` (something like `http://192.168.1.20:5173`) is for the **iPad**: open it in Safari while both devices are on the same Wi-Fi. In Safari, Share → "Add to Home Screen" makes it open full screen like an app.
+Then open `/mecha-forge/` or `/unicorn-rancher/` on the address Vite prints (`/` is the welcome screen).
+
+Vite prints two addresses. `Local` is for the laptop. `Network` (something like `http://192.168.1.20:5173`) is for the **iPad**: open it in Safari while both devices are on the same Wi-Fi. In Safari, Share → "Add to Home Screen" makes it open full screen like an app. (Browsers only allow the microphone on `https://` sites or `localhost`, so Unicorn Rancher's voice won't work over the `Network` address; there it falls back to tapping. Use the GitHub Pages site to try voice on the iPad.)
 
 To make a static copy you can put on any web host:
 

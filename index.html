@@ -5,31 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Mecha Forge" />
-    <title>Mecha Forge</title>
+    <meta name="apple-mobile-web-app-title" content="Kids Games" />
+    <title>Kids Games</title>
     <style>
       html, body {
-        margin: 0; padding: 0; width: 100%; height: 100%;
-        background: #0b0f1a; overflow: hidden;
-        touch-action: none; -webkit-user-select: none; user-select: none;
-        -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-        overscroll-behavior: none;
+        margin: 0; padding: 0; min-height: 100%;
+        -webkit-user-select: none; user-select: none;
+        -webkit-tap-highlight-color: transparent;
       }
-      #game { width: 100%; height: 100%; }
-      #rotate {
-        display: none; position: fixed; inset: 0; z-index: 10;
-        background: #0b0f1a; color: #ffd166; font: bold 28px system-ui, sans-serif;
-        align-items: center; justify-content: center; text-align: center; padding: 24px;
+      body {
+        min-height: 100vh; box-sizing: border-box;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+        padding: 24px 16px;
+        background: linear-gradient(135deg, #0b0f1a 0%, #0b0f1a 50%, #ffd6ec 50%, #c9f0ff 100%);
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
       }
-      @media (orientation: portrait) and (pointer: coarse) {
-        #rotate { display: flex; }
+      h1 {
+        margin: 0; font-size: clamp(28px, 6vw, 48px); color: #fff;
+        text-shadow: 0 3px 0 #7a4cff, 0 6px 18px rgba(0, 0, 0, 0.35);
       }
+      .games { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+      a.game {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+        width: min(360px, 82vw); aspect-ratio: 1 / 1; border-radius: 36px;
+        text-decoration: none; font-weight: 800; font-size: clamp(26px, 5vw, 38px);
+        box-shadow: 0 12px 0 rgba(0, 0, 0, 0.25), 0 20px 40px rgba(0, 0, 0, 0.3);
+        transition: transform 0.12s ease;
+      }
+      a.game:active { transform: translateY(8px) scale(0.98); box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25); }
+      a.game .icon { font-size: clamp(110px, 22vw, 170px); line-height: 1; }
+      .mecha { background: radial-gradient(circle at 50% 35%, #2b3d66, #10172a); color: #ffd166; border: 6px solid #ffd166; }
+      .unicorn { background: radial-gradient(circle at 50% 35%, #fff4fb, #ffc4e6); color: #b13ccf; border: 6px solid #fff; }
     </style>
   </head>
   <body>
-    <div id="game"></div>
-    <div id="rotate">Turn the iPad sideways to play! ↻</div>
-    <script type="module" src="/src/main.ts"></script>
+    <h1>Pick a game!</h1>
+    <div class="games">
+      <a class="game mecha" href="./mecha-forge/"><span class="icon">🤖</span>Mecha Forge</a>
+      <a class="game unicorn" href="./unicorn-rancher/"><span class="icon">🦄</span>Unicorn Rancher</a>
+    </div>
   </body>
 </html>

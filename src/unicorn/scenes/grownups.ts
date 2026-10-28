@@ -19,7 +19,7 @@ export function openGrownups(ui: UI, onChange: () => void): void {
         ? `⏳ Getting the speech model ready (${Math.round(voice.progress * 100)}%)…`
         : `⚠️ Voice is off${voice.error ? `: ${voice.error}` : ''}. She can tap answers instead.`;
   const opt = (group: string, value: string, label: string, on: boolean) => `<button class="opt${on ? ' on' : ''}" data-g="${group}" data-v="${value}">${label}</button>`;
-  const letterCells = LETTERS.map((l) => {
+  const letterCells = [...LETTERS, ...LETTERS.map((l) => l.toLowerCase())].map((l) => {
     const st = sv.letters[l];
     const cls = !st ? '' : st.box >= 3 ? 'ok' : st.box >= 1 ? 'meh' : 'bad';
     return `<div class="cell ${cls}"><b>${l}</b>${st ? `${st.right}/${st.seen} right` : 'not yet'}</div>`;
@@ -50,7 +50,7 @@ export function openGrownups(ui: UI, onChange: () => void): void {
     <div class="row">${opt('case', 'upper', 'ABC', sv.caseMode === 'upper')}${opt('case', 'lower', 'abc', sv.caseMode === 'lower')}${opt('case', 'both', 'Both', sv.caseMode === 'both')}</div>
     <h3>Math</h3>
     <div class="row">${MATH_LEVELS.map((m, i) => opt('math', String(i), m, sv.math.level === i)).join('')}</div>
-    <h3>Letter progress (uppercase)</h3>
+    <h3>Letter progress</h3>
     <div class="note">Green: knows it (right the first time, several times). Yellow: getting there. Red: needs practice. Box ${MAX_BOX} is the top.</div>
     <div class="grid">${letterCells}</div>
     <h3>Last voice check (what the recognizer heard)</h3>

@@ -162,3 +162,23 @@ describe('fun first', () => {
     expect(feedUnlocked({ played: FREE_ACTIVITIES + 1, moments: [] })).toBe(true);
   });
 });
+
+describe('teaching new letters', () => {
+  it('teaches each letter twice before asking it', async () => {
+    const { needsIntro, recordIntro } = await import('../src/unicorn/learn');
+    const stats: Record<string, LetterStat> = {};
+    expect(needsIntro(stats, 'a')).toBe(true);
+    recordIntro(stats, 'a');
+    expect(needsIntro(stats, 'a')).toBe(true);
+    recordIntro(stats, 'a');
+    expect(needsIntro(stats, 'a')).toBe(false);
+    // Teaching doesn't move its flashcard box, and upper/lower are separate.
+    expect(stats.a.box).toBe(0);
+    expect(needsIntro(stats, 'A')).toBe(true);
+  });
+
+  it('letters she has already been asked twice are not taught again', async () => {
+    const { needsIntro } = await import('../src/unicorn/learn');
+    expect(needsIntro({ B: { box: 2, seen: 2, right: 2 } }, 'B')).toBe(false);
+  });
+});

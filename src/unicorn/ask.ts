@@ -64,12 +64,17 @@ function useVoice(): boolean {
 }
 
 /** Ask her to say a letter's name. The letter itself is already on screen. */
-export function askLetter(ui: UI, glyph: string, question = 'What letter is this?'): Promise<Answer> {
+export function askLetter(ui: UI, glyph: string, question = 'What letter is this?', teach = false): Promise<Answer> {
   const target = glyph.toUpperCase();
   const name = sayLetter(target);
   const s = newSession();
   let misses = 0;
-  let hinted = false;
+  // Teaching (the first times she meets a letter): it's shown and named
+  // first, then she just says it back. Not a quiz.
+  let hinted = teach;
+  const teachLine = `This is ${name}. Can you say ${name}?`;
+  const teachCaption = `This is ${glyph}. Can you say ${glyph}?`;
+  if (teach) question = teachLine;
   let nudged = false;
   let talking = false;
 
@@ -93,7 +98,7 @@ export function askLetter(ui: UI, glyph: string, question = 'What letter is this
 
     const hint = () => {
       hinted = true;
-      void talk(`This is ${name}. Can you say ${name}?`, `This is ${glyph}. Can you say ${glyph}?`);
+      void talk(teachLine, teachCaption);
     };
 
     const reveal = async () => {
@@ -107,7 +112,8 @@ export function askLetter(ui: UI, glyph: string, question = 'What letter is this
       if (s.finished || talking) return;
       misses++;
       sfx.hmm();
-      if (!hinted && misses === 1) void talk('Ooh, so close! Try again!');
+      if (teach && misses === 1) void talk(`Listen: ${name}. Your turn!`, `Listen: ${glyph}. Your turn!`);
+      else if (!hinted && misses === 1) void talk('Ooh, so close! Try again!');
       else if (!hinted) hint();
       else void reveal();
     };
@@ -117,7 +123,10 @@ export function askLetter(ui: UI, glyph: string, question = 'What letter is this
       s.timers = [
         window.setTimeout(() => {
           if (s.finished || talking) return;
-          if (!nudged && !hinted) {
+          if (teach && !nudged) {
+            nudged = true;
+            void talk(`Listen: ${name}. Your turn!`, `Listen: ${glyph}. Your turn!`);
+          } else if (!nudged && !hinted) {
             nudged = true;
             void talk(useVoice() ? 'Say the letter out loud!' : 'Say it out loud, then tap it!');
           } else if (!hinted) hint();
@@ -139,7 +148,7 @@ export function askLetter(ui: UI, glyph: string, question = 'What letter is this
       finish,
     );
     ui.onMicTap = () => {
-      if (!talking) void talk(question);
+      if (!talking) void talk(question, teach ? teachCaption : question);
     };
     devHook({ target, answer: () => heard([target]), wrong: () => heard([target === 'A' ? 'O' : 'A']) });
 
@@ -156,10 +165,10 @@ export function askLetter(ui: UI, glyph: string, question = 'What letter is this
       s.cleanups.push(stop);
     } else {
       ui.showMic(true, false);
-      const options = [glyph, ...distractors(target, 2).map((l) => (glyph === target ? l : l.toLowerCase()))].sort(() => Math.random() - 0.5);
+      const options = teach ? [glyph] : [glyph, ...distractors(target, 2).map((l) => (glyph === target ? l : l.toLowerCase()))].sort(() => Math.random() - 0.5);
       ui.showChoices(options, (pick) => heard([pick.toUpperCase()]));
     }
-    void talk(question);
+    void talk(question, teach ? teachCaption : question);
   });
 }
 

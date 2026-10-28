@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { lessonNext, letterPool, noteMoment, pickLetters, recordLetter } from './learn';
+import { askLetter } from './ask';
+import { lessonNext, letterPool, needsIntro, noteMoment, pickLetters, recordIntro, recordLetter } from './learn';
 import { say } from './speak';
 import { sfx } from './sfx';
 import { persist, save } from './state';
@@ -131,4 +132,19 @@ export function tapIt(ctx: Ctx, where: () => THREE.Vector3, line?: string): Prom
     }
     if (import.meta.env.DEV) (window as unknown as { tap: () => void }).tap = done;
   });
+}
+
+/**
+ * A letter moment. The first times she meets a letter it's taught ("This is
+ * a, can you say a?"); after that she's asked ("What letter is this?").
+ */
+export async function letterMoment(ctx: Ctx, glyph: string, question: string): Promise<void> {
+  const sv = save();
+  const teach = needsIntro(sv.letters, glyph);
+  const a = await askLetter(ctx.ui, glyph, question, teach);
+  if (teach) {
+    recordIntro(sv.letters, glyph);
+    sv.recent = [...sv.recent, glyph].slice(-6);
+    persist();
+  } else noteLetter(glyph, a.firstTry);
 }

@@ -16,6 +16,8 @@ export interface LetterStat {
   box: number;
   seen: number;
   right: number;
+  /** Times it was taught (shown and named first) rather than asked. */
+  taught?: number;
 }
 
 export type CaseMode = 'upper' | 'lower' | 'both';
@@ -54,6 +56,21 @@ export function pickLetters(stats: Record<string, LetterStat>, pool: string[], r
     seen.push(g);
   }
   return out;
+}
+
+/** How many times a letter is taught ("This is a, can you say a?") before it's asked. */
+export const INTRO_TIMES = 2;
+
+/** Is this letter still new enough to be taught rather than asked? */
+export function needsIntro(stats: Record<string, LetterStat>, glyph: string): boolean {
+  const s = stats[glyph];
+  return (s?.taught ?? 0) + (s?.seen ?? 0) < INTRO_TIMES;
+}
+
+/** Remember a teaching round (doesn't move its flashcard box). */
+export function recordIntro(stats: Record<string, LetterStat>, glyph: string): void {
+  const s = (stats[glyph] ??= { box: 0, seen: 0, right: 0 });
+  s.taught = (s.taught ?? 0) + 1;
 }
 
 export function recordLetter(stats: Record<string, LetterStat>, glyph: string, firstTry: boolean): void {

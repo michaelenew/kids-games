@@ -24,7 +24,9 @@ Like Mecha Forge, it starts heavy on the fun and layers learning in (`lessonShar
 
 ## Learning
 
-**Letters.** Uppercase by default; lowercase or both can be chosen in the grown-ups' panel. Each letter has a flashcard box from 0 to 4. A first-try answer moves it up one box, and needing help moves it down one. Low boxes come up much more often, and none of the last four letters repeats (`src/unicorn/learn.ts`).
+**Letters.** Uppercase and lowercase mixed by default (each case is tracked separately); just ABC or just abc can be chosen in the grown-ups' panel. Each letter has a flashcard box from 0 to 4. A first-try answer moves it up one box, and needing help moves it down one. Low boxes come up much more often, and none of the last four letters repeats (`src/unicorn/learn.ts`).
+
+**New letters are taught first.** The first two times she meets each letter (B and b count separately), she isn't quizzed: "This is bee. Can you say bee?" She just says it back. After that it's "What letter is this?".
 
 **When she gets one wrong** (`src/unicorn/ask.ts`):
 1. "Ooh, so close! Try again!"

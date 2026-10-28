@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { askLetter } from '../ask';
-import { type Ctx, freshPlace, lessonMoment, nextLetters, noteLetter, praise, seconds, tapIt } from '../ctx';
+import { type Ctx, freshPlace, lessonMoment, letterMoment, nextLetters, praise, seconds, tapIt } from '../ctx';
 import { say } from '../speak';
 import { sfx } from '../sfx';
 import { persist, save } from '../state';
@@ -170,17 +169,14 @@ export async function race(ctx: Ctx): Promise<void> {
     stage.timeScale = 0.15;
     sfx.twinkle();
     const sprite = g.obj.userData.sprite as THREE.Sprite;
-    let firstTry = true;
     if (lessons[i]) {
-      const a = await askLetter(ui, letters[i], i === 0 ? 'Rainbow gate! What letter is this?' : 'What letter?');
-      noteLetter(letters[i], a.firstTry);
-      firstTry = a.firstTry;
+      await letterMoment(ctx, letters[i], i === 0 ? 'Rainbow gate! What letter is this?' : 'What letter?');
     } else {
       await tapIt(ctx, () => sprite.getWorldPosition(new THREE.Vector3()), i === 0 ? 'Rainbow gate! Tap the star!' : 'Tap the star!');
     }
     stage.timeScale = 1;
     frozen = false;
-    boost = firstTry ? 2.6 : 1.8;
+    boost = 2.6;
     boostPower = 0.9;
     sfx.whoosh();
     ui.toast(praise());
@@ -247,8 +243,10 @@ function arch(curve: THREE.CatmullRomCurve3, s: number, glyph: string | null): T
     g.add(m);
   });
   if (glyph) {
-    const sp = glyph === STAR ? glyphSprite('★', { size: 3.2, ring: '#ffd43b', color: '#ffb703' }) : glyphSprite(glyph, { size: 3.2, ring: '#ffd43b' });
-    sp.position.y = 4.4;
+    const sp = glyph === STAR ? glyphSprite('★', { size: 2.8, ring: '#ffd43b', color: '#ffb703' }) : glyphSprite(glyph, { size: 2.8, ring: '#ffd43b' });
+    // Inside the arch's opening and a little in front of it (toward the
+    // runners), so the rainbow bands never cover the letter.
+    sp.position.set(0, 3.3, -1.8);
     g.add(sp);
     g.userData.sprite = sp;
   } else {

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { askLetter } from '../ask';
-import { type Ctx, freshPlace, lessonMoment, nextLetters, noteLetter, praise, seconds, tapIt, tween } from '../ctx';
+import { type Ctx, freshPlace, lessonMoment, letterMoment, nextLetters, praise, seconds, tapIt, tween } from '../ctx';
 import { freshName } from '../learn';
 import { say } from '../speak';
 import { sfx } from '../sfx';
@@ -174,8 +173,7 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
     st.sparkleWith(fx);
     st.wake();
     if (lessons[i]) {
-      const a = await askLetter(ui, letters[i], i === 0 ? 'A magic crystal is blocking the path! What letter is this?' : 'What letter is this?');
-      noteLetter(letters[i], a.firstTry);
+      await letterMoment(ctx, letters[i], i === 0 ? 'A magic crystal is blocking the path! What letter is this?' : 'What letter is this?');
     } else {
       await tapIt(ctx, st.center, i === 0 ? 'A magic crystal is blocking the path! Tap it!' : 'Another crystal! Tap it!');
     }
@@ -224,8 +222,7 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
         bubble.scale.setScalar(0.01 + k * 2.2);
       });
       const bob2 = stage.onFrame(() => (bubble.position.y = above.y + Math.sin(stage.time * 3) * 0.12));
-      const a = await askLetter(ui, glyph, i === 0 ? 'What letter is this?' : 'And this one?');
-      noteLetter(glyph, a.firstTry);
+      await letterMoment(ctx, glyph, i === 0 ? 'What letter is this?' : 'And this one?');
       bob2();
       fx.sparkles(bubble.position, { count: 70, colors: [0xffd43b, ...PASTEL] });
       w.remove(bubble);

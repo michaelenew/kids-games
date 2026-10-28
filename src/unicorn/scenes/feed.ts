@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { askNumber } from '../ask';
 import { type Ctx, freshPlace, praise, seconds, stats, tween } from '../ctx';
-import { makeProblem, MATH_LEVELS, type Problem, recordMath } from '../learn';
+import { makeProblem, MATH_LEVELS, noteMoment, type Problem, recordMath } from '../learn';
 import { say, wait } from '../speak';
 import { sfx } from '../sfx';
 import { persist, save } from '../state';
@@ -52,7 +52,8 @@ export async function feed(ctx: Ctx): Promise<void> {
   stage.onFrame((dt) => unicorns.forEach((u) => u.update(dt)));
   const portrait = innerWidth < innerHeight;
   stage.camera.position.set(0, portrait ? 6.5 : 5.2, portrait ? 15 : 11.5);
-  stage.camera.lookAt(0, 1.5, 2.8);
+  // Aim a little low so the table sits above the number buttons.
+  stage.camera.lookAt(0, 0.6, 2.8);
 
   const names = eaters.map((e) => e.name);
   await say(`Feeding time! ${names.join(' and ')} ${names.length > 1 ? 'are' : 'is'} hungry!`);
@@ -72,6 +73,7 @@ export async function feed(ctx: Ctx): Promise<void> {
       await counting();
     });
     const up = recordMath(sv.math, ans.firstTry);
+    noteMoment(sv.pace, true);
     persist();
     ui.toast(`${prob.answer}! ${praise()}`);
 
@@ -153,7 +155,7 @@ async function serve(ctx: Ctx, prob: Problem): Promise<{ apples: THREE.Group[]; 
       const row = Math.floor(i / 5);
       const col = i % 5;
       const spread = prob.kind === 'count' ? 0.85 : 0.7;
-      const target = new THREE.Vector3(g.x0 + (col - (cols - 1) / 2) * spread, 1.22, 4.6 - row * 0.8);
+      const target = new THREE.Vector3(g.x0 + (col - (cols - 1) / 2) * spread, 1.22, 4.75 - row * 0.95);
       a.position.copy(target).add(new THREE.Vector3(0, 3, 0));
       a.scale.setScalar(0.01);
       ctx.stage.world.add(a);
@@ -184,12 +186,13 @@ async function countAlong(ctx: Ctx, apples: THREE.Group[]): Promise<void> {
     const y0 = a.position.y;
     sfx.count(i);
     void tween(ctx, 0.35, (k) => (a.position.y = y0 + Math.sin(k * Math.PI) * 0.5));
-    const tag = glyphSprite(String(i + 1), { size: 0.75 });
-    tag.position.copy(a.position).add(new THREE.Vector3(0, 0.8, 0));
-    ctx.stage.world.add(tag);
+    // The number sits on the apple itself, so it never hides the apples behind.
+    const tag = glyphSprite(String(i + 1), { size: 0.55 });
+    tag.position.set(0, 0.05, 0.42);
+    a.add(tag);
     tags.push(tag);
     await Promise.all([say(String(i + 1), { rate: 1.05 }), wait(650)]);
   }
   await seconds(ctx, 0.6);
-  for (const t of tags) ctx.stage.world.remove(t);
+  for (const t of tags) t.removeFromParent();
 }

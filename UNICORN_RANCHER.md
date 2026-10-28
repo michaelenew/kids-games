@@ -8,10 +8,19 @@ Play it at **https://michaelenew.github.io/kids-games/unicorn-rancher/**.
 
 The rule from Mecha Forge applies here too: the learning is how things happen in the story. Saying a letter is how you cast unicorn magic. Few controls, lots of spectacle. She never steers anything, and a wrong answer never costs her anything.
 
-- **The ranch** (home). Her unicorns wander a fenced paddock beside a red barn, rolling hills and a rainbow while the camera drifts around. Tapping a unicorn makes it rear up, whinny and say its name. Three big buttons: Explore, Race, Feed. Race and Feed unlock once she has a unicorn.
-- **Explore (trails).** The ride moves on its own: on foot the first time, then on her favorite unicorn's back. Trails take turns among Blossom Woods, Candy Hills and Twilight Glade. Glowing letter crystals block the path ("What letter is this?"). Saying the letter shatters the crystal into shards and sparkles, and a line of flowers blooms along the path. At the end a shy wild unicorn waits in a glade. Each of three letters pops out of its horn, and every right answer brings it closer. On the last one it rears up, there are rainbow rings and confetti, it gets a name, and it gallops into the ranch.
-- **Race.** Four unicorns gallop around a road in the clouds, past balloons and floating islands. At each of four rainbow gates, time slows to slow motion and a letter appears inside the arch. Saying it gives a rainbow-trail speed boost, with a whoosh and the camera widening. The finish has fireworks, confetti and a ribbon (1st, 2nd or 3rd).
+- **The ranch** (home). Her unicorns wander a fenced paddock beside a red barn, rolling hills and a rainbow while the camera drifts around. Tapping a unicorn makes it rear up, whinny and say its name. Big buttons: Explore, Race, Style, and later Feed. Race and Style unlock once she has a unicorn; Feed appears (glowing, "Your unicorns are hungry!") once learning has started.
+- **Explore (trails).** The ride moves on its own: on foot the first time, then on her favorite unicorn's back. Trails take turns among Blossom Woods, Candy Hills and Twilight Glade. Shiny bubbles float along the path for her to pop any time. Three glowing crystals block the path; each one is either a letter to say or a crystal to tap (see Pacing). Either way it shatters into shards and sparkles, and a line of flowers blooms along the path. At the end a shy wild unicorn waits in a glade. Three times she either says a letter (it floats up from the unicorn's horn into the middle of the view) or pets the unicorn with a tap, and each time it comes closer. On the last one it rears up, there are rainbow rings and confetti, it gets a name, and it gallops into the ranch.
+- **Race.** Four unicorns gallop around a road in the clouds, past balloons and floating islands. At each of four rainbow gates, time slows to slow motion and a letter (or, for a fun gate, a star to tap) appears inside the arch. Doing it gives a rainbow-trail speed boost, with a whoosh and the camera widening. The finish has fireworks, confetti and a ribbon (1st, 2nd or 3rd).
+- **Style** (no learning). A unicorn on a little stage; tap colors for its coat, mane and horn, with arrows to switch unicorns. Every change sparkles.
 - **Feed (math).** Apples pop onto a picnic table with her unicorns behind it. She says (or taps) how many there are, the apples fly into the unicorns' mouths, and hearts float up. Three problems per visit.
+
+## Pacing: fun first
+
+Like Mecha Forge, it starts heavy on the fun and layers learning in (`lessonShare` in `src/unicorn/learn.ts`):
+- The first 3 activities have no learning at all: every crystal, gate and wild unicorn is a tap, and Feed isn't on the menu yet.
+- After that, about 20% of those moments are letters, growing by 5% per activity to a cap of 50%. They're spread out, never more than two letters in a row.
+- Feed (the math) appears after the 4th activity and is always her choice. Style is always pure play.
+- The grown-ups' panel shows the current mix.
 
 ## Learning
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { freshName, letterPool, makeProblem, newMath, pickLetter, pickLetters, recordLetter, recordMath, STREAK_TO_LEVEL_UP, type LetterStat } from '../src/unicorn/learn';
+import { feedUnlocked, FREE_ACTIVITIES, freshName, lessonNext, lessonShare, letterPool, makeProblem, MAX_LESSON_SHARE, newMath, newPace, noteMoment, pickLetter, pickLetters, recordLetter, recordMath, STREAK_TO_LEVEL_UP, type LetterStat } from '../src/unicorn/learn';
 import { ALL_LETTER_WORDS, LETTER_WORDS, LETTERS, lettersIn, numbersIn, soundsAlike } from '../src/unicorn/letters';
 
 function seeded(seed: number): () => number {
@@ -117,5 +117,48 @@ describe('math', () => {
 describe('names', () => {
   it('gives each unicorn its own name', () => {
     expect(freshName(['Sparkle'], seeded(2))).not.toBe('Sparkle');
+  });
+});
+
+describe('fun first', () => {
+  it('the first activities have no lessons at all', () => {
+    const p = newPace();
+    for (p.played = 0; p.played < FREE_ACTIVITIES; p.played++) {
+      for (let i = 0; i < 10; i++) {
+        expect(lessonNext(p)).toBe(false);
+        noteMoment(p, false);
+      }
+    }
+  });
+
+  it('learning grows, but never past about half', () => {
+    expect(lessonShare(FREE_ACTIVITIES)).toBeGreaterThan(0);
+    expect(lessonShare(FREE_ACTIVITIES)).toBeLessThan(lessonShare(FREE_ACTIVITIES + 3));
+    expect(lessonShare(100)).toBe(MAX_LESSON_SHARE);
+    const p = { ...newPace(), played: 100 };
+    let lessons = 0;
+    for (let i = 0; i < 200; i++) {
+      const l = lessonNext(p);
+      noteMoment(p, l);
+      if (l) lessons++;
+    }
+    expect(lessons / 200).toBeGreaterThan(0.4);
+    expect(lessons / 200).toBeLessThanOrEqual(0.5);
+  });
+
+  it('never more than two lessons in a row, even after lots of play', () => {
+    const p = { played: 100, moments: Array(20).fill(false) };
+    let run = 0;
+    for (let i = 0; i < 50; i++) {
+      const l = lessonNext(p);
+      noteMoment(p, l);
+      run = l ? run + 1 : 0;
+      expect(run).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('feeding time unlocks after the free activities', () => {
+    expect(feedUnlocked({ played: 0, moments: [] })).toBe(false);
+    expect(feedUnlocked({ played: FREE_ACTIVITIES + 1, moments: [] })).toBe(true);
   });
 });

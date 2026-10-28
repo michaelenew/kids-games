@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import { type Ctx, freshPlace, stats } from '../ctx';
 import { say } from '../speak';
 import { sfx } from '../sfx';
-import { type OwnedUnicorn, save } from '../state';
+import { feedUnlocked } from '../learn';
+import { type OwnedUnicorn, persist, save } from '../state';
 import { Unicorn } from '../three/unicorn';
 import { barn, cloud, fence, flowers, ground, hills, rainbow, trees } from '../three/world';
 
-export type Activity = 'trail' | 'race' | 'feed';
+export type Activity = 'trail' | 'race' | 'style' | 'feed';
 
 const PADDOCK = 13;
 
@@ -141,13 +142,20 @@ export function ranch(ctx: Ctx, opts: { arrival?: OwnedUnicorn; backdrop?: boole
       resolve(a);
     };
     const none = sv.unicorns.length === 0;
-    const showMenu = () =>
-      ui.showMenu([
-        { icon: '🌳', label: 'Explore', glow: none, onTap: () => pick('trail') },
-        { icon: '🏁', label: 'Race', locked: none, onTap: () => (none ? void say('First, find a unicorn on the trail!') : pick('race')) },
-        { icon: '🍎', label: 'Feed', locked: none, onTap: () => (none ? void say('First, find a unicorn on the trail!') : pick('feed')) },
-      ]);
-    showMenu();
+    const needOne = () => void say('First, find a unicorn on the trail!');
+    // Feeding time (the math) joins the menu once learning has started.
+    const feed = feedUnlocked(sv.pace) && !none;
+    const feedIsNew = feed && !sv.feedShown;
+    if (feedIsNew) {
+      sv.feedShown = true;
+      persist();
+    }
+    ui.showMenu([
+      { icon: '🌳', label: 'Explore', glow: none, onTap: () => pick('trail') },
+      { icon: '🏁', label: 'Race', locked: none, onTap: () => (none ? needOne() : pick('race')) },
+      { icon: '🎀', label: 'Style', locked: none, onTap: () => (none ? needOne() : pick('style')) },
+      ...(feed ? [{ icon: '🍎', label: 'Feed', glow: feedIsNew, onTap: () => pick('feed') }] : []),
+    ]);
 
     if (none) {
       void say("Welcome to your unicorn ranch! It's empty! Let's explore the trail and find a unicorn.");
@@ -158,8 +166,10 @@ export function ranch(ctx: Ctx, opts: { arrival?: OwnedUnicorn; backdrop?: boole
         fx.rainbowRings(new THREE.Vector3(0, 0.2, 2), 6);
       }, 1800);
       void say(`${newcomer.data.name} is home! Welcome to the ranch, ${newcomer.data.name}!`);
+    } else if (feedIsNew) {
+      void say('Your unicorns are hungry! Tap the apple to feed them!');
     } else if (Math.random() < 0.5) {
-      void say(['What should we do now?', 'Your unicorns missed you!', 'Explore, race, or feed your unicorns?'][Math.floor(Math.random() * 3)]);
+      void say(['What should we do now?', 'Your unicorns missed you!', 'Explore, race, or play dress up?'][Math.floor(Math.random() * 3)]);
     }
   });
 }

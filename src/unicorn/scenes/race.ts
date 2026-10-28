@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { askLetter } from '../ask';
-import { type Ctx, freshPlace, nextLetters, noteLetter, praise, seconds } from '../ctx';
+import { type Ctx, freshPlace, lessonMoment, nextLetters, noteLetter, praise, seconds, tapIt } from '../ctx';
 import { say } from '../speak';
 import { sfx } from '../sfx';
 import { persist, save } from '../state';
@@ -19,6 +19,8 @@ const LANES = [-3.3, -1.1, 1.1, 3.3];
 const ME = 1;
 const BASE = 11;
 const GATES = [0.18, 0.38, 0.58, 0.78];
+/** A just-for-fun gate: a star to tap instead of a letter. */
+const STAR = 'star';
 
 export async function race(ctx: Ctx): Promise<void> {
   const { stage, ui } = ctx;
@@ -76,9 +78,11 @@ export async function race(ctx: Ctx): Promise<void> {
   const trail = new RainbowTrail(40, 2.2);
   w.add(trail.mesh);
 
+  // Each gate has a letter to say, or (early on, and in between) a star to tap.
   const letters = nextLetters(GATES.length);
+  const lessons = GATES.map(() => lessonMoment());
   const gates = GATES.map((g, i) => {
-    const a = arch(curve, g * L, letters[i]);
+    const a = arch(curve, g * L, lessons[i] ? letters[i] : STAR);
     w.add(a);
     return { s: g * L, obj: a, done: false };
   });
@@ -149,7 +153,7 @@ export async function race(ctx: Ctx): Promise<void> {
   });
 
   // Ready, set, go!
-  await say(`${fav.name} is ready to race! Say the letters at the rainbow gates to go super fast!`);
+  await say(lessons.some(Boolean) ? `${fav.name} is ready to race! At the rainbow gates, do the magic to go super fast!` : `${fav.name} is ready to race! Tap the stars at the rainbow gates to go super fast!`);
   for (const n of ['3', '2', '1']) {
     ui.toast(n, 700);
     sfx.count(Number(n));
@@ -165,15 +169,21 @@ export async function race(ctx: Ctx): Promise<void> {
     frozen = true;
     stage.timeScale = 0.15;
     sfx.twinkle();
-    const a = await askLetter(ui, letters[i], i === 0 ? 'Rainbow gate! What letter is this?' : 'What letter?');
-    noteLetter(letters[i], a.firstTry);
+    const sprite = g.obj.userData.sprite as THREE.Sprite;
+    let firstTry = true;
+    if (lessons[i]) {
+      const a = await askLetter(ui, letters[i], i === 0 ? 'Rainbow gate! What letter is this?' : 'What letter?');
+      noteLetter(letters[i], a.firstTry);
+      firstTry = a.firstTry;
+    } else {
+      await tapIt(ctx, () => sprite.getWorldPosition(new THREE.Vector3()), i === 0 ? 'Rainbow gate! Tap the star!' : 'Tap the star!');
+    }
     stage.timeScale = 1;
     frozen = false;
-    boost = a.firstTry ? 2.6 : 1.8;
+    boost = firstTry ? 2.6 : 1.8;
     boostPower = 0.9;
     sfx.whoosh();
     ui.toast(praise());
-    const sprite = g.obj.userData.sprite as THREE.Sprite;
     fx.sparkles(sprite.getWorldPosition(new THREE.Vector3()), { count: 100, colors: RAINBOW, speed: 7 });
     g.obj.remove(sprite);
     fx.rainbowRings(me.u.holder.position.clone().add(new THREE.Vector3(0, 1, 0)), 3, false);
@@ -237,7 +247,7 @@ function arch(curve: THREE.CatmullRomCurve3, s: number, glyph: string | null): T
     g.add(m);
   });
   if (glyph) {
-    const sp = glyphSprite(glyph, { size: 3.2, ring: '#ffd43b' });
+    const sp = glyph === STAR ? glyphSprite('★', { size: 3.2, ring: '#ffd43b', color: '#ffb703' }) : glyphSprite(glyph, { size: 3.2, ring: '#ffd43b' });
     sp.position.y = 4.4;
     g.add(sp);
     g.userData.sprite = sp;

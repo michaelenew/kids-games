@@ -32,15 +32,18 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe6ff;
 @keyframes pulse { 50% { transform: translateX(-50%) scale(1.08); } }
 #choices, #numpad { position: absolute; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 #choices { bottom: 140px; }
-#numpad { bottom: 140px; width: min(760px, 94vw); }
+#numpad { bottom: 140px; width: min(900px, 96vw); gap: 8px; }
 #choices .btn { width: 110px; height: 110px; font-size: 64px; }
-#numpad .btn { width: 66px; height: 66px; font-size: 36px; }
-#menu { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; gap: 22px; }
-#menu .btn { width: 128px; height: 128px; font-size: 62px; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height: 1; }
+#numpad .btn { width: min(60px, 8vw); height: min(60px, 8vw); font-size: min(34px, 5vw); }
+#menu { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; gap: min(22px, 3vw); }
+#menu .btn { width: min(128px, 22vw); height: min(128px, 22vw); font-size: min(62px, 10vw); display:flex; flex-direction:column; align-items:center; justify-content:center; line-height: 1; }
 #menu .btn small { font-size: 17px; margin-top: 6px; }
 #menu .btn.glow { animation: glow 1.2s ease-in-out infinite; }
 #menu .btn.locked { opacity: .45; filter: grayscale(.6); }
 @keyframes glow { 50% { box-shadow: 0 6px 0 #d7a6e8, 0 0 40px 12px rgba(255,214,0,.85); transform: scale(1.06); } }
+#hand { position: absolute; left: 0; top: 0; font-size: 64px; pointer-events: none; transform: translate(-30%, 10%); animation: tapme 0.9s ease-in-out infinite; filter: drop-shadow(0 4px 6px rgba(80,0,120,.4)); }
+#hand.hide { display: none; }
+@keyframes tapme { 50% { transform: translate(-30%, 30%) scale(.88); } }
 #toast { position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%) scale(0); font-size: clamp(48px, 9vw, 96px); color: #fff;
   text-shadow: 0 5px 0 #c03fe0, 0 0 30px rgba(255,100,220,.9); pointer-events: none; white-space: nowrap; transition: transform .35s cubic-bezier(.3,1.6,.5,1), opacity .4s; }
 #toast.show { transform: translate(-50%, -50%) scale(1); }
@@ -88,6 +91,7 @@ export class UI {
   readonly menu = el('div', { id: 'menu' });
   readonly stats = el('div', { id: 'stats' });
   readonly toastEl = el('div', { id: 'toast' });
+  readonly hand = el('div', { id: 'hand', class: 'hide' }, '👆');
   readonly cover = el('div', { id: 'cover' });
   readonly panel = el('div', { id: 'panel', class: 'hide' });
   readonly check = el('div', { id: 'check', class: 'hide' });
@@ -100,7 +104,7 @@ export class UI {
   constructor() {
     document.head.appendChild(el('style', {}, CSS));
     const home = el('a', { id: 'home', class: 'btn', href: '../', 'aria-label': 'All games' }, '🏠');
-    this.root.append(home, this.gear, this.stats, this.caption, this.choices, this.numpad, this.menu, this.mic, this.toastEl);
+    this.root.append(home, this.gear, this.stats, this.caption, this.choices, this.numpad, this.menu, this.mic, this.toastEl, this.hand);
     document.body.append(this.root, this.cover, this.panel, this.check);
     this.mic.addEventListener('click', () => this.onMicTap());
   }
@@ -119,6 +123,14 @@ export class UI {
 
   micLevel(v: number): void {
     this.mic.style.setProperty('--lvl', v.toFixed(2));
+  }
+
+  /** A bouncing pointing finger: "tap here". Pass null to hide it. */
+  pointAt(x: number | null, y = 0): void {
+    this.hand.classList.toggle('hide', x === null);
+    if (x === null) return;
+    this.hand.style.left = `${x}px`;
+    this.hand.style.top = `${y}px`;
   }
 
   setStats(html: string): void {

@@ -1,4 +1,4 @@
-import { type CaseMode, type LetterStat, type MathProgress, newMath } from './learn';
+import { type CaseMode, type LetterStat, type MathProgress, newMath, newPace, type Pace } from './learn';
 import type { UnicornLook } from './three/unicorn';
 
 /** Her ranch, saved in this browser's local storage. */
@@ -21,6 +21,10 @@ export interface Save {
   trails: number;
   /** Answer by tapping instead of talking (no microphone). */
   tapMode: boolean;
+  /** How much play vs. learning so far (fun first). */
+  pace: Pace;
+  /** Feeding time has been introduced (its button glowed once). */
+  feedShown: boolean;
   /** What the recognizer heard in the grown-ups' voice check, per letter. */
   voiceCheck: Record<string, string>;
 }
@@ -37,6 +41,8 @@ function fresh(): Save {
     ribbons: [0, 0, 0],
     trails: 0,
     tapMode: false,
+    pace: newPace(),
+    feedShown: false,
     voiceCheck: {},
   };
 }

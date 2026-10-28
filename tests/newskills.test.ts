@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { COINS, coinsTotal, makePriceProblem, moneyText } from '../src/skills/money';
 import { biggestHits, hitBars, makeGraphQuestion } from '../src/skills/recap';
-import { addMinutes, clockText, makeDay, makeEnds, makeReadClock, makeUntil, missionControlQuestion } from '../src/skills/time';
+import { addMinutes, clockText, makeDay, makeEnds, makeReadClock, makeUntil, missionControlQuestion, controlQuestions, typedAnswer } from '../src/skills/time';
 
 function rng(seed: number) {
   return () => {
@@ -157,3 +157,21 @@ describe('long addition of the count-up jumps', () => {
   });
 });
 
+
+describe('typed mission control answers', () => {
+  it('reads times, plain numbers and numbers with a unit', () => {
+    expect(typedAnswer('3:45')).toEqual({ want: 345, isTime: true });
+    expect(typedAnswer('20 minutes')).toEqual({ want: 20, isTime: false, unit: 'minutes' });
+    expect(typedAnswer('12').want).toBe(12);
+  });
+
+  it('every keypad question has a number he can type', () => {
+    const r = rng(9);
+    for (let visit = 0; visit < 40; visit++) {
+      for (const q of controlQuestions(r, visit)) {
+        if (q.kind === 'day') continue;
+        expect(Number.isFinite(typedAnswer(q.answer).want), `${q.kind}: ${q.answer}`).toBe(true);
+      }
+    }
+  });
+});

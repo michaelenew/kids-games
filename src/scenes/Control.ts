@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
-import { DAYS, addMinutes, clockText, controlQuestions, makeGroups, type TimeQuestion } from '../skills/time';
+import { DAYS, addMinutes, clockText, controlQuestions, makeGroups, type TimeQuestion, typedAnswer } from '../skills/time';
 import { bumpGuide, guideCount, mathDone, recordSkill, titanUnlocked } from '../state';
 import { missionById } from '../three/missions';
 import { getStage } from '../three/stage';
@@ -219,9 +219,10 @@ export class ControlScene extends Phaser.Scene {
       }
       // Everything else is typed on the keypad, so it can't be guessed by tapping around.
       // A time is typed as its digits ("3:45" is 3, 4, 5) and shows with its colon.
-      const isTime = answer.includes(':');
-      const want = Number(answer.replace(':', ''));
+      // Some answers carry a unit ("20 minutes"): he types just the number, and "min" shows beside it.
+      const { isTime, unit, want } = typedAnswer(answer);
       const asTime = (t: string) => (t.length >= 3 ? `${t.slice(0, -2)}:${t.slice(-2)}` : t);
+      const withUnit = (t: string) => (t ? `${t} min` : '');
       if (isTime) {
         const tip = text(this, 900, 252, 'Type the time: for 3:45, type 3 4 5', 20, '#9ad1ff');
         this.layer.add(tip);
@@ -236,7 +237,7 @@ export class ControlScene extends Phaser.Scene {
           this.time.delayedCall(500, () => pad?.clear());
           wrong();
         }
-      }, isTime ? 4 : 3, isTime ? asTime : undefined);
+      }, isTime ? 4 : 3, isTime ? asTime : unit ? withUnit : undefined);
       pad.objects.forEach((o) => this.layer.add(o));
     };
     show(0);

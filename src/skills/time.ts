@@ -219,3 +219,14 @@ export function makeGroups(rng: Rng, n: number): TimeQuestion {
     choices: shuffle(rng, withChoices(`${total}`, [`${groups + each}`, `${total + each}`, `${total - each}`])),
   };
 }
+
+/**
+ * What he types on the keypad for an answer: a time as its digits ("3:45" is
+ * 345), and a number with a unit as just the number ("20 minutes" is 20).
+ */
+export function typedAnswer(answer: string): { want: number; isTime: boolean; unit?: string } {
+  const isTime = answer.includes(':');
+  if (isTime) return { want: Number(answer.replace(':', '')), isTime };
+  const m = answer.match(/^(\d+)(?: (\D+))?$/);
+  return { want: m ? Number(m[1]) : NaN, isTime, unit: m?.[2] };
+}

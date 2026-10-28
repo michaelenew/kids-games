@@ -25,24 +25,29 @@ export interface Save {
   pace: Pace;
   /** Feeding time has been introduced (its button glowed once). */
   feedShown: boolean;
+  /** Save format changes already applied. */
+  version: number;
   /** What the recognizer heard in the grown-ups' voice check, per letter. */
   voiceCheck: Record<string, string>;
 }
 
 const KEY = 'unicorn-rancher-v1';
+/** 2: letters come in both cases by default. */
+const VERSION = 2;
 
 function fresh(): Save {
   return {
     unicorns: [],
     letters: {},
     recent: [],
-    caseMode: 'upper',
+    caseMode: 'both',
     math: newMath(),
     ribbons: [0, 0, 0],
     trails: 0,
     tapMode: false,
     pace: newPace(),
     feedShown: false,
+    version: VERSION,
     voiceCheck: {},
   };
 }
@@ -54,7 +59,12 @@ export function save(): Save {
     current = fresh();
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) current = { ...current, ...JSON.parse(raw) };
+      if (raw) current = { ...current, version: 1, ...JSON.parse(raw) };
+      // Saves from before both cases were the default switch over once.
+      if (current!.version < 2) {
+        current!.caseMode = 'both';
+        current!.version = 2;
+      }
     } catch {
       // Private browsing or a broken save: start fresh.
     }

@@ -187,12 +187,13 @@ export class Unicorn {
     for (let i = 0; i < 6; i++) {
       const seg = new THREE.Group();
       if (i === 0) {
-        seg.position.set(0, 0.25, -0.88);
+        seg.position.set(0, 0.3, -0.97);
         // Pointing back and down, away from the rump.
-        seg.rotation.x = -2.7;
+        seg.rotation.x = -2.5;
       } else {
         seg.position.y = 0.16;
-        seg.rotation.x = 0.14;
+        // Each link droops a little more (a positive bend would curl it up over the back).
+        seg.rotation.x = -0.1;
       }
       const puff = mesh(sphere, toon(mane[i % mane.length]));
       const s = 0.14 + Math.sin((i / 5) * Math.PI) * 0.08;
@@ -290,10 +291,10 @@ export class Unicorn {
     const sway = 0.15 + g * 0.3;
     this.tail.forEach((seg, i) => {
       seg.rotation.z = Math.sin(this.t * 3 - i * 0.6) * sway * 0.6;
-      if (i > 0) seg.rotation.x = 0.14 + g * 0.12 + Math.sin(this.t * 5 - i) * 0.05 * g;
+      if (i > 0) seg.rotation.x = -0.1 + g * 0.06 + Math.sin(this.t * 5 - i) * 0.04 * g;
     });
     // It streams out behind at a gallop.
-    if (this.tail[0]) this.tail[0].rotation.x = -2.7 + g * 0.8;
+    if (this.tail[0]) this.tail[0].rotation.x = -2.5 + g * 0.75;
     this.mane.forEach((m, i) => {
       m.rotation.z = Math.sin(this.t * 4 - i * 0.7) * (0.1 + g * 0.3);
     });

@@ -61,17 +61,28 @@ export async function feed(ctx: Ctx): Promise<void> {
   for (let n = 0; n < PROBLEMS; n++) {
     const prob = makeProblem(sv.math, Math.random);
     const { apples, extras } = await serve(ctx, prob);
-    const counting = () => countAlong(ctx, apples);
+    // Counting along leaves the numbers on the apples until she answers.
+    let clearTags = () => {};
+    const counting = async () => {
+      clearTags();
+      clearTags = await countAlong(ctx, apples, prob);
+    };
     if (prob.guided) {
-      await say(prob.kind === 'count' ? "Let's count them together!" : "Let's count all the apples together!");
+      await seconds(ctx, 0.8);
+      await say(prob.kind === 'count' ? "Let's count them together! Watch the apples." : "Let's count all the apples together! Watch.", { rate: SLOW });
+      await seconds(ctx, 0.6);
       await counting();
+      await seconds(ctx, 1);
     }
     const q = prob.kind === 'count' ? 'How many apples?' : 'How many apples altogether?';
     const max = Math.max(10, prob.answer <= 10 ? 10 : 18);
     const ans = await askNumber(ui, prob.answer, max, q, async () => {
-      await say("Let's count together!");
+      await say("Let's count together, nice and slow.", { rate: SLOW });
+      await seconds(ctx, 0.5);
       await counting();
+      await seconds(ctx, 1);
     });
+    clearTags();
     const up = recordMath(sv.math, ans.firstTry);
     noteMoment(sv.pace, true);
     persist();
@@ -145,7 +156,8 @@ async function serve(ctx: Ctx, prob: Problem): Promise<{ apples: THREE.Group[]; 
   for (let gi = 0; gi < groups.length; gi++) {
     const g = groups[gi];
     if (prob.kind === 'add') {
-      await say(gi === 0 ? `Here are ${g.n} red apples.` : `And here come ${g.n} yellow apples!`);
+      if (gi > 0) await seconds(ctx, prob.guided ? 1.2 : 0.5);
+      await say(gi === 0 ? (g.n === 1 ? 'Here is 1 red apple.' : `Here are ${g.n} red apples.`) : g.n === 1 ? 'And here comes 1 yellow apple!' : `And here come ${g.n} yellow apples!`, { rate: prob.guided ? SLOW : undefined });
     } else {
       void say(`Apples for ${who[0]}!`);
     }
@@ -165,9 +177,10 @@ async function serve(ctx: Ctx, prob: Problem): Promise<{ apples: THREE.Group[]; 
         a.position.lerpVectors(target.clone().add(new THREE.Vector3(0, 3, 0)), target, k);
         a.scale.setScalar(0.01 + k);
       }, (k) => 1 - Math.pow(1 - k, 3));
-      await seconds(ctx, 0.18);
+      // One at a time while she's learning, so she can follow along.
+      await seconds(ctx, prob.guided ? 0.55 : 0.25);
     }
-    await seconds(ctx, 0.4);
+    await seconds(ctx, prob.guided ? 0.9 : 0.4);
     if (prob.kind === 'add' && gi === 0) {
       const plus = glyphSprite('+', { size: 1.1 });
       plus.position.set(0, 1.9, 4.4);
@@ -178,8 +191,11 @@ async function serve(ctx: Ctx, prob: Problem): Promise<{ apples: THREE.Group[]; 
   return { apples: out, extras };
 }
 
-/** Count along: each apple hops and gets its number, said out loud. */
-async function countAlong(ctx: Ctx, apples: THREE.Group[]): Promise<void> {
+/**
+ * Count along, slowly: each apple hops and gets its number, said out loud,
+ * then the total. Returns a function that takes the numbers off again.
+ */
+async function countAlong(ctx: Ctx, apples: THREE.Group[], prob: Problem): Promise<() => void> {
   const tags: THREE.Sprite[] = [];
   for (let i = 0; i < apples.length; i++) {
     const a = apples[i];
@@ -191,8 +207,13 @@ async function countAlong(ctx: Ctx, apples: THREE.Group[]): Promise<void> {
     tag.position.set(0, 0.05, 0.42);
     a.add(tag);
     tags.push(tag);
-    await Promise.all([say(String(i + 1), { rate: 1.05 }), wait(650)]);
+    await Promise.all([say(String(i + 1), { rate: SLOW }), wait(1100)]);
   }
   await seconds(ctx, 0.6);
-  for (const t of tags) t.removeFromParent();
+  const n = apples.length;
+  await say(prob.kind === 'add' ? `${prob.a} and ${prob.b} make ${n}. ${n} apples!` : `${n} apples!`, { rate: SLOW });
+  return () => tags.forEach((t) => t.removeFromParent());
 }
+
+/** Speaking speed for walk-throughs (1 is normal). */
+const SLOW = 0.8;

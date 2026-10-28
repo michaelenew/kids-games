@@ -42,7 +42,7 @@ If she says nothing for 8 seconds, the game nudges her ("Say the letter out loud
 4. Add within 10
 5. Add two one-digit numbers (up to 9 + 9)
 
-A wrong number triggers "Let's count together!": each apple hops, gets a number above it, and the number is said out loud. Then she tries again. Number buttons are always on screen too.
+Walk-throughs go slowly: apples arrive one at a time, each is counted about once a second in a slower voice, then the total is said ("2 and 3 make 5. 5 apples!"), and the numbers stay on the apples while she answers. A wrong number triggers "Let's count together!": each apple hops, gets a number above it, and the number is said out loud. Then she tries again. Number buttons are always on screen too.
 
 ## Voice
 

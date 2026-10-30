@@ -35,9 +35,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe6ff;
 #numpad { bottom: 140px; width: min(900px, 96vw); gap: 8px; }
 #choices .btn { width: 110px; height: 110px; font-size: 64px; }
 #numpad .btn { width: min(60px, 8vw); height: min(60px, 8vw); font-size: min(34px, 5vw); }
-#menu { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; gap: min(22px, 3vw); }
-#menu .btn { width: min(128px, 22vw); height: min(128px, 22vw); font-size: min(62px, 10vw); display:flex; flex-direction:column; align-items:center; justify-content:center; line-height: 1; }
-#menu .btn small { font-size: 17px; margin-top: 6px; }
+#menu { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: min(14px, 2vw); width: max-content; max-width: 96vw; }
+#menu .btn { width: min(112px, 12.4vw, 22vh); height: min(112px, 12.4vw, 22vh); min-width: 74px; min-height: 74px; font-size: min(52px, 6vw, 10vh); display:flex; flex-direction:column; align-items:center; justify-content:center; line-height: 1; }
+#menu .btn small { font-size: min(16px, 2.2vw); margin-top: 5px; }
 #menu .btn.glow { animation: glow 1.2s ease-in-out infinite; }
 #menu .btn.locked { opacity: .45; filter: grayscale(.6); }
 @keyframes glow { 50% { box-shadow: 0 6px 0 #d7a6e8, 0 0 40px 12px rgba(255,214,0,.85); transform: scale(1.06); } }

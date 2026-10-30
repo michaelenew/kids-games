@@ -1,8 +1,11 @@
 import { type Ctx, finishedActivity, stats } from './ctx';
+import { aliens } from './scenes/aliens';
+import { dance } from './scenes/dance';
 import { feed } from './scenes/feed';
 import { openGrownups } from './scenes/grownups';
 import { race } from './scenes/race';
 import { ranch } from './scenes/ranch';
+import { stars } from './scenes/stars';
 import { style } from './scenes/style';
 import { trail } from './scenes/trail';
 import { onCaption, unlockSpeech } from './speak';
@@ -75,6 +78,9 @@ async function loop(): Promise<void> {
     arrival = undefined;
     if (next === 'trail') arrival = await trail(ctx);
     else if (next === 'race') await race(ctx);
+    else if (next === 'aliens') await aliens(ctx);
+    else if (next === 'stars') await stars(ctx);
+    else if (next === 'dance') await dance(ctx);
     else if (next === 'style') await style(ctx);
     else await feed(ctx);
     finishedActivity();

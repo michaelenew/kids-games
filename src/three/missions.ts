@@ -1143,7 +1143,7 @@ export const MISSIONS: Mission[] = [
   // ---- The Moon base: any robot he picks. Area and perimeter (building the base) are the one new thing ----------
   {
     id: 'moon-land',
-    dmg: 1, hp: 1.2, fire: 0.85, extra: 0.7,
+    dmg: 3.5, hp: 1.2, fire: 0.85, extra: 0.7,
     env: 'moon',
     pick: true,
     title: 'Invasion 41: Moon Landing',
@@ -1166,7 +1166,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'moon-crater',
-    dmg: 1, hp: 1.3, fire: 0.82, extra: 0.8,
+    dmg: 3.8, hp: 1.3, fire: 0.82, extra: 0.8,
     env: 'moon',
     pick: true,
     title: 'Invasion 42: Defend the Landing Pad',
@@ -1189,7 +1189,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'moon-ridge',
-    dmg: 1, hp: 1.4, fire: 0.8, extra: 0.9,
+    dmg: 2.1, hp: 1.4, fire: 0.8, extra: 0.9,
     env: 'moon',
     pick: true,
     title: 'Invasion 43: Hangar Siege',
@@ -1235,7 +1235,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'moon-core',
-    dmg: 1.4, hp: 2.2, fire: 0.74, extra: 1.4,
+    dmg: 2.8, hp: 2.2, fire: 0.74, extra: 1.4,
     env: 'moon',
     pick: true,
     title: 'Invasion 45: The Last Outpost',

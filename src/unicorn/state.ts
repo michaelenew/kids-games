@@ -9,6 +9,8 @@ export interface OwnedUnicorn {
   look: UnicornLook;
   /** Treats she's fed it. */
   hearts: number;
+  /** Magic upgrades it has (see upgrades.ts), like 'invisible'. */
+  upgrades?: string[];
 }
 
 export interface Save {

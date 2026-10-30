@@ -798,8 +798,8 @@ export class Phantom implements Mech {
     J.body.position.set(0, Math.abs(Math.sin(p)) * 0.04 * ra - d * 0.25, -d * 0.18);
     J.hipL.rotation.set(-Math.sin(p) * 0.6 * ra - d * 1.45 - this.air * 0.5, 0, d * 0.3);
     J.hipR.rotation.set(Math.sin(p) * 0.6 * ra - d * 1.45 - this.air * 0.2, 0, -d * 0.3);
-    J.knL.rotation.x = Math.max(0, Math.sin(p)) * 0.9 * ra + d * 2.6 + this.air * 0.8;
-    J.knR.rotation.x = Math.max(0, -Math.sin(p)) * 0.9 * ra + d * 2.6 + this.air * 0.4;
+    J.knL.rotation.x = Math.max(0, Math.sin(p)) * 0.9 * ra + d * 2.8 + this.air * 0.8;
+    J.knR.rotation.x = Math.max(0, -Math.sin(p)) * 0.9 * ra + d * 2.8 + this.air * 0.4;
     J.armGun.scale.setScalar(Math.max(0.001, 1 - smooth(clamp01((this.bikeT - 0.2) / 0.5))));
     J.torso.rotation.set(0.02 * Math.sin(t * 2) + ra * 0.18 + d * 0.85, this.aimYaw * (1 - d) * 0.6, 0);
     J.shR.rotation.set(lerp(lerp(Math.sin(p) * 0.6 * ra, -Math.PI / 2 - this.aimPitch, a), -1.55, d) + this.recoil * 0.12, 0, lerp(lerp(-0.08, -0.05, a), 0.15, d));

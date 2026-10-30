@@ -1048,7 +1048,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'vol-ash',
-    dmg: 1, hp: 1.2, fire: 0.85, extra: 0.7,
+    dmg: 0.51, hp: 1.2, fire: 0.85, extra: 0.7,
     env: 'volcano',
     bot: 'stealth',
     title: 'Invasion 37: The Ash Fields',
@@ -1074,7 +1074,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'vol-lava',
-    dmg: 1, hp: 1.35, fire: 0.8, extra: 0.9,
+    dmg: 0.4, hp: 1.35, fire: 0.8, extra: 0.9,
     env: 'volcano',
     bot: 'stealth',
     title: 'Invasion 38: Lava River',
@@ -1096,7 +1096,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'vol-forge',
-    dmg: 1.1, hp: 1.5, fire: 0.78, extra: 1.1,
+    dmg: 0.36, hp: 1.5, fire: 0.78, extra: 1.1,
     env: 'volcano',
     bot: 'stealth',
     title: 'Invasion 39: The Alien Forge',
@@ -1119,7 +1119,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'vol-core',
-    dmg: 1.4, hp: 2.2, fire: 0.74, extra: 1.4,
+    dmg: 1.12, hp: 2.2, fire: 0.74, extra: 1.4,
     env: 'volcano',
     bot: 'stealth',
     title: 'Invasion 40: Inside the Volcano',

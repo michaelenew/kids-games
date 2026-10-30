@@ -7,7 +7,7 @@ import { type OwnedUnicorn, persist, save } from '../state';
 import { Unicorn } from '../three/unicorn';
 import { barn, cloud, fence, flowers, ground, hills, rainbow, trees } from '../three/world';
 
-export type Activity = 'trail' | 'race' | 'aliens' | 'stars' | 'dance' | 'style' | 'feed';
+export type Activity = 'trail' | 'race' | 'aliens' | 'robots' | 'stars' | 'dance' | 'style' | 'feed';
 
 const PADDOCK = 13;
 
@@ -154,6 +154,7 @@ export function ranch(ctx: Ctx, opts: { arrival?: OwnedUnicorn; backdrop?: boole
       { icon: '🌳', label: 'Explore', glow: none, onTap: () => pick('trail') },
       { icon: '🏁', label: 'Race', locked: none, onTap: () => (none ? needOne() : pick('race')) },
       { icon: '🛸', label: 'Aliens', locked: none, onTap: () => (none ? needOne() : pick('aliens')) },
+      { icon: '🤖', label: 'Robots', locked: none, onTap: () => (none ? needOne() : pick('robots')) },
       { icon: '⭐', label: 'Stars', locked: none, onTap: () => (none ? needOne() : pick('stars')) },
       { icon: '💃', label: 'Dance', locked: none, onTap: () => (none ? needOne() : pick('dance')) },
       { icon: '🎀', label: 'Style', locked: none, onTap: () => (none ? needOne() : pick('style')) },

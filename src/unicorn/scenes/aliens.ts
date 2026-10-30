@@ -3,6 +3,7 @@ import { type Ctx, freshPlace, lessonMoment, letterMoment, nextLetters, praise, 
 import { say } from '../speak';
 import { sfx } from '../sfx';
 import { persist, save } from '../state';
+import { hornLaser } from '../laser';
 import { Saucer } from '../three/alien';
 import { glyphSprite, PASTEL, RAINBOW } from '../three/fx';
 import { toon } from '../three/stage';
@@ -161,31 +162,9 @@ export async function aliens(ctx: Ctx): Promise<void> {
     } else if (!paused) ui.pointAt(null);
   });
 
-  /** A rainbow laser from a unicorn's horn to a point. */
   const laser = (u: Unicorn, to: THREE.Vector3) => {
-    const from = u.hornTip();
-    const len = from.distanceTo(to);
-    const color = RAINBOW[Math.floor(Math.random() * RAINBOW.length)];
-    const beam = new THREE.Group();
-    const outer = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, len, 8, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, len, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false }));
-    beam.add(outer, core);
-    beam.position.copy(from).lerp(to, 0.5);
-    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
-    w.add(beam);
-    u.setGlow(1);
     u.headYaw = THREE.MathUtils.clamp(Math.atan2(to.x - u.holder.position.x, -(to.z - u.holder.position.z)) * -0.6, -0.6, 0.6);
-    fx.sparkles(from, { count: 12, colors: [color, 0xffffff], speed: 2, up: 0.5, life: 0.5, size: 0.35 });
-    void tween(ctx, 0.3, (k) => {
-      (outer.material as THREE.MeshBasicMaterial).opacity = 1 - k;
-      (core.material as THREE.MeshBasicMaterial).opacity = 1 - k;
-      beam.scale.set(1 - k * 0.6, 1, 1 - k * 0.6);
-    }).then(() => {
-      w.remove(beam);
-      outer.geometry.dispose();
-      core.geometry.dispose();
-      u.setGlow(0.2);
-    });
+    hornLaser(ctx, fx, u, to);
   };
 
   let zapped = 0;

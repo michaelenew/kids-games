@@ -10,7 +10,13 @@ import type { Save } from './state';
  */
 export function restoreRanch(sv: Save, want: { unicorns: number; ribbons: number; hearts: number }): void {
   const unicorns = Math.max(0, Math.floor(want.unicorns));
-  sv.unicorns = Array.from({ length: unicorns }, (_, i) => unicornFor(i));
+  // Upgrades she's already made on this device stay with the same unicorns.
+  const had = sv.unicorns;
+  sv.unicorns = Array.from({ length: unicorns }, (_, i) => {
+    const u = unicornFor(i);
+    if (had[i]?.upgrades) u.upgrades = had[i].upgrades;
+    return u;
+  });
   const hearts = Math.max(0, Math.floor(want.hearts));
   sv.unicorns.forEach((u, i) => (u.hearts = Math.floor(hearts / unicorns) + (i < hearts % unicorns ? 1 : 0)));
   sv.herdVersion = HERD_VERSION;

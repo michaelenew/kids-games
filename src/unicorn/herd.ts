@@ -25,5 +25,5 @@ export const HERD_VERSION = 1;
  * so devices that were set to the same numbers match up.
  */
 export function canonicalHerd(unicorns: OwnedUnicorn[]): OwnedUnicorn[] {
-  return unicorns.map((u, i) => unicornFor(i, u.hearts));
+  return unicorns.map((u, i) => ({ ...unicornFor(i, u.hearts), ...(u.upgrades ? { upgrades: u.upgrades } : {}) }));
 }

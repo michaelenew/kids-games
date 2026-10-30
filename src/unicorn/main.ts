@@ -2,6 +2,7 @@ import { type Ctx, finishedActivity, stats } from './ctx';
 import { aliens } from './scenes/aliens';
 import { dance } from './scenes/dance';
 import { feed } from './scenes/feed';
+import { magic } from './scenes/magic';
 import { openGrownups } from './scenes/grownups';
 import { race } from './scenes/race';
 import { ranch } from './scenes/ranch';
@@ -83,6 +84,7 @@ async function loop(): Promise<void> {
     else if (next === 'robots') await robots(ctx);
     else if (next === 'stars') await stars(ctx);
     else if (next === 'dance') await dance(ctx);
+    else if (next === 'magic') await magic(ctx);
     else if (next === 'style') await style(ctx);
     else await feed(ctx);
     finishedActivity();

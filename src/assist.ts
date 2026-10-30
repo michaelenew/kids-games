@@ -1,6 +1,6 @@
 import { LEVELS } from './levels';
 import { MISSION_IDS, isHandOver, isPick, startBot } from './three/missions';
-import { BOT_ORDER, BUILD_COST, GADGETS, type BotId, type GearId, type SaveData, botData, countUpgrade, persist, save, superLabUnlocked } from './state';
+import { BOT_ORDER, BUILD_COST, GADGETS, type BotId, type GearId, type SaveData, botData, countUpgrade, fullyUpgraded, persist, save, superLabUnlocked } from './state';
 
 /**
  * Behind-the-scenes help. Building an upgrade should always make the next
@@ -101,10 +101,8 @@ function upgradesFor(s: SaveData, bot: BotId): number {
 }
 
 function allMaxed(s: SaveData, bot: BotId) {
-  // With the Super Lab open there's always a gadget to build.
-  if (superLabUnlocked(bot, s)) return false;
-  const g = botData(bot, s).gear;
-  return (Object.keys(g) as GearId[]).every((k) => g[k] >= 3);
+  // A fully upgraded robot is never held back: its Super Lab gadgets are extras, not required.
+  return fullyUpgraded(bot, s);
 }
 
 /**

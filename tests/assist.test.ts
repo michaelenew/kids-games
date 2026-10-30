@@ -3,7 +3,7 @@ import {
   FAILS_BEFORE_HINT, HARD, MAX_TIER, currentTier, missionStart, needsUpgrade, onLevelCleared, onLevelStart, onMissionCleared,
   onMissionFailed, onUpgradeBuilt, tuning, upgradeRequired,
 } from '../src/assist';
-import { freshSave } from '../src/state';
+import { freshSave, superLabUnlocked } from '../src/state';
 
 describe('hidden help after upgrades', () => {
   it('does nothing until an upgrade is built', () => {
@@ -117,5 +117,18 @@ describe('a loss locks the mission until an upgrade', () => {
     expect(upgradeRequired('inv-chase', s)).toBe(true);
     onUpgradeBuilt('bolt', s);
     expect(upgradeRequired('inv-chase', s)).toBe(false);
+  });
+});
+
+describe('the Super Lab', () => {
+  it('opens for any robot once it is fully upgraded', () => {
+    const s = freshSave();
+    expect(superLabUnlocked('bolt', s)).toBe(false);
+    s.gear = { armor: 3, blaster: 3, boots: 2 };
+    expect(superLabUnlocked('bolt', s)).toBe(false);
+    s.gear = { armor: 3, blaster: 3, boots: 3 };
+    expect(superLabUnlocked('bolt', s)).toBe(true);
+    // A robot that hasn't joined yet doesn't get one.
+    expect(superLabUnlocked('titan', s)).toBe(false);
   });
 });

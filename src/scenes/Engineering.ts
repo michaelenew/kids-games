@@ -5,7 +5,7 @@ import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import {
   BOTS, BUILD_COST, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, botsUnlocked, egyptUnlocked,
-  gadgetInfo, gadgetOf, gearInfo, hasSeen, markSeen, save, setActiveBot, superLabUnlocked,
+  fullyUpgraded, gadgetInfo, gadgetOf, gearInfo, hasSeen, markSeen, save, setActiveBot, superLabUnlocked,
 } from '../state';
 import { W, button, dialog, scrapBadge, text } from '../ui/widgets';
 
@@ -84,11 +84,16 @@ export class EngineeringScene extends Phaser.Scene {
     scrapBadge(this, W - 180, 60, s.scrap);
     button(this, 105, 60, 170, 64, '◀ Garage', () => this.scene.start('Garage'), { size: 26, fill: 0x3d4458 });
 
-    if (twoBots) this.botMenu(bot);
+    if (twoBots || labBots(s).length > 0) this.botMenu(bot);
 
     gears.forEach((g, i) => this.station(bot, g, gear[g], 230 + i * 410));
 
-    if (!hasSeen('engineering-intro')) {
+    if (fullyUpgraded(bot, s) && !hasSeen(`maxed-${bot}`)) {
+      dialog(this, [
+        { who: 'sprocket', text: `WOW! ${botName(bot, s)} is FULLY UPGRADED! Every bench is at Mark III.` },
+        { who: 'sprocket', text: `That opens the ⚡ SUPER LAB for ${botName(bot, s)}: giant gadgets you can build again and again. Tap it up top!` },
+      ], () => markSeen(`maxed-${bot}`));
+    } else if (!hasSeen('engineering-intro')) {
       dialog(this, [
         { who: 'sprocket', text: 'This is my favorite place! Each bench builds one kind of upgrade.' },
         { who: 'sprocket', text: 'Building takes scrap, and a little brain power. Pick whatever you like!' },
@@ -166,7 +171,7 @@ export class EngineeringScene extends Phaser.Scene {
     GADGET_IDS.forEach((g, i) => this.gadgetCard(bot, g, 165 + i * 317));
     if (bot !== 'jet' && !hasSeen('super-lab-all')) {
       dialog(this, [
-        { who: 'sprocket', text: 'Big news: I figured out the alien tech! Now EVERY robot can get super gadgets.' },
+        { who: 'sprocket', text: `Super gadgets for ${botName(bot, s)}! They're so powerful they blow off after one mission.` },
         { who: 'sprocket', text: 'Tap a robot up top to see its gadgets. Build one before a mission, and watch it blow off at the end!' },
       ], () => markSeen('super-lab-all'));
     } else if (!hasSeen('super-lab')) {

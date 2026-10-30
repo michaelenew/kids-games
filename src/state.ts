@@ -451,10 +451,19 @@ export function gadgetInfo(bot: BotId, g: GadgetId): (typeof GADGETS)[GadgetId] 
 
 /** The Super Lab opens for STRIKER after the first Amazon mission, and for every robot once the Arctic is done. */
 export function superLabUnlocked(bot: BotId = 'jet', s: SaveData = save()): boolean {
+  if (!botUnlocked(bot, s)) return false;
+  // Every bench at Mark III: there's always something more to build.
+  if (fullyUpgraded(bot, s)) return true;
   if (bot === 'jet') return s.levelsDone.includes('amz-landing');
   // TRIDENT joins after the Counterattack: its lab opens when it does.
   if (bot === 'sub') return botUnlocked('sub', s);
-  return s.levelsDone.includes('arc-core') && botUnlocked(bot, s);
+  return s.levelsDone.includes('arc-core');
+}
+
+/** Armor, blaster and boots all at Mark III. */
+export function fullyUpgraded(bot: BotId, s: SaveData = save()): boolean {
+  const g = botData(bot, s).gear;
+  return (Object.keys(g) as GearId[]).every((k) => g[k] >= 3);
 }
 
 /** The gadget fitted on a robot for its next mission, if any. */

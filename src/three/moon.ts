@@ -661,6 +661,9 @@ function noise(x: number, z: number) {
   return (Math.sin(x * 0.011 + 1.3) * Math.cos(z * 0.013 - 0.7) + 0.6 * Math.sin(x * 0.027 + z * 0.021 + 2.1) + 0.35 * Math.sin(x * 0.061 - z * 0.049)) / 1.95;
 }
 
+/** On a defense mission, how far ahead of where he stands the base's front line is (the fence, once built). */
+export const DEFENSE_LINE = 13;
+
 export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City & { turrets: Turret[] } {
   const curve = new THREE.CatmullRomCurve3(path.getSpacedPoints(80).map((v) => new THREE.Vector3(v.x, 0, v.z)), false, 'catmullrom', 0.35);
   const rnd = seeded(opts.seed);
@@ -755,7 +758,54 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
     const { p, n } = frame(uc + s / len);
     return p.addScaledVector(n, d);
   };
-  if (pieces > 0) {
+  if (pieces > 0 && opts.defend) {
+    // Defense: one base, around the spot where he stands guard (the start of the road, facing out).
+    // The pad and hangar flank him; the dome is further out on one side; the fence is the line
+    // across the road that the aliens try to break through.
+    const groupTurrets: Turret[] = [];
+    const reserve = (s: number, d: number, r: number) => {
+      const p = roadSpot(0, s, d);
+      reserved.push({ x: p.x, z: p.z, r });
+    };
+    const pad = placeAt(new THREE.Group(), 0, 3, 20);
+    groupTurrets.push(...landingPad(pad, m));
+    reserve(3, 20, 14);
+    if (pieces >= 2) {
+      const hg = placeAt(new THREE.Group(), 0, 1, -21);
+      groupTurrets.push(...hangar(hg, m));
+      reserve(1, -26, 14);
+      reserve(1, -15, 9);
+    }
+    if (pieces >= 3) {
+      rectFence(pad, m, 0, 0, 8, 8, 0.3, [3, 5]);
+      const line: THREE.Vector3[] = [];
+      for (let d = -34; d <= 34; d += TILE) line.push(roadSpot(0, DEFENSE_LINE, d));
+      fence(root, m, line);
+      for (let d = -34; d <= 34; d += 6) reserve(DEFENSE_LINE, d, 2);
+      groupTurrets.push(turret(root, m, 0, 0, 0), turret(root, m, 0, 0, 0));
+      const [t1, t2] = groupTurrets.slice(-2);
+      t1.root.position.copy(roadSpot(0, DEFENSE_LINE - 3, 13));
+      t2.root.position.copy(roadSpot(0, DEFENSE_LINE - 3, -13));
+    } else {
+      // Before the fence: a row of warning lights marks the line they mustn't cross.
+      for (let d = -30; d <= 30; d += 6) {
+        const at = roadSpot(0, DEFENSE_LINE, d);
+        mesh(root, cylGeo(0.12, 0.15, 1.2, 8), m.grey, at.x, 0.6, at.z);
+        const l = glowSprite(0xff8a3a, 0.9, 2.2);
+        l.position.set(at.x, 1.35, at.z);
+        root.add(l);
+      }
+    }
+    if (pieces >= 4) {
+      const dome = placeAt(new THREE.Group(), 0, -16, -24);
+      groupTurrets.push(...commandDome(dome, m, anim));
+      reserve(-16, -24, 13);
+    }
+    root.updateMatrixWorld(true);
+    const look = roadSpot(0, 40, 0).setY(2);
+    for (const t of groupTurrets) t.head.lookAt(look);
+    turrets.push(...groupTurrets);
+  } else if (pieces > 0) {
     plazas.forEach(([a, b], pi) => {
       const uc = a + (b - a) * 0.35;
       const sg = pi % 2 ? -1 : 1;

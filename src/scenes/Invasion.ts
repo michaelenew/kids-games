@@ -55,6 +55,8 @@ export class InvasionScene extends Phaser.Scene {
   private hint!: Phaser.GameObjects.Text;
   private everFired = false;
   private bossFrac: number | null = null;
+  /** Base defense: the base's health (0 to 1), or null on other missions. */
+  private baseFrac: number | null = null;
   private shownHp = 0;
   private bannerParts: Phaser.GameObjects.GameObject[] = [];
   /** Every hit he took, for the recap graph and sums. */
@@ -82,6 +84,7 @@ export class InvasionScene extends Phaser.Scene {
     this.score = 0;
     this.scrap = 0;
     this.bossFrac = null;
+    this.baseFrac = this.mission.defend ? 1 : null;
     this.everFired = false;
     this.regionFlash = {};
     this.bannerParts = [];
@@ -140,6 +143,11 @@ export class InvasionScene extends Phaser.Scene {
         this.tweens.add({ targets: t, alpha: 0, delay: 800, duration: 400, onComplete: () => t.destroy() });
       },
       bossBar: (f) => (this.bossFrac = f),
+      baseHit: (f) => {
+        this.baseFrac = f;
+        this.regionFlash.frame = 0.4;
+        if (f <= 0) this.fail(true);
+      },
       complete: () => this.win(),
       allyJoined: () => {
         const ally = allyFor(this.bot, this.mission.id);
@@ -165,6 +173,8 @@ export class InvasionScene extends Phaser.Scene {
     this.vignette = this.add.graphics().setDepth(5);
     this.reticles = this.add.graphics().setDepth(10);
     this.hud = this.add.graphics().setDepth(20);
+    // Base defense: a label on the base's health bar.
+    if (this.mission.defend) text(this, W / 2, 27, 'BASE', 16, '#ffffff').setStroke('#000000', 4).setDepth(30);
     this.hpText = this.add.text(150, 28, '', { fontFamily: 'Arial Black, Arial', fontSize: '22px', color: '#ffffff' })
       .setStroke('#000000', 5).setDepth(21);
     this.add.text(150, 4, 'ARMOR', { fontFamily: 'Arial Black, Arial', fontSize: '16px', color: '#9ad1ff' }).setStroke('#000000', 4).setDepth(21);
@@ -418,6 +428,13 @@ export class InvasionScene extends Phaser.Scene {
     }
 
     // Boss health.
+    if (this.baseFrac !== null) {
+      // The base's health, top middle.
+      const bf = this.baseFrac;
+      g.fillStyle(0x000000, 0.6).fillRoundedRect(W / 2 - 200, 14, 400, 26, 10);
+      g.fillStyle(bf > 0.5 ? 0x4cf0ff : bf > 0.25 ? 0xffd166 : 0xef476f, 1).fillRoundedRect(W / 2 - 196, 18, 392 * bf, 18, 8);
+      g.lineStyle(2, 0xffffff, 0.9).strokeRoundedRect(W / 2 - 200, 14, 400, 26, 10);
+    }
     if (this.bossFrac !== null) {
       g.fillStyle(0x000000, 0.6).fillRoundedRect(W / 2 - 300, H - 52, 600, 28, 10);
       g.fillStyle(0xff4fd8, 1).fillRoundedRect(W / 2 - 296, H - 48, 592 * this.bossFrac, 20, 8);
@@ -655,7 +672,7 @@ export class InvasionScene extends Phaser.Scene {
     });
   }
 
-  private fail() {
+  private fail(baseFell = false) {
     if (this.over) return;
     this.over = true;
     this.game3d.pointer.down = false;
@@ -675,9 +692,11 @@ export class InvasionScene extends Phaser.Scene {
       return;
     }
     panel(this, W / 2, H / 2, 760, 400).setDepth(60);
-    text(this, W / 2, H / 2 - 140, 'EMERGENCY RETREAT!', 50, '#ef476f').setStroke('#000000', 6).setDepth(61);
-    text(this, W / 2, H / 2 - 50, 'Your armor ran out. Patch up and try again!\nThicker plates from the forge help a lot.', 28, '#ffffff')
-      .setDepth(61);
+    text(this, W / 2, H / 2 - 140, baseFell ? 'THE BASE FELL!' : 'EMERGENCY RETREAT!', 50, '#ef476f').setStroke('#000000', 6).setDepth(61);
+    const why = baseFell
+      ? 'The walkers broke through! Stop them before they\nreach the base. Super gadgets help a lot.'
+      : 'Your armor ran out. Patch up and try again!\nThicker plates from the forge help a lot.';
+    text(this, W / 2, H / 2 - 50, why, 28, '#ffffff').setDepth(61);
     this.gadgetNote(H / 2 + 30);
     const next = this.nextScene();
     button(this, W / 2 - 180, H / 2 + 100, 300, 84, next.key === 'Garage' ? 'Try again' : next.label, () => {

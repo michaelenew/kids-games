@@ -54,6 +54,12 @@ export interface Mission {
   bot?: BotId;
   /** Who starts a hand-over mission (default BOLT). */
   swapFrom?: BotId;
+  /**
+   * Base defense (the Moon): he stands guard in front of the base he built and
+   * doesn't move. Walkers march in from the horizon and smash at the base's
+   * front line until he stops them; the base has its own health bar.
+   */
+  defend?: boolean;
   /** He picks which of his robots plays it (the Counterattack missions). */
   pick?: boolean;
   /** Which column it sits in on the Garage (default: where it happens). */
@@ -77,6 +83,9 @@ export interface Mission {
 const sk = (at: number, from: Spawn['from'], elite = false): Spawn => ({ kind: 'skimmer', at, from, elite });
 const kr = (at: number, from: Spawn['from'], elite = false): Spawn => ({ kind: 'krawler', at, from, elite });
 const rd = (at: number, from: Spawn['from']): Spawn => ({ kind: 'raider', at, from });
+
+/** Base defense missions: he stands at the start of the road, in front of the base, facing out. */
+const DEFEND_PATH: [number, number, number][] = [[0, 0, 20], [0, 0, -20], [0, 0, -200]];
 
 export const MISSIONS: Mission[] = [
   {
@@ -1166,93 +1175,81 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'moon-crater',
-    dmg: 3.8, hp: 1.3, fire: 0.82, extra: 0.8,
+    dmg: 4.4, hp: 1.6, fire: 0.8, extra: 1,
     env: 'moon',
     pick: true,
+    defend: true,
     title: 'Invasion 42: Defend the Landing Pad',
     blurb: 'They\'re attacking the base. Pick a robot!',
     seed: 337,
-    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
-    plazas: [[0.15, 0.3], [0.55, 0.7], [0.85, 1]],
+    path: DEFEND_PATH,
     steps: [
-      { kind: 'say', lines: [{ who: 'volt', text: 'Saucers coming in over the landing pad! The turrets will help. Go, go, go!' }] },
-      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2.5, 'roofR')] },
-      { kind: 'wave', banner: 'DEFEND THE PAD!', spawns: [sk(0, 'above', true), kr(0.6, 'roofL', true), kr(1.2, 'roofR'), sk(2.2, 'left'), kr(3.2, 'ahead', true)] },
-      { kind: 'transform', to: 'car' },
-      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2.2, 'behindR'), sk(3.5, 'above', true), rd(5, 'behindL')] },
-      { kind: 'transform', to: 'robot' },
-      { kind: 'wave', banner: 'MOON DUST!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.5, 'above', true), kr(2.5, 'ahead'), sk(3.5, 'right', true)] },
-      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [sk(1, 'right', true), kr(2.5, 'roofL')] },
-      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), sk(0.6, 'above', true), kr(1.2, 'roofL', true), sk(2, 'left', true)] },
-      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Here they come, marching right at our new landing pad!' },
+          { who: 'sprocket', text: 'Stand guard in front of the base. Don\'t let them reach the warning lights! The turrets will help.' },
+        ],
+      },
+      { kind: 'wave', banner: 'DEFEND THE BASE!', spawns: [kr(0, 'ahead'), kr(1.5, 'ahead'), kr(3, 'ahead'), sk(4, 'above')] },
+      { kind: 'wave', banner: 'MORE WALKERS!', spawns: [kr(0, 'ahead'), kr(0.8, 'ahead'), sk(1.5, 'left'), kr(2.5, 'ahead'), kr(3.5, 'ahead', true)] },
+      { kind: 'wave', banner: 'FROM THE CRATERS!', spawns: [kr(0, 'roofL'), kr(0.6, 'roofR'), kr(1.5, 'ahead'), sk(2.5, 'above'), kr(3.5, 'ahead')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), kr(0.7, 'ahead'), kr(1.4, 'ahead'), sk(2, 'right', true), kr(3, 'roofL'), kr(3.5, 'roofR')] },
     ],
   },
   {
     id: 'moon-ridge',
-    dmg: 2.8, hp: 1.4, fire: 0.8, extra: 0.9,
+    dmg: 2.5, hp: 1.55, fire: 0.8, extra: 0.9,
     env: 'moon',
     pick: true,
+    defend: true,
     title: 'Invasion 43: Hangar Siege',
     blurb: 'Keep them away from the new hangar!',
     seed: 347,
-    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
-    plazas: [[0.15, 0.3], [0.55, 0.7], [0.85, 1]],
+    path: DEFEND_PATH,
     steps: [
-      { kind: 'say', lines: [{ who: 'volt', text: 'They want our new hangar. Not on your watch!' }] },
-      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above')] },
-      { kind: 'wave', banner: 'HANGAR DOORS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
-      { kind: 'transform', to: 'car' },
-      { kind: 'move', to: 5, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR'), rd(6, 'behindL')] },
-      { kind: 'transform', to: 'robot' },
-      { kind: 'wave', banner: 'RIDGE RAIDERS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true)] },
-      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true)] },
-      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true)] },
-      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'They want our new hangar. A whole army, coming over the ridge. Hold the line!' }] },
+      { kind: 'wave', banner: 'OVER THE RIDGE!', spawns: [kr(0, 'ahead'), kr(1, 'ahead'), kr(2, 'ahead'), sk(2.5, 'above'), kr(3.5, 'ahead')] },
+      { kind: 'wave', banner: 'HANGAR DOORS!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), kr(1.5, 'ahead'), kr(2.2, 'ahead'), sk(3, 'left', true), kr(4, 'ahead')] },
+      { kind: 'wave', banner: 'SAUCER SQUADRON!', spawns: [sk(0, 'above', true), sk(0.6, 'left'), sk(1.2, 'right'), kr(2, 'ahead'), kr(3, 'ahead', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), kr(0.5, 'ahead'), kr(1, 'ahead'), kr(1.5, 'ahead'), sk(2.2, 'above', true), kr(3, 'roofL', true), kr(3.6, 'roofR')] },
     ],
   },
   {
     id: 'moon-dark',
-    dmg: 1, hp: 1.5, fire: 0.78, extra: 1.1,
+    dmg: 2.4, hp: 1.7, fire: 0.8, extra: 1.1,
     env: 'moon',
     pick: true,
-    title: 'Invasion 44: The Dark Side',
-    blurb: 'Chase them to the dark side of the Moon!',
+    defend: true,
+    title: 'Invasion 44: Night Attack',
+    blurb: 'They attack in the dark. Defend the base!',
     seed: 353,
-    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
-    plazas: [[0.15, 0.3], [0.42, 0.58], [0.85, 1]],
+    path: DEFEND_PATH,
     steps: [
-      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re hiding on the dark side, where the sun never shines. Turrets on, headlights on!' }] },
-      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },
-      { kind: 'wave', banner: 'IN THE DARK!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
-      { kind: 'transform', to: 'car' },
-      { kind: 'move', to: 4, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
-      { kind: 'transform', to: 'robot' },
-      { kind: 'wave', banner: 'SHADOW CRATERS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true), sk(4.5, 'right')] },
-      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead')] },
-      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true), kr(3.5, 'ahead', true)] },
-      { kind: 'move', to: 9, speed: 6, vehicle: 'foot' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'The base slid into the Moon\'s night side, and they\'re attacking in the dark! Fence on, turrets on!' }] },
+      { kind: 'wave', banner: 'IN THE DARK!', spawns: [kr(0, 'ahead'), kr(0.8, 'ahead'), kr(1.6, 'ahead'), sk(2.4, 'above', true), kr(3.2, 'ahead')] },
+      { kind: 'wave', banner: 'SHADOW WALKERS!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), kr(1.2, 'roofR'), kr(2, 'ahead'), sk(2.8, 'left', true), kr(3.6, 'ahead')] },
+      { kind: 'wave', banner: 'FROM ABOVE!', spawns: [sk(0, 'above', true), sk(0.6, 'left', true), sk(1.2, 'right'), kr(2, 'ahead'), kr(2.6, 'ahead')] },
+      { kind: 'wave', banner: 'THE BIG PUSH!', spawns: [kr(0, 'ahead', true), kr(0.5, 'ahead'), kr(1, 'ahead', true), kr(1.5, 'ahead'), kr(2.2, 'roofL', true), kr(2.8, 'roofR'), sk(3.4, 'above', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), kr(0.4, 'ahead', true), sk(1, 'left', true), sk(1.4, 'right', true), kr(2, 'ahead'), kr(2.6, 'ahead'), kr(3.2, 'roofL', true)] },
     ],
   },
   {
     id: 'moon-core',
-    dmg: 2.8, hp: 2.2, fire: 0.74, extra: 1.4,
+    dmg: 5, hp: 2, fire: 0.8, extra: 1,
     env: 'moon',
     pick: true,
-    title: 'Invasion 45: The Last Outpost',
-    blurb: 'Their last outpost on the Moon. Boss!',
+    defend: true,
+    title: 'Invasion 45: The Lunar Walker',
+    blurb: 'Their biggest walker is coming for the base. Boss!',
     seed: 359,
-    path: [[0, 0, 20], [0, 0, -20], [10, 0, -110], [-10, 0, -200], [8, 0, -290], [0, 0, -360], [0, 0, -410], [0, 0, -450]],
-    plazas: [[0.15, 0.3], [0.8, 1]],
-    boss: [0, -8, -520],
-    bossHp: 3,
+    path: DEFEND_PATH,
+    boss: [0, -8, -95],
+    bossHp: 9,
     steps: [
-      { kind: 'say', lines: [{ who: 'volt', text: 'Their last outpost, and their biggest walker yet. The whole base has your back!' }] },
-      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
-      { kind: 'wave', banner: 'OUTPOST GUARDS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(2, 'above', true), sk(3, 'left', true)] },
-      { kind: 'transform', to: 'car' },
-      { kind: 'move', to: 4, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR')] },
-      { kind: 'transform', to: 'robot' },
-      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'say', lines: [{ who: 'volt', text: 'The ground is shaking... their biggest walker is coming for the base! Clear its guards first!' }] },
+      { kind: 'wave', banner: 'ADVANCE GUARD!', spawns: [kr(0, 'ahead'), kr(0.7, 'ahead'), kr(1.4, 'ahead'), sk(2, 'above', true), kr(2.8, 'ahead', true)] },
+      { kind: 'wave', banner: 'HOLD THE LINE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), kr(1.8, 'ahead'), sk(2.5, 'left', true), sk(3, 'right', true), kr(3.6, 'ahead', true)] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'HERE IT COMES! Knock out its pods before it wrecks the base!' }] },
       { kind: 'boss', banner: 'LUNAR WALKER!' },
     ],
   },

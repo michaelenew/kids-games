@@ -20,7 +20,7 @@ import { Titan } from './titan';
 import { ARCTIC_FOG, arcticSky, buildArctic } from './arctic';
 import { OCEAN_FOG, buildOcean, oceanSky } from './ocean';
 import { VOLCANO_FOG, buildVolcano, volcanoSky } from './volcano';
-import { MOON_FOG, type Turret, buildMoon, moonSky } from './moon';
+import { DEFENSE_LINE, MOON_FOG, type Turret, buildMoon, moonSky } from './moon';
 import { CANYON_FOG, buildCanyon, canyonSky } from './canyon';
 import { BOTS } from '../state';
 
@@ -52,8 +52,14 @@ const TITAN_CAM_EXTRA = new THREE.Vector3(-0.4, 0.5, -1.1);
 const MEGA_CAM_EXTRA = new THREE.Vector3(-0.9, 2.1, -3.8);
 /** Where reinforcements fight: on his left, a little ahead, so they're in view. */
 const ALLY_AT = new THREE.Vector3(3, 0, 1.5);
+/** Base defense: the camera behind and above the robot and the base, looking out at the horizon. */
+const DEFEND_CAM = new THREE.Vector3(-1.2, 8.5, -15.5);
+const DEFEND_LOOK = new THREE.Vector3(0, 1.5, 34);
+/** Base defense: the base's health, and what each smash by a walker at the front line takes off. */
+const BASE_HP = 100;
+const BITE = 3;
 /** What one shot from a Moon base turret does. */
-const TURRET_DAMAGE = 3;
+const TURRET_DAMAGE = 2;
 /** The jet is drawn a bit bigger in missions so its gear reads from behind. */
 const JET_SCALE = 1.3;
 
@@ -94,6 +100,8 @@ interface Enemy {
   seed: number;
   /** Which wave it belongs to (-1 = moving encounter). */
   wave: number;
+  /** Base defense: time until a walker at the front line smashes at the base again. */
+  bite?: number;
 }
 
 interface Bolt {
@@ -137,6 +145,8 @@ export interface InvasionEvents {
   combined?(): void;
   /** The jet rolled past a shot, or TITAN swatted one away. */
   dodged?(how: 'roll' | 'swat' | 'dash' | 'cloak'): void;
+  /** Base defense: the base was hit (health left, 0 to 1). At 0 the base has fallen. */
+  baseHit?(frac: number): void;
 }
 
 export interface InvasionOptions {
@@ -224,7 +234,7 @@ export class Invasion {
     const ocean = mission.env === 'ocean';
     const volcano = mission.env === 'volcano';
     const moon = mission.env === 'moon';
-    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas, base: opts.baseLevel };
+    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas, base: opts.baseLevel, defend: mission.defend };
     const moonBase = moon ? buildMoon(this.curve, where) : null;
     this.city = moonBase ?? (desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
       : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
@@ -244,6 +254,8 @@ export class Invasion {
     this.robot.spin = 0;
     this.robot.holder.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
     this.rig.add(this.robot.holder);
+    // Standing guard at the base, seen from further back: a bit bigger so he stays the hero.
+    if (mission.defend) this.robot.holder.scale.multiplyScalar(1.35);
 
     const firstMove = mission.steps.find((s) => s.kind === 'move') as Extract<Step, { kind: 'move' }> | undefined;
     this.vehicle = firstMove?.vehicle ?? 'foot';
@@ -344,6 +356,15 @@ export class Invasion {
     const off = CAM_ROBOT.clone().lerp(CAM_CAR, k).lerp(CAM_JET, j);
     // TITAN and RHINO are wide: sit the camera a bit further back and higher so it doesn't fill the view.
     const mega = this.robot instanceof MegaBot ? this.robot.amount : 0;
+    // Base defense: stand back and up, so the base is in the foreground and the horizon in view.
+    if (this.mission.defend) {
+      const pos = this.rig.localToWorld(DEFEND_CAM.clone());
+      if (this.shake > 0) pos.add(new THREE.Vector3((Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5)).multiplyScalar(this.shake * 0.35));
+      this.camera.position.copy(pos);
+      this.camera.up.set(0, 1, 0);
+      this.camera.lookAt(this.rig.localToWorld(DEFEND_LOOK.clone()));
+      return;
+    }
     if (this.robot instanceof Titan || this.robot instanceof Tank || this.robot instanceof Sub || this.robot instanceof MegaBot) off.add(TITAN_CAM_EXTRA.clone().multiplyScalar(1 - k));
     off.add(MEGA_CAM_EXTRA.clone().multiplyScalar(mega));
     const look = LOOK_ROBOT.clone().lerp(LOOK_CAR, k).lerp(LOOK_JET, j);
@@ -515,6 +536,27 @@ export class Invasion {
       this.fx.tracer(from, at, BOLT_COLOR[mark], 0.05 + mark * 0.02);
       this.damageBoss(i >= 0 ? 'pod' : 'core', i, dmg, at);
     } else a.cooldown = 0.3;
+  }
+
+  // ---- Base defense --------------------------------------------------------------
+
+  private baseHp = BASE_HP;
+
+  /** A walker at the front line hits the base every so often (sparks where it hits). */
+  private smashBase(e: Enemy, dt: number) {
+    e.bite = (e.bite ?? 0.8) - dt;
+    if (e.bite > 0 || this.baseHp <= 0) return;
+    e.bite = 1.6;
+    this.hitBase(BITE, model3dWorld(e.model.root).add(new THREE.Vector3(0, 1.2, 0)));
+  }
+
+  private hitBase(amount: number, at: THREE.Vector3) {
+    this.baseHp = Math.max(0, this.baseHp - amount);
+    this.fx.spark(at, 0xffb347, 14, 5);
+    this.fx.flash(at, 0xffd27a, 1.5, 0.1);
+    sfx.clang(0.8);
+    this.shake = Math.max(this.shake, 0.25);
+    this.events.baseHit?.(this.baseHp / BASE_HP);
   }
 
   // ---- The Moon base's turrets --------------------------------------------------
@@ -860,7 +902,15 @@ export class Invasion {
       // Below a flying jet they land on the ground, not level with it.
       const ground = this.vehicle === 'jet' ? STREET_Y - this.rig.position.y : 0;
       to = new THREE.Vector3(this.rand(1.5, 6) * (sp.from === 'ahead' ? (Math.random() < 0.5 ? 1 : -1) : side), ground, this.rand(13, 19) + (ground < 0 ? 4 : 0));
-      if (sp.from === 'ahead') {
+      if (this.mission.defend) {
+        // They head for the base's front line, spread out along it.
+        to.set(this.rand(2, 15) * (sp.from === 'ahead' ? (Math.random() < 0.5 ? 1 : -1) : side), 0, DEFENSE_LINE + this.rand(1.5, 3));
+      }
+      if (sp.from === 'ahead' && this.mission.defend) {
+        // From far out on the horizon: a long march in.
+        from = to.clone().add(new THREE.Vector3(this.rand(-8, 8), 0, this.rand(45, 60)));
+        phase = 'walk';
+      } else if (sp.from === 'ahead') {
         from = to.clone().add(new THREE.Vector3(0, 0, 22));
         phase = 'walk';
       } else {
@@ -981,6 +1031,11 @@ export class Invasion {
           const spread = podsLeft ? 0 : (i - 1) * 2.5;
           this.fireBolt(from, 9, Math.round(140 * (this.mission.dmg ?? 1)), true, spread, 'boss');
         });
+        // Defending the base: its big guns hit the base too.
+        if (this.mission.defend) {
+          this.rig.updateMatrixWorld(true);
+          this.hitBase(BITE, this.rig.localToWorld(new THREE.Vector3(this.rand(-8, 8), 2, DEFENSE_LINE)));
+        }
       }
     }
     m.animate({ t: b.t, dt, state: 'idle', charge: b.charge, sinceHit: b.sinceHit, speed: 0 });
@@ -1079,7 +1134,7 @@ export class Invasion {
           // Stomp toward the robot until close enough to fight.
           const dir = e.to.clone().sub(e.from);
           const len = dir.length();
-          const k = Math.min(1, (e.phaseT * 2.2) / Math.max(0.01, len));
+          const k = Math.min(1, (e.phaseT * (this.mission.defend ? 3.4 : 2.2)) / Math.max(0.01, len));
           root.position.lerpVectors(e.from, e.to, k);
           state = k < 1 ? 'move' : 'idle';
           if (k >= 1 && e.phase === 'walk') e.phase = 'idle';
@@ -1091,6 +1146,8 @@ export class Invasion {
           break;
       }
       if (e.phase === 'walk' && e.phaseT === dt) e.from.copy(root.position);
+      // Base defense: a walker that reached the front line smashes at the base.
+      if (this.mission.defend && e.kind === 'krawler' && e.phase === 'idle') this.smashBase(e, dt);
 
       // Face the camera.
       const wp = model3dWorld(root);

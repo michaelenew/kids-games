@@ -105,11 +105,22 @@ function roadTexture() {
  * A floor of square tiles, `cols` by `rows`, 64px per tile: panels with dark
  * grout lines so every tile can be counted, plus a painted decoration.
  */
-function tileTexture(kind: 'pad' | 'apron' | 'dome' | 'small', cols: number, rows: number) {
-  return cachedTex(`tiles-${kind}-${cols}x${rows}`, () => {
+type TileKind = 'pad' | 'apron' | 'dome' | 'small' | 'plant' | 'solar' | 'yard';
+/** `cut` = [cols, rows] of tiles left out of the front-right corner, making an L. */
+function tileTexture(kind: TileKind, cols: number, rows: number, cut: [number, number] = [0, 0]) {
+  return cachedTex(`tiles-${kind}-${cols}x${rows}-${cut}`, () => {
     const T = 64;
     const W = cols * T;
     const H = rows * T;
+    const cw = cut[0] * T;
+    const ch = cut[1] * T;
+    /** The outline, inset by `k` pixels: a rectangle, or an L with the front-right corner missing. */
+    const outline = (g: CanvasRenderingContext2D, k: number) => {
+      const pts = ch ? [[k, k], [W - k, k], [W - k, H - ch - k], [W - cw - k, H - ch - k], [W - cw - k, H - k], [k, H - k]] : [[k, k], [W - k, k], [W - k, H - k], [k, H - k]];
+      g.moveTo(pts[0][0], pts[0][1]);
+      for (const [x, y] of pts.slice(1)) g.lineTo(x, y);
+      g.closePath();
+    };
     return canvasTex(W, H, (g) => {
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -155,14 +166,27 @@ function tileTexture(kind: 'pad' | 'apron' | 'dome' | 'small', cols: number, row
         g.beginPath();
         g.arc(W / 2, H / 2, Math.min(W, H) * 0.47, 0, Math.PI * 2);
         g.stroke();
+      } else if (kind === 'plant') {
+        // A cyan walkway along the front row, with orange arrows pointing in.
+        g.globalAlpha = 0.8;
+        g.fillStyle = '#29d8ff';
+        g.fillRect(0, H - T - 6, W, 12);
+        g.fillStyle = '#ff8a2a';
+        for (let c = 0; c < cols; c += 2) {
+          g.beginPath();
+          g.moveTo(c * T + T * 0.75, H - T * 0.25);
+          g.lineTo(c * T + T * 1.25, H - T * 0.25);
+          g.lineTo(c * T + T, H - T * 0.7);
+          g.fill();
+        }
       }
       g.restore();
       // Hazard stripes round the outer edge.
       if (kind !== 'small') {
         g.save();
         g.beginPath();
-        g.rect(0, 0, W, H);
-        g.rect(8, 8, W - 16, H - 16);
+        outline(g, 0);
+        outline(g, 8);
         g.clip('evenodd');
         g.fillStyle = '#ffb02a';
         g.fillRect(0, 0, W, H);
@@ -181,6 +205,13 @@ function tileTexture(kind: 'pad' | 'apron' | 'dome' | 'small', cols: number, row
       g.fillStyle = '#4a5160';
       for (let c = 0; c <= cols; c++) g.fillRect(c * T - 2, 0, 4, H);
       for (let r = 0; r <= rows; r++) g.fillRect(0, r * T - 2, W, 4);
+      // The missing corner of an L, see-through.
+      if (ch) {
+        g.clearRect(W - cw + 2, H - ch + 2, cw, ch);
+        g.fillStyle = '#4a5160';
+        g.fillRect(W - cw - 2, H - ch - 2, cw + 2, 4);
+        g.fillRect(W - cw - 2, H - ch - 2, 4, ch + 2);
+      }
     });
   });
 }
@@ -196,6 +227,64 @@ function panelTexture() {
     g.fillStyle = 'rgba(255,255,255,0.6)';
     for (let x = 4; x < 128; x += 32) g.fillRect(x, 0, 2, 128);
   }));
+}
+
+/** One solar panel: blue cells in a silver frame. */
+function solarTexture() {
+  return cachedTex('solar', () => canvasTex(64, 64, (g) => {
+    g.fillStyle = '#dfe6ee';
+    g.fillRect(0, 0, 64, 64);
+    const grad = g.createLinearGradient(0, 0, 64, 64);
+    grad.addColorStop(0, '#3d7dff');
+    grad.addColorStop(0.5, '#173c9e');
+    grad.addColorStop(1, '#2a5fe0');
+    g.fillStyle = grad;
+    g.fillRect(4, 4, 56, 56);
+    g.fillStyle = 'rgba(190,220,255,0.55)';
+    for (let k = 1; k < 4; k++) g.fillRect(4 + k * 14 - 1, 4, 2, 56);
+    for (let k = 1; k < 3; k++) g.fillRect(4, 4 + k * 18.7 - 1, 56, 2);
+    // A shine across the glass.
+    g.fillStyle = 'rgba(255,255,255,0.18)';
+    g.beginPath();
+    g.moveTo(4, 30);
+    g.lineTo(30, 4);
+    g.lineTo(42, 4);
+    g.lineTo(4, 42);
+    g.fill();
+  }));
+}
+
+/** A faint honeycomb of glowing lines, for the shield dome (black is see-through: it's added on). */
+function hexTexture() {
+  return cachedTex('hex', () => {
+    const t = canvasTex(256, 148, (g) => {
+      g.fillStyle = '#000';
+      g.fillRect(0, 0, 256, 148);
+      const r = 21.3;
+      const w = r * Math.sqrt(3);
+      g.strokeStyle = '#ffffff';
+      g.lineWidth = 2.5;
+      g.shadowColor = '#ffffff';
+      g.shadowBlur = 4;
+      for (let row = -1; row < 6; row++) {
+        for (let col = -1; col < 8; col++) {
+          const cx = col * (r * 1.5);
+          const cy = row * w + (col % 2 ? w / 2 : 0);
+          g.beginPath();
+          for (let k = 0; k <= 6; k++) {
+            const a = (k / 6) * Math.PI * 2;
+            const x = cx + Math.cos(a) * (r - 1.5);
+            const y = cy + Math.sin(a) * (r - 1.5);
+            if (k) g.lineTo(x, y);
+            else g.moveTo(x, y);
+          }
+          g.stroke();
+        }
+      }
+    });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  });
 }
 
 function earthTexture() {
@@ -311,6 +400,8 @@ function makeMats() {
       color: 0xbfeeff, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.3, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide,
     })),
     painted: d(new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.35, roughness: 0.45 })),
+    solar: d(new THREE.MeshStandardMaterial({ map: solarTexture(), color: 0xffffff, metalness: 0.3, roughness: 0.4, emissive: 0x0a2a6a, emissiveIntensity: 0.6 })),
+    core: glow(0x8ffbff, 2.6),
     cockpit: d(new THREE.MeshStandardMaterial({ color: 0x1b3f7a, metalness: 0.6, roughness: 0.1 })),
     cyan: glow(0x4cf0ff, 2.4),
     beam: glow(0x4cf0ff, 2.8),
@@ -326,6 +417,8 @@ type Mats = ReturnType<typeof makeMats>;
 interface Anim {
   spin: { o: THREE.Object3D; speed: number }[];
   blink: { m: THREE.Object3D; phase: number }[];
+  /** Glows that swell and shrink (the reactor core, the shield emitter). */
+  pulse: { o: THREE.Object3D; base: number; speed: number; phase: number }[];
 }
 
 /** Mark a static mesh that has many twins (fence posts, lights...). Everything static gets merged anyway. */
@@ -393,7 +486,7 @@ function mergeStatic(root: THREE.Object3D, cell = 120) {
 const TILE = 2;
 
 /** A raised slab floored with `cols` by `rows` square tiles, lights on its corners. */
-function tileSlab(parent: THREE.Object3D, m: Mats, kind: 'pad' | 'apron' | 'dome' | 'small', cols: number, rows: number, x = 0, z = 0, h = 0.3) {
+function tileSlab(parent: THREE.Object3D, m: Mats, kind: TileKind, cols: number, rows: number, x = 0, z = 0, h = 0.3) {
   const top = new THREE.MeshStandardMaterial({ map: tileTexture(kind, cols, rows), color: 0xb4bac4, metalness: 0.15, roughness: 0.7 });
   top.userData.disposable = true;
   const W = cols * TILE;
@@ -654,6 +747,324 @@ function commandDome(parent: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
   return [tower(parent, m, -8.4, 3.6, 7.5), tower(parent, m, 8.4, 3.6, 7.5), turret(parent, m, -3.2, y0, 6.2), turret(parent, m, 3.2, y0, 6.2)];
 }
 
+/**
+ * An L-shaped slab of tiles: `cols` × `rows` with `cut` (cols, rows) of tiles
+ * left out of the front-right (+X, +Z) corner. Underneath it's two rectangles.
+ */
+function lSlab(parent: THREE.Object3D, m: Mats, kind: TileKind, cols: number, rows: number, cut: [number, number], x = 0, z = 0, h = 0.3) {
+  const top = new THREE.MeshStandardMaterial({ map: tileTexture(kind, cols, rows, cut), color: 0xb4bac4, metalness: 0.15, roughness: 0.7, alphaTest: 0.5 });
+  top.userData.disposable = true;
+  const W = cols * TILE;
+  const D = rows * TILE;
+  const cw = cut[0] * TILE;
+  const cd = cut[1] * TILE;
+  mesh(parent, boxGeo(W - cw, h - 0.02, D), m.slabSide, x - cw / 2, (h - 0.02) / 2, z, { shadow: false });
+  mesh(parent, boxGeo(cw, h - 0.02, D - cd), m.slabSide, x + W / 2 - cw / 2, (h - 0.02) / 2, z - cd / 2, { shadow: false });
+  const slab = mesh(parent, cachedGeo(`tileTop${W},${D}`, () => new THREE.PlaneGeometry(W, D).rotateX(-Math.PI / 2)), top, x, h, z, { shadow: false });
+  slab.receiveShadow = true;
+  // Lights at every tile seam round the outline.
+  const outline = [[0, 0], [cols, 0], [cols, rows - cut[1]], [cols - cut[0], rows - cut[1]], [cols - cut[0], rows], [0, rows]];
+  outline.forEach(([c0, r0], i) => {
+    const [c1, r1] = outline[(i + 1) % outline.length];
+    const n = Math.abs(c1 - c0) + Math.abs(r1 - r0);
+    for (let k = 0; k < n; k++) {
+      const c = c0 + ((c1 - c0) * k) / n;
+      const r = r0 + ((r1 - r0) * k) / n;
+      inst(mesh(parent, boxGeo(0.22, 0.1, 0.22), m.cyan, x - W / 2 + c * TILE, h + 0.04, z - D / 2 + r * TILE, { shadow: false }));
+    }
+  });
+  return slab;
+}
+
+/** A pipe from a to b, with orange flanges at both ends. */
+function pipe(parent: THREE.Object3D, m: Mats, a: THREE.Vector3, b: THREE.Vector3, r = 0.28) {
+  const len = a.distanceTo(b);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  const at = a.clone().add(b).multiplyScalar(0.5);
+  inst(mesh(parent, cylGeo(r, r, len, 10), m.grey, at.x, at.y, at.z)).quaternion.copy(q);
+  for (const e of [a, b]) {
+    const f = inst(mesh(parent, cylGeo(r + 0.12, r + 0.12, 0.22, 10), m.orange, 0, 0, 0, { shadow: false }));
+    f.position.copy(e).lerp(at, 0.12 / Math.max(0.24, len / 2));
+    f.quaternion.copy(q);
+  }
+}
+
+/** A cooling tower: a white waisted funnel with an orange rim and a cyan glow inside the top. */
+function coolingTower(parent: THREE.Object3D, m: Mats, x: number, z: number, h = 9) {
+  const geo = cachedGeo(`cooling${h}`, () => {
+    const pts: THREE.Vector2[] = [];
+    for (let k = 0; k <= 12; k++) {
+      const y = (k / 12) * h;
+      const w = h * 0.66;
+      const r = y <= w ? 1.6 + 1.2 * ((y - w) / w) ** 2 : 1.6 + 0.45 * ((y - w) / (h - w)) ** 2;
+      pts.push(new THREE.Vector2(r, y));
+    }
+    const g = new THREE.LatheGeometry(pts, 24);
+    const uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 3, uv.getY(i));
+    return g;
+  });
+  inst(mesh(parent, cylGeo(3.0, 3.2, 0.35, 20), m.grey, x, 0.17, z));
+  mesh(parent, geo, m.shell, x, 0.3, z);
+  inst(mesh(parent, torusGeo(2.05, 0.16, 24), m.orange, x, h + 0.3, z, { rx: Math.PI / 2, shadow: false }));
+  inst(mesh(parent, cylGeo(1.65, 1.65, 0.08, 20), m.cyan, x, h * 0.7, z, { shadow: false }));
+  const haze = glowSprite(0x7ff4ff, 5.5, 0.55);
+  haze.position.set(x, h + 1.4, z);
+  parent.add(haze);
+}
+
+/** A sign with a lightning bolt on it. */
+function boltGeo() {
+  return cachedGeo('bolt', () => {
+    const s = new THREE.Shape();
+    s.moveTo(0.15, 0.6);
+    s.lineTo(-0.35, -0.05);
+    s.lineTo(-0.02, -0.05);
+    s.lineTo(-0.2, -0.6);
+    s.lineTo(0.35, 0.12);
+    s.lineTo(0.03, 0.12);
+    s.lineTo(0.15, 0.6);
+    return new THREE.ShapeGeometry(s);
+  });
+}
+
+/**
+ * Piece 5: the power plant on an 8 × 4 tile floor: the reactor hall, a
+ * glowing reactor core in a cage, pipes, and two cooling towers behind.
+ */
+function powerPlant(parent: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
+  const y0 = 0.3;
+  tileSlab(parent, m, 'plant', 8, 4, 0, 0, y0);
+  // The reactor hall.
+  const hx = -4.3;
+  const hz = -1.9;
+  mesh(parent, rboxGeo(6.6, 4.6, 3.6, 0.3), m.panel, hx, y0 + 2.3, hz);
+  mesh(parent, rboxGeo(6.75, 0.42, 3.75, 0.1), m.orange, hx, y0 + 3.6, hz, { shadow: false });
+  mesh(parent, rboxGeo(5.8, 0.5, 2.8, 0.15), m.grey, hx, y0 + 4.8, hz);
+  mesh(parent, boxGeo(3.4, 0.5, 0.06), m.cyan, hx + 1.2, y0 + 1.7, hz + 1.81, { shadow: false });
+  mesh(parent, boxGeo(1.5, 2.2, 0.08), m.dark, hx - 2.0, y0 + 1.1, hz + 1.81, { shadow: false });
+  mesh(parent, boxGeo(1.0, 0.18, 0.1), m.amber, hx - 2.0, y0 + 2.35, hz + 1.83, { shadow: false });
+  mesh(parent, boltGeo(), m.amber, hx + 1.2, y0 + 2.75, hz + 1.84, { shadow: false }).scale.setScalar(1.3);
+  for (let k = 0; k < 3; k++) inst(mesh(parent, cylGeo(0.35, 0.42, 0.9, 10), m.grey, hx - 2 + k * 2, y0 + 5.4, hz - 0.3));
+  // The reactor core: a glowing column in a cage of posts and rings.
+  const cx = 3.5;
+  const cz = -0.8;
+  mesh(parent, cylGeo(2.3, 2.6, 1.0, 20), m.grey, cx, y0 + 0.5, cz);
+  mesh(parent, cylGeo(2.36, 2.36, 0.2, 20), m.orange, cx, y0 + 0.95, cz, { shadow: false });
+  mesh(parent, cylGeo(1.05, 1.05, 4.4, 16), m.core, cx, y0 + 3.2, cz, { shadow: false });
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    inst(mesh(parent, boxGeo(0.22, 4.6, 0.22), m.panel, cx + Math.cos(a) * 1.55, y0 + 3.3, cz + Math.sin(a) * 1.55));
+  }
+  for (const y of [1.9, 3.3, 4.7]) inst(mesh(parent, torusGeo(1.55, 0.13, 24), m.grey, cx, y0 + y, cz, { rx: Math.PI / 2, shadow: false }));
+  mesh(parent, cylGeo(1.9, 2.1, 0.6, 20), m.panel, cx, y0 + 5.7, cz);
+  mesh(parent, cylGeo(1.95, 1.95, 0.16, 20), m.orange, cx, y0 + 5.55, cz, { shadow: false });
+  mesh(parent, cylGeo(0.6, 0.85, 0.7, 12), m.grey, cx, y0 + 6.35, cz);
+  const tip = mesh(parent, sphereGeo(0.35, 10), m.red, cx, y0 + 6.9, cz, { shadow: false });
+  anim.blink.push({ m: dynamic(tip), phase: 1.3 });
+  const coreGlow = glowSprite(0x6ff4ff, 8, 1.3);
+  coreGlow.position.set(cx, y0 + 3.3, cz);
+  parent.add(coreGlow);
+  anim.pulse.push({ o: coreGlow, base: 8, speed: 2.4, phase: 0 });
+  // Two cooling towers behind the floor.
+  coolingTower(parent, m, -3.6, -7.6);
+  coolingTower(parent, m, 3.4, -7.9, 8);
+  // Pipes: hall to core, hall and core to the towers, and one along the back.
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  pipe(parent, m, V(hx + 3.3, y0 + 1.3, cz), V(cx - 2.3, y0 + 1.3, cz));
+  pipe(parent, m, V(hx + 3.3, y0 + 2.6, cz - 0.3), V(cx - 1.6, y0 + 2.6, cz - 0.3), 0.22);
+  pipe(parent, m, V(-3.6, y0 + 2.8, hz - 1.8), V(-3.6, y0 + 2.8, -5.6));
+  pipe(parent, m, V(cx - 0.1, y0 + 0.7, cz - 2.5), V(3.4, y0 + 0.7, -5.4), 0.32);
+  pipe(parent, m, V(-7.6, y0 + 0.4, -3.55), V(7.6, y0 + 0.4, -3.55), 0.2);
+  return [turret(parent, m, -9.6, 0, 5.4), turret(parent, m, 9.6, 0, 5.4)];
+}
+
+/**
+ * Piece 6: the solar farm, an L-shaped field of tiles (6 × 4 with a 2 × 2
+ * corner missing), a tilted solar panel on every tile, cables to a power box.
+ */
+function solarFarm(parent: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
+  const cols = 6;
+  const rows = 4;
+  const cut: [number, number] = [2, 2];
+  const y0 = 0.25;
+  lSlab(parent, m, 'solar', cols, rows, cut, 0, 0, y0);
+  const x0 = (-cols * TILE) / 2;
+  const z0 = (-rows * TILE) / 2;
+  for (let r = 0; r < rows; r++) {
+    const n = r >= rows - cut[1] ? cols - cut[0] : cols;
+    const z = z0 + (r + 0.5) * TILE;
+    for (let c = 0; c < n; c++) {
+      const x = x0 + (c + 0.5) * TILE;
+      inst(mesh(parent, boxGeo(0.14, 0.75, 0.14), m.dark, x, y0 + 0.37, z - 0.1));
+      inst(mesh(parent, boxGeo(1.0, 0.1, 0.12), m.grey, x, y0 + 0.72, z - 0.1, { shadow: false }));
+      inst(mesh(parent, boxGeo(1.6, 0.07, 1.4), m.solar, x, y0 + 0.9, z, { rx: 0.42 }));
+    }
+    // A cable along each row, into the trunk cable down the left side.
+    inst(mesh(parent, boxGeo(n * TILE - 0.6, 0.06, 0.09), m.dark, x0 + (n * TILE) / 2, y0 + 0.04, z - 0.75, { shadow: false }));
+  }
+  inst(mesh(parent, boxGeo(0.12, 0.07, rows * TILE - 0.4), m.dark, x0 + 0.3, y0 + 0.04, 0, { shadow: false }));
+  // The power box the cables run to, just off the back-left corner.
+  const bx = x0 - 1.3;
+  const bz = z0 + 1.2;
+  inst(mesh(parent, boxGeo(1.2, 0.07, 0.12), m.dark, x0 - 0.5, 0.04, bz, { shadow: false }));
+  mesh(parent, rboxGeo(1.3, 1.6, 1.1, 0.1), m.panel, bx, 0.8, bz);
+  mesh(parent, boxGeo(1.36, 0.22, 1.16), m.orange, bx, 1.2, bz, { shadow: false });
+  mesh(parent, boxGeo(0.06, 0.5, 0.7), m.cyan, bx + 0.66, 0.65, bz, { shadow: false });
+  mesh(parent, boltGeo(), m.amber, bx + 0.67, 1.2, bz, { ry: Math.PI / 2, shadow: false }).scale.setScalar(0.5);
+  const lamp = mesh(parent, sphereGeo(0.16, 8), m.amber, bx, 1.75, bz, { shadow: false });
+  anim.blink.push({ m: dynamic(lamp), phase: 2.1 });
+  return [turret(parent, m, -7.6, 0, 5.2), turret(parent, m, 7.6, 0, -5.2)];
+}
+
+/** A straight run of armoured wall from a to b (on the ground), `h` tall: orange stripe, ribs, lights, and blocks along the top. */
+function wallRun(parent: THREE.Object3D, m: Mats, a: THREE.Vector3, b: THREE.Vector3, h: number, th = 1.5) {
+  const len = Math.hypot(b.x - a.x, b.z - a.z);
+  if (len < 0.5) return;
+  const g = new THREE.Group();
+  g.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+  g.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+  parent.add(g);
+  inst(mesh(g, boxGeo(th + 0.6, 0.45, len), m.dark, 0, 0.22, 0));
+  inst(mesh(g, boxGeo(th, h, len), m.panel, 0, h / 2, 0));
+  inst(mesh(g, boxGeo(th + 0.14, 0.42, len), m.orange, 0, h * 0.62, 0, { shadow: false }));
+  inst(mesh(g, boxGeo(th + 0.3, 0.22, len), m.grey, 0, h + 0.11, 0));
+  const n = Math.max(1, Math.round(len / 3));
+  for (let k = 0; k <= n; k++) {
+    const z = -len / 2 + (k * len) / n;
+    inst(mesh(g, boxGeo(th + 0.1, h - 0.5, 0.22), m.grey, 0, (h - 0.5) / 2 + 0.4, z, { shadow: false }));
+    if (k < n) inst(mesh(g, boxGeo(th + 0.12, 0.18, 0.6), m.cyan, 0, h * 0.84, z + len / n / 2, { shadow: false }));
+  }
+  if (h >= 2.2) {
+    // Blocks along the top, like a castle.
+    const blocks = Math.max(1, Math.floor(len / 2.4));
+    for (let k = 0; k < blocks; k++) inst(mesh(g, boxGeo(th + 0.3, 0.8, 1.2), m.panel, 0, h + 0.62, -len / 2 + ((k + 0.5) * len) / blocks));
+  } else {
+    // A low barrier: a glowing strip along the top instead.
+    inst(mesh(g, boxGeo(0.3, 0.12, len), m.cyan, 0, h + 0.28, 0, { shadow: false }));
+  }
+}
+
+/** A square pillar at a corner of the wall, with a red light on top. */
+function wallPillar(parent: THREE.Object3D, m: Mats, p: THREE.Vector3, h: number) {
+  inst(mesh(parent, boxGeo(2.0, h + 0.7, 2.0), m.panel, p.x, (h + 0.7) / 2, p.z));
+  inst(mesh(parent, boxGeo(2.12, 0.42, 2.12), m.orange, p.x, h * 0.62, p.z, { shadow: false }));
+  inst(mesh(parent, boxGeo(2.3, 0.26, 2.3), m.grey, p.x, h + 0.83, p.z));
+  inst(mesh(parent, sphereGeo(0.22, 10), m.red, p.x, h + 1.15, p.z, { shadow: false }));
+}
+
+/** A wall along `pts`, segment i being hs[i] tall, with pillars at the corners. */
+function wallLine(parent: THREE.Object3D, m: Mats, pts: THREE.Vector3[], hs: number[]) {
+  for (let i = 0; i < pts.length - 1; i++) wallRun(parent, m, pts[i], pts[i + 1], hs[i]);
+  pts.forEach((p, i) => wallPillar(parent, m, p, Math.max(hs[i - 1] ?? 0, hs[i] ?? 0)));
+}
+
+/**
+ * Piece 7 on its own: an L-shaped yard of tiles (6 × 4 with a 2 × 2 corner
+ * missing) wrapped in the armoured wall, two turret towers at the back.
+ * The front (+Z) side is a low barrier.
+ */
+function wallYard(parent: THREE.Object3D, m: Mats): Turret[] {
+  lSlab(parent, m, 'yard', 6, 4, [2, 2], 0, 0, 0.2);
+  const V = (x: number, z: number) => new THREE.Vector3(x, 0, z);
+  wallLine(parent, m, [V(-3, 5.2), V(-7.2, 5.2), V(-7.2, -5.2), V(7.2, -5.2), V(7.2, 1.2), V(3.2, 1.2), V(3.2, 5.2), V(1.2, 5.2)], [1.2, 3.4, 3.4, 3.4, 2.2, 2.2, 1.2]);
+  return [tower(parent, m, -8.8, -6.8, 7), tower(parent, m, 8.8, -6.8, 7)];
+}
+
+/** Piece 8: the shield generator, a tall pylon on a 3 × 3 tile pad with a glowing emitter on top. */
+function shieldPylon(parent: THREE.Object3D, m: Mats, anim: Anim, H = 15): Turret[] {
+  const y0 = 0.25;
+  tileSlab(parent, m, 'small', 3, 3, 0, 0, y0);
+  mesh(parent, cylGeo(1.9, 2.3, 1.2, 16), m.grey, 0, y0 + 0.6, 0);
+  mesh(parent, cylGeo(2.0, 2.0, 0.2, 16), m.orange, 0, y0 + 1.1, 0, { shadow: false });
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.5;
+    mesh(parent, rboxGeo(0.35, 3.6, 1.7, 0.1), m.panel, Math.cos(a) * 1.25, y0 + 2.6, Math.sin(a) * 1.25, { ry: Math.atan2(Math.cos(a), Math.sin(a)) });
+    mesh(parent, boxGeo(0.4, 2.6, 0.12), m.cyan, Math.cos(a) * 1.25, y0 + 2.7, Math.sin(a) * 1.25, { ry: Math.atan2(Math.cos(a), Math.sin(a)) + Math.PI / 2, shadow: false });
+  }
+  const colH = H - 3.2;
+  mesh(parent, cylGeo(0.42, 0.75, colH, 12), m.panel, 0, y0 + 1.2 + colH / 2, 0);
+  for (let k = 1; k <= 4; k++) {
+    const t = k / 5;
+    const r = 0.75 - 0.33 * t + 0.07;
+    mesh(parent, cylGeo(r, r, k % 2 ? 0.3 : 0.18, 12), k % 2 ? m.orange : m.cyan, 0, y0 + 1.2 + colH * t, 0, { shadow: false });
+  }
+  // The emitter: a cradle, a glowing ball and two rings turning round it.
+  const top = y0 + 1.2 + colH;
+  mesh(parent, cylGeo(1.2, 0.5, 0.9, 14), m.grey, 0, top + 0.2, 0);
+  mesh(parent, cylGeo(1.25, 1.25, 0.14, 14), m.orange, 0, top + 0.62, 0, { shadow: false });
+  mesh(parent, sphereGeo(0.95, 16), m.core, 0, top + 1.55, 0, { shadow: false });
+  for (const [tilt, speed] of [[0.5, 1.6], [-0.9, -1.1]]) {
+    const pivot = dynamic(new THREE.Group());
+    pivot.position.set(0, top + 1.55, 0);
+    parent.add(pivot);
+    mesh(pivot, torusGeo(1.65, 0.09, 32), m.cyan, 0, 0, 0, { rx: Math.PI / 2 + tilt, shadow: false });
+    anim.spin.push({ o: pivot, speed });
+  }
+  const halo = glowSprite(0x6ff4ff, 5, 1.3);
+  halo.position.set(0, top + 1.55, 0);
+  parent.add(halo);
+  anim.pulse.push({ o: halo, base: 5, speed: 3, phase: 1 });
+  return [turret(parent, m, -4.3, 0, 3.4), turret(parent, m, 4.3, 0, 3.4)];
+}
+
+/**
+ * The shield: a huge see-through dome of faint glowing hexagons, brighter
+ * where you look across it (its edges), with a slow ripple running up it.
+ * Added on top of the scene, so it tints the view but never darkens it.
+ */
+function shieldDome(parent: THREE.Object3D, m: Mats, at: THREE.Vector3, R: number, squash = 0.6) {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: hexTexture() },
+      color: { value: new THREE.Color(0x4cdcff) },
+      time: { value: 0 },
+      strength: { value: 1 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        vUv = uv;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform sampler2D map;
+      uniform vec3 color;
+      uniform float time;
+      uniform float strength;
+      varying vec2 vUv;
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        float hex = texture2D(map, vUv * vec2(26.0, 7.0)).r;
+        float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 3.0);
+        float wave = 1.0 - smoothstep(0.0, 0.06, abs(fract(vUv.y * 1.2 - time * 0.12) - 0.5));
+        float k = 0.003 + rim * 0.1 + hex * (0.009 + rim * 0.14 + wave * 0.05) + wave * 0.008;
+        // Fade out right at the ground, so it doesn't draw a hard line there.
+        k *= smoothstep(0.0, 0.03, vUv.y);
+        gl_FragColor = vec4(color * k * strength, 1.0);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  mat.userData.disposable = true;
+  const dome = new THREE.Mesh(cachedGeo('shieldDome', () => new THREE.SphereGeometry(1, 64, 20, 0, Math.PI * 2, 0, Math.PI / 2)), mat);
+  dome.position.copy(at);
+  dome.scale.set(R, R * squash, R);
+  dome.renderOrder = 3;
+  parent.add(dome);
+  // Where it meets the ground: a glowing ring.
+  inst(mesh(parent, cachedGeo(`shieldRing${R}`, () => new THREE.TorusGeometry(R, 0.16, 6, 160)), m.cyan, at.x, 0.08, at.z, { rx: Math.PI / 2, shadow: false }));
+  return mat;
+}
+
 // ---- The scene ----------------------------------------------------------------------
 
 /** Cheap rolling noise, for the far terrain and the patchy colour of the ground. */
@@ -661,16 +1072,20 @@ function noise(x: number, z: number) {
   return (Math.sin(x * 0.011 + 1.3) * Math.cos(z * 0.013 - 0.7) + 0.6 * Math.sin(x * 0.027 + z * 0.021 + 2.1) + 0.35 * Math.sin(x * 0.061 - z * 0.049)) / 1.95;
 }
 
+/** On a defense mission, how far ahead of where he stands the base's front line is (the fence, once built). */
+export const DEFENSE_LINE = 13;
+
 export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City & { turrets: Turret[] } {
   const curve = new THREE.CatmullRomCurve3(path.getSpacedPoints(80).map((v) => new THREE.Vector3(v.x, 0, v.z)), false, 'catmullrom', 0.35);
   const rnd = seeded(opts.seed);
   const root = new THREE.Group();
   const len = curve.getLength();
   const dark = opts.seed === 353;
-  const pieces = Math.max(0, Math.min(4, Math.floor(opts.base ?? 0)));
+  const pieces = Math.max(0, Math.min(8, Math.floor(opts.base ?? 0)));
   const m = makeMats();
-  const anim: Anim = { spin: [], blink: [] };
+  const anim: Anim = { spin: [], blink: [], pulse: [] };
   const flickers: { s: THREE.Sprite; base: number; phase: number }[] = [];
+  const shields: THREE.ShaderMaterial[] = [];
   const disposable = <T extends THREE.Material>(mat: T) => {
     mat.userData.disposable = true;
     return mat;
@@ -755,7 +1170,89 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
     const { p, n } = frame(uc + s / len);
     return p.addScaledVector(n, d);
   };
-  if (pieces > 0) {
+  if (pieces > 0 && opts.defend) {
+    // Defense: one base, around the spot where he stands guard (the start of the road, facing out).
+    // The pad and hangar flank him; the dome is further out on one side; the fence is the line
+    // across the road that the aliens try to break through.
+    const groupTurrets: Turret[] = [];
+    const reserve = (s: number, d: number, r: number) => {
+      const p = roadSpot(0, s, d);
+      reserved.push({ x: p.x, z: p.z, r });
+    };
+    const pad = placeAt(new THREE.Group(), 0, 3, 20);
+    groupTurrets.push(...landingPad(pad, m));
+    reserve(3, 20, 14);
+    if (pieces >= 2) {
+      const hg = placeAt(new THREE.Group(), 0, 1, -21);
+      groupTurrets.push(...hangar(hg, m));
+      reserve(1, -26, 14);
+      reserve(1, -15, 9);
+    }
+    if (pieces >= 3) {
+      rectFence(pad, m, 0, 0, 8, 8, 0.3, [3, 5]);
+      // Once the wall is up it takes over the line beside the road; the laser fence stays across the road.
+      const reach = pieces >= 7 ? 12 : 34;
+      const line: THREE.Vector3[] = [];
+      for (let d = -reach; d <= reach; d += TILE) line.push(roadSpot(0, DEFENSE_LINE, d));
+      fence(root, m, line);
+      for (let d = -34; d <= 34; d += 6) reserve(DEFENSE_LINE, d, 2);
+      groupTurrets.push(turret(root, m, 0, 0, 0), turret(root, m, 0, 0, 0));
+      const [t1, t2] = groupTurrets.slice(-2);
+      t1.root.position.copy(roadSpot(0, DEFENSE_LINE - 3, 13));
+      t2.root.position.copy(roadSpot(0, DEFENSE_LINE - 3, -13));
+    } else {
+      // Before the fence: a row of warning lights marks the line they mustn't cross.
+      for (let d = -30; d <= 30; d += 6) {
+        const at = roadSpot(0, DEFENSE_LINE, d);
+        mesh(root, cylGeo(0.12, 0.15, 1.2, 8), m.grey, at.x, 0.6, at.z);
+        const l = glowSprite(0xff8a3a, 0.9, 2.2);
+        l.position.set(at.x, 1.35, at.z);
+        root.add(l);
+      }
+    }
+    if (pieces >= 4) {
+      const dome = placeAt(new THREE.Group(), 0, -16, -24);
+      groupTurrets.push(...commandDome(dome, m, anim));
+      reserve(-16, -24, 13);
+    }
+    // The Moon Siege pieces stand out past the line on both sides, where he can see them,
+    // leaving the road and the aliens' way in clear.
+    if (pieces >= 5) {
+      const plant = placeAt(new THREE.Group(), 0, 30, -28);
+      groupTurrets.push(...powerPlant(plant, m, anim));
+      reserve(30, -32, 14);
+    }
+    if (pieces >= 6) {
+      const farm = placeAt(new THREE.Group(), 0, 34, 27);
+      groupTurrets.push(...solarFarm(farm, m, anim));
+      reserve(34, 27, 10);
+    }
+    if (pieces >= 7) {
+      // The wall: low across the road (so he can see over it), higher beside it, then round
+      // an L-shaped yard that holds the power plant. Two turret towers stand on it.
+      const W = DEFENSE_LINE - 1.1;
+      const P = (s: number, d: number) => roadSpot(0, s, d);
+      wallLine(root, m, [P(W, 27), P(W, 12), P(W, -12), P(W, -21.5), P(43, -21.5), P(43, -45), P(28, -45), P(28, -59), P(W, -59), P(W, -21.5)], [2.4, 1.5, 2.4, 0.9, 4, 4, 4, 4, 2.4]);
+      for (const d of [-55, -40, -25, 0, 25]) reserve(W, d, 8);
+      for (let s = W; s <= 43; s += 7) reserve(s, -21.5, 3);
+      for (let s = W; s <= 43; s += 7) reserve(s, -45, 3);
+      reserve(28, -52, 6);
+      for (const side of [-1, 1]) {
+        const at = P(W, side * 19);
+        groupTurrets.push(tower(root, m, at.x, at.z, 8));
+      }
+    }
+    if (pieces >= 8) {
+      const pylon = placeAt(new THREE.Group(), 0, 19, 25);
+      groupTurrets.push(...shieldPylon(pylon, m, anim));
+      reserve(19, 25, 5);
+      shields.push(shieldDome(root, m, roadSpot(0, 8, -4), 50));
+    }
+    root.updateMatrixWorld(true);
+    const look = roadSpot(0, 40, 0).setY(2);
+    for (const t of groupTurrets) t.head.lookAt(look);
+    turrets.push(...groupTurrets);
+  } else if (pieces > 0) {
     plazas.forEach(([a, b], pi) => {
       const uc = a + (b - a) * 0.35;
       const sg = pi % 2 ? -1 : 1;
@@ -803,6 +1300,27 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
         const dome = placeAt(new THREE.Group(), uc, 52, sg * 24);
         groupTurrets.push(...commandDome(dome, m, anim));
         reserve(52, sg * 25, 13);
+      }
+      if (pieces >= 5) {
+        const plant = placeAt(new THREE.Group(), uc, 58, -sg * 29);
+        groupTurrets.push(...powerPlant(plant, m, anim));
+        reserve(58, -sg * 33, 14);
+      }
+      if (pieces >= 6) {
+        const farm = placeAt(new THREE.Group(), uc, -18, sg * 26);
+        groupTurrets.push(...solarFarm(farm, m, anim));
+        reserve(-18, sg * 26, 10);
+      }
+      if (pieces >= 7) {
+        const yard = placeAt(new THREE.Group(), uc, 84, sg * 26);
+        groupTurrets.push(...wallYard(yard, m));
+        reserve(84, sg * 27, 13);
+      }
+      if (pieces >= 8) {
+        const pylon = placeAt(new THREE.Group(), uc, -20, -sg * 24);
+        groupTurrets.push(...shieldPylon(pylon, m, anim));
+        reserve(-20, -sg * 24, 6);
+        shields.push(shieldDome(root, m, roadSpot(uc, 32, 0), 62, 0.5));
       }
       // Turret heads start out watching the road ahead.
       root.updateMatrixWorld(true);
@@ -1022,6 +1540,12 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
       for (const f of flickers) f.s.scale.setScalar(f.base * (0.85 + Math.sin(time * 3 + f.phase) * 0.1 + Math.random() * 0.05));
       for (const s of anim.spin) s.o.rotation.y += s.speed * dt;
       for (const b of anim.blink) b.m.visible = Math.sin(time * 4 + b.phase) > -0.2;
+      for (const p of anim.pulse) p.o.scale.setScalar(p.base * (1 + Math.sin(time * p.speed + p.phase) * 0.14));
+      for (const sh of shields) {
+        sh.uniforms.time.value = time;
+        sh.uniforms.strength.value = 0.85 + Math.sin(time * 1.7) * 0.15;
+      }
+      m.core.color.setRGB(0.56, 0.98, 1).multiplyScalar(2.3 + Math.sin(time * 2.4) * 0.5);
       // The laser beams shimmer.
       m.beam.color.setRGB(0.3, 0.94, 1).multiplyScalar(2.4 + Math.sin(time * 9) * 0.35);
       sky(dt, time);
@@ -1029,12 +1553,16 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
   };
 }
 
-/** One piece of the base on its own, about 6 units across and sitting on y = 0, for the Base Builder's showroom (0 = landing pad, 1 = hangar, 2 = laser fence, 3 = command dome). */
+/**
+ * One piece of the base on its own, about 6 units across and sitting on y = 0, for the Base Builder's showroom
+ * (0 = landing pad, 1 = hangar, 2 = laser fence, 3 = command dome, 4 = power plant, 5 = solar farm,
+ * 6 = defense wall, 7 = shield generator).
+ */
 export function basePieceModel(piece: number): THREE.Group {
   const m = makeMats();
-  const anim: Anim = { spin: [], blink: [] };
+  const anim: Anim = { spin: [], blink: [], pulse: [] };
   const inner = new THREE.Group();
-  const p = Math.max(0, Math.min(3, Math.floor(piece)));
+  const p = Math.max(0, Math.min(7, Math.floor(piece)));
   if (p === 0) landingPad(inner, m);
   else if (p === 1) hangar(inner, m);
   else if (p === 2) {
@@ -1043,7 +1571,14 @@ export function basePieceModel(piece: number): THREE.Group {
     rectFence(inner, m, 0, 0, 4, 3, 0.15);
     turret(inner, m, -5.2, 0, 3.8);
     turret(inner, m, 5.2, 0, 3.8);
-  } else commandDome(inner, m, anim);
+  } else if (p === 3) commandDome(inner, m, anim);
+  else if (p === 4) powerPlant(inner, m, anim);
+  else if (p === 5) solarFarm(inner, m, anim);
+  else if (p === 6) wallYard(inner, m);
+  else {
+    shieldPylon(inner, m, anim, 10);
+    shieldDome(inner, m, new THREE.Vector3(0, 0, 0), 6.2, 0.95);
+  }
   mergeStatic(inner, 1000);
   // Scale to about 6 units across and centre it on the stand.
   const box = new THREE.Box3().setFromObject(inner);

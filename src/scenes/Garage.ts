@@ -7,7 +7,7 @@ import {
   startPreview, takeFreshAlert,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
-import { BASE_PIECES, basePieces, piecesNeeded } from '../skills/area';
+import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
@@ -206,6 +206,15 @@ export class GarageScene extends Phaser.Scene {
       this.tweens.add({ targets: rb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
     }
 
+    // The Moon base: a piece is ready to build (one after each Moon mission won).
+    const piece = nextPiece(s);
+    if (piece !== undefined && !fixFor) {
+      const bb = button(this, 300, 175, 420, 70, `🌕 BUILD THE ${BASE_PIECES[piece].name.toUpperCase()}!`, () => this.scene.start('BaseBuilder', {}), {
+        fill: 0x3a5a8c, edge: 0xcfe8ff, size: 24,
+      });
+      this.tweens.add({ targets: bb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+    }
+
     // Engineering Zone.
     const ready = upgradeAffordable();
     button(this, 880, 640, 560, 88, 'ENGINEERING ZONE', () => {
@@ -395,6 +404,7 @@ const AREAS: { env: string; label: string; color: string; fill: number; edge: nu
   { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
   { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
   { env: 'moon', label: 'MOON BASE', color: '#cfe8ff', fill: 0x3a4a66, edge: 0xcfe8ff },
+  { env: 'siege', label: 'MOON SIEGE', color: '#9ff0ff', fill: 0x24506a, edge: 0x9ff0ff },
 ];
 
 const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';

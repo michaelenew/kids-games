@@ -66,7 +66,7 @@ Press and hold the ⚙ in the top-right corner for a second. The panel has:
 - Answer by talking or tapping (tapping shows three letter buttons).
 - Letters: ABC, abc or both. Math level.
 - Her progress for every letter, and "Start over".
-- **Set her ranch**: type the unicorn, ribbon and heart totals and tap Set, to bring back a ranch from another time or device. Unicorns she has are kept and missing ones are added with new looks and names; hearts are shared out among them. Letter and math progress aren't changed.
+- **Set her ranch**: type the unicorn, ribbon and heart totals and tap Set. Unicorns come in a fixed order (her 1st is always Sparkle, her 27th Willow, each with the same colors), so setting two devices to the same numbers gives the same unicorns, and the next one she finds is the same new friend on both. There are 100 names, then "Pink Sparkle", "Pink Moonbeam" and so on, so names never repeat. Hearts are shared out among the unicorns; letter and math progress aren't changed. Setting the ranch resets any Style colors.
 
 Also:
 - **A two-finger tap anywhere** counts the current answer as right, for when the recognizer mishears her.

@@ -58,7 +58,7 @@ export function openGrownups(ui: UI, onChange: () => void): void {
     <div class="grid">${checkCells}</div>
     <p class="note">Tips: a two-finger tap anywhere counts the current answer as right (for when the recognizer mishears her). On a keyboard, typing the letter or number works too.</p>
     <h3>Set her ranch</h3>
-    <div class="note">To bring back a ranch from another time: type the numbers from the top of the screen (🦄 unicorns, 🏅 ribbons, ❤️ hearts) and tap Set. Unicorns she has now are kept; missing ones are added.</div>
+    <div class="note">To bring back a ranch from another time: type the numbers from the top of the screen (🦄 unicorns, 🏅 ribbons, ❤️ hearts) and tap Set. The same numbers always give the same unicorns (names and colors), so setting two devices to the same numbers keeps them in step.</div>
     <div class="row">
       <label>🦄 <input id="set-u" type="number" inputmode="numeric" min="0" max="99" value="${sv.unicorns.length}" style="width:64px;font-size:18px"></label>
       <label>🏅 <input id="set-r" type="number" inputmode="numeric" min="0" max="999" value="${sv.ribbons.reduce((a, b) => a + b, 0)}" style="width:64px;font-size:18px"></label>
@@ -98,7 +98,7 @@ export function openGrownups(ui: UI, onChange: () => void): void {
         const num = (id: string) => Number((ui.panel.querySelector(`#${id}`) as HTMLInputElement).value) || 0;
         const want = { unicorns: num('set-u'), ribbons: num('set-r'), hearts: num('set-h') };
         if (confirm(`Set her ranch to ${want.unicorns} unicorns, ${want.ribbons} ribbons and ${want.hearts} hearts?`)) {
-          restoreRanch(sv, want, Math.random);
+          restoreRanch(sv, want);
           persist();
           close();
           location.reload();

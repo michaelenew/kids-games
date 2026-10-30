@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { type Ctx, freshPlace, lessonMoment, letterMoment, nextLetters, praise, seconds, tapIt, tween } from '../ctx';
-import { freshName } from '../learn';
 import { say } from '../speak';
 import { sfx } from '../sfx';
 import { type OwnedUnicorn, persist, save } from '../state';
 import { glyphSprite, PASTEL, RAINBOW } from '../three/fx';
 import { damp, toon } from '../three/stage';
-import { randomLook, Unicorn } from '../three/unicorn';
+import { unicornFor } from '../herd';
+import { Unicorn } from '../three/unicorn';
 import { cloud, flowers, ground, hills, mushroom, pathRibbon, trees } from '../three/world';
 
 /**
@@ -188,7 +188,9 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
   }
 
   // The wild unicorn in the glade.
-  const look2 = randomLook();
+  // The next unicorn in her fixed order (the same one on every device).
+  const newcomer = unicornFor(sv.unicorns.length);
+  const look2 = newcomer.look;
   const wild = new Unicorn(look2);
   const gladeAt = L - 3;
   const gp = curve.getPointAt(gladeAt / L);
@@ -247,7 +249,7 @@ export async function trail(ctx: Ctx): Promise<OwnedUnicorn> {
   clearInterval(aura);
 
   // Friends!
-  const name = freshName(sv.unicorns.map((u) => u.name), Math.random);
+  const name = newcomer.name;
   sfx.fanfare();
   sfx.neigh();
   void wild.rear();

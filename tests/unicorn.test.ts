@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { feedUnlocked, FREE_ACTIVITIES, freshName, lessonNext, lessonShare, letterPool, makeProblem, MAX_LESSON_SHARE, newMath, newPace, noteMoment, pickLetter, pickLetters, recordLetter, recordMath, STREAK_TO_LEVEL_UP, type LetterStat } from '../src/unicorn/learn';
+import { feedUnlocked, FREE_ACTIVITIES, lessonNext, lessonShare, letterPool, makeProblem, MAX_LESSON_SHARE, newMath, newPace, noteMoment, pickLetter, pickLetters, recordLetter, recordMath, STREAK_TO_LEVEL_UP, type LetterStat } from '../src/unicorn/learn';
 import { ALL_LETTER_WORDS, LETTER_WORDS, LETTERS, lettersIn, numbersIn, soundsAlike } from '../src/unicorn/letters';
 
 function seeded(seed: number): () => number {
@@ -115,8 +115,17 @@ describe('math', () => {
 });
 
 describe('names', () => {
-  it('gives each unicorn its own name', () => {
-    expect(freshName(['Sparkle'], seeded(2))).not.toBe('Sparkle');
+  it('never repeats a name, even past the first hundred', async () => {
+    const { unicornName } = await import('../src/unicorn/learn');
+    const names = Array.from({ length: 1000 }, (_, i) => unicornName(i));
+    expect(new Set(names).size).toBe(1000);
+    expect(unicornName(0)).toBe('Sparkle');
+  });
+
+  it('the nth unicorn is always the same one', async () => {
+    const { unicornFor } = await import('../src/unicorn/herd');
+    expect(unicornFor(26)).toEqual(unicornFor(26));
+    expect(unicornFor(26).look).not.toEqual(unicornFor(27).look);
   });
 });
 
@@ -184,19 +193,44 @@ describe('teaching new letters', () => {
 });
 
 describe('setting her ranch', () => {
-  it('sets unicorns, ribbons and hearts, keeping the unicorns she has', async () => {
+  it('sets unicorns, ribbons and hearts, the same unicorns every time', async () => {
     const { restoreRanch } = await import('../src/unicorn/restore');
     const { resetSave, save } = await import('../src/unicorn/state');
     resetSave();
     const sv = save();
     sv.unicorns.push({ name: 'Daisy', look: { body: 1, mane: 0, horn: 0 }, hearts: 2 });
-    restoreRanch(sv, { unicorns: 26, ribbons: 3, hearts: 18 }, seeded(5));
+    restoreRanch(sv, { unicorns: 26, ribbons: 3, hearts: 18 });
     expect(sv.unicorns).toHaveLength(26);
-    expect(sv.unicorns[0].name).toBe('Daisy');
+    expect(sv.unicorns[0].name).toBe('Sparkle');
     expect(new Set(sv.unicorns.map((u) => u.name)).size).toBe(26);
     expect(sv.unicorns.reduce((a, u) => a + u.hearts, 0)).toBe(18);
     expect(sv.ribbons.reduce((a, b) => a + b, 0)).toBe(3);
     expect(sv.pace.played).toBeGreaterThanOrEqual(26);
     expect(sv.feedShown).toBe(true);
+  });
+});
+
+describe('keeping devices in step', () => {
+  it('two devices set to the same numbers have the same unicorns', async () => {
+    const { restoreRanch } = await import('../src/unicorn/restore');
+    const { resetSave, save } = await import('../src/unicorn/state');
+    resetSave();
+    restoreRanch(save(), { unicorns: 26, ribbons: 3, hearts: 18 });
+    const ipad = JSON.stringify(save().unicorns);
+    resetSave();
+    save().unicorns.push({ name: 'Daisy', look: { body: 0, mane: 0, horn: 0 }, hearts: 0 });
+    restoreRanch(save(), { unicorns: 26, ribbons: 3, hearts: 18 });
+    expect(JSON.stringify(save().unicorns)).toBe(ipad);
+  });
+
+  it('old saves with random names switch to the fixed order, keeping hearts', async () => {
+    const { canonicalHerd } = await import('../src/unicorn/herd');
+    const old = [
+      { name: 'Comet', look: { body: 3, mane: 1, horn: 2 }, hearts: 5 },
+      { name: 'Daisy', look: { body: 1, mane: 0, horn: 0 }, hearts: 0 },
+    ];
+    const herd = canonicalHerd(old);
+    expect(herd.map((u) => u.name)).toEqual(['Sparkle', 'Moonbeam']);
+    expect(herd[0].hearts).toBe(5);
   });
 });

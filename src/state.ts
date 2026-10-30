@@ -1,7 +1,7 @@
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
 /** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot), RHINO (the tank) and TRIDENT (the submarine). */
-export type BotId = 'bolt' | 'jet' | 'titan' | 'tank' | 'sub';
+export type BotId = 'bolt' | 'jet' | 'titan' | 'tank' | 'sub' | 'stealth';
 
 /** One robot's upgrades and armor plates. */
 export interface BotData {
@@ -331,10 +331,24 @@ export const BOTS: Record<BotId, BotSpec> = {
       boots: { title: 'Jet Fins', skill: 'Adding & subtracting', perks: ['Plain flippers', 'Jet fins: dashes past some shots', 'Twin jet fins: dashes past more', 'Turbo fins: dashes past lots of shots'] },
     },
   },
+  // PHANTOM, the stealth robot, for Volcano Island. Its armor (cloak cells) is where fractions come in.
+  stealth: {
+    name: 'PHANTOM', color: 0x7a3cff, nameColor: '#c9a6ff', joinsAt: 'vol-drop',
+    damage: [3, 4, 6, 8], cooldown: [0.2, 0.18, 0.15, 0.1], dodge: [0, 0.12, 0.22, 0.32], vehicle: 'HOVERBIKE',
+    tab: { icon: '👻', fill: 0x5a2bbf, edge: 0xd6c2ff, card: 0x7a3cff },
+    gear: {
+      armor: { title: 'Cloak Cells', skill: 'Fractions', perks: ['No cloak cells', 'Cloak cell armor', 'Steel-framed cells', 'Gold-trimmed cells + spikes'] },
+      blaster: {
+        title: 'Pulse Blaster', skill: 'Measuring',
+        perks: ['Dart gun, damage 3', 'Pulse blaster, damage 4', 'Twin pulses + seeker darts, damage 6', 'Plasma scythe beam, damage 8'],
+      },
+      boots: { title: 'Cloak Emitter', skill: 'Adding & subtracting', perks: ['No cloak', 'Cloak: shots pass through some of the time', 'Strong cloak: more shots pass through', 'Ghost cloak: lots of shots pass through'] },
+    },
+  },
 };
 
 /** Robots in the order they join. */
-export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank', 'sub'];
+export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank', 'sub', 'stealth'];
 
 /** STRIKER's paint. */
 export const JET_COLOR = BOTS.jet.color;
@@ -440,6 +454,7 @@ const GADGET_NAMES: Record<BotId, Record<GadgetId, string>> = {
   titan: { mega: 'Mega Jackhammer', shield: 'Steel Fortress', drones: 'Drone Crew', hyper: 'Rocket Treads' },
   tank: { mega: 'Mega Railgun', shield: 'Energy Armor', drones: 'Drone Wingmen', hyper: 'Hyper Boosters' },
   sub: { mega: 'Mega Torpedo', shield: 'Bubble Shield', drones: 'Robo Dolphins', hyper: 'Turbo Props' },
+  stealth: { mega: 'Mega Pulse Cannon', shield: 'Ghost Shield', drones: 'Shadow Drones', hyper: 'Warp Boosters' },
 };
 
 /** A gadget as a robot calls it. BOLT, TITAN and RHINO dash aside where the jet does rainbow rolls. */
@@ -451,10 +466,19 @@ export function gadgetInfo(bot: BotId, g: GadgetId): (typeof GADGETS)[GadgetId] 
 
 /** The Super Lab opens for STRIKER after the first Amazon mission, and for every robot once the Arctic is done. */
 export function superLabUnlocked(bot: BotId = 'jet', s: SaveData = save()): boolean {
+  if (!botUnlocked(bot, s)) return false;
+  // Every bench at Mark III: there's always something more to build.
+  if (fullyUpgraded(bot, s)) return true;
   if (bot === 'jet') return s.levelsDone.includes('amz-landing');
-  // TRIDENT joins after the Counterattack: its lab opens when it does.
-  if (bot === 'sub') return botUnlocked('sub', s);
-  return s.levelsDone.includes('arc-core') && botUnlocked(bot, s);
+  // TRIDENT and PHANTOM join after the Counterattack: their labs open when they do.
+  if (bot === 'sub' || bot === 'stealth') return true;
+  return s.levelsDone.includes('arc-core');
+}
+
+/** Armor, blaster and boots all at Mark III. */
+export function fullyUpgraded(bot: BotId, s: SaveData = save()): boolean {
+  const g = botData(bot, s).gear;
+  return (Object.keys(g) as GearId[]).every((k) => g[k] >= 3);
 }
 
 /** The gadget fitted on a robot for its next mission, if any. */

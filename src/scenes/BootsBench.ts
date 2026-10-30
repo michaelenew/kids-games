@@ -85,7 +85,9 @@ export class BootsBench extends BenchScene {
       this.say(this.index === 0
         ? (this.jet
           ? `Afterburners need fuel pumped to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`
-          : activeBot() === 'sub'
+          : activeBot() === 'stealth'
+            ? `PHANTOM's cloak emitter needs energy charged to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`
+            : activeBot() === 'sub'
             ? `TRIDENT's jet fins need fuel pumped to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`
             : activeBot() === 'tank'
             ? `RHINO's rocket boosters need fuel pumped to exactly ${p.target}. Pick two energy cells that add up to ${p.target}, then press PUMP!`
@@ -224,7 +226,7 @@ export class BootsBench extends BenchScene {
   }
 
   private get thing() {
-    return this.jet ? 'afterburner' : activeBot() === 'titan' ? 'hydraulic tread' : activeBot() === 'tank' ? 'rocket booster' : activeBot() === 'sub' ? 'jet fin' : 'spring';
+    return this.jet ? 'afterburner' : activeBot() === 'titan' ? 'hydraulic tread' : activeBot() === 'tank' ? 'rocket booster' : activeBot() === 'sub' ? 'jet fin' : activeBot() === 'stealth' ? 'cloak emitter' : 'spring';
   }
 
   private drawSpring(fill: number) {

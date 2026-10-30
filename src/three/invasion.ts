@@ -19,6 +19,7 @@ import { Tank } from './tank';
 import { Titan } from './titan';
 import { ARCTIC_FOG, arcticSky, buildArctic } from './arctic';
 import { OCEAN_FOG, buildOcean, oceanSky } from './ocean';
+import { VOLCANO_FOG, buildVolcano, volcanoSky } from './volcano';
 import { CANYON_FOG, buildCanyon, canyonSky } from './canyon';
 import { BOTS } from '../state';
 
@@ -132,7 +133,7 @@ export interface InvasionEvents {
   combining?(): void;
   combined?(): void;
   /** The jet rolled past a shot, or TITAN swatted one away. */
-  dodged?(how: 'roll' | 'swat' | 'dash'): void;
+  dodged?(how: 'roll' | 'swat' | 'dash' | 'cloak'): void;
 }
 
 export interface InvasionOptions {
@@ -216,10 +217,11 @@ export class Invasion {
     const canyon = mission.env === 'canyon';
     const arctic = mission.env === 'arctic';
     const ocean = mission.env === 'ocean';
+    const volcano = mission.env === 'volcano';
     const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas };
     this.city = desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
       : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
-        : ocean ? buildOcean(this.curve, where) : buildCity(this.curve, where);
+        : ocean ? buildOcean(this.curve, where) : volcano ? buildVolcano(this.curve, where) : buildCity(this.curve, where);
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
@@ -252,7 +254,12 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    if (ocean) {
+    if (volcano) {
+      // Smoky orange light from the lava and a hazy red sky.
+      stage.activate(volcanoSky(), new THREE.Fog(VOLCANO_FOG, 70, 560));
+      stage.key.color.setHex(0xffb38a);
+      stage.key.intensity = 2.4;
+    } else if (ocean) {
       // Murky blue water: things fade out sooner than on land.
       stage.activate(oceanSky(), new THREE.Fog(OCEAN_FOG, 40, 300));
       stage.key.color.setHex(0xbff6ff);
@@ -1129,7 +1136,7 @@ export class Invasion {
           }
           b.dodged = true;
           sfx.whoosh();
-          this.events.dodged?.('dash');
+          this.events.dodged?.(bot.dodgeStyle);
         }
       }
       if (b.dodged && b.obj.position.distanceTo(cam) < 3) {

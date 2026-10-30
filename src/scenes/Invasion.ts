@@ -147,7 +147,9 @@ export class InvasionScene extends Phaser.Scene {
         this.banner(`${botName(ender)}!`, BOTS[ender].nameColor);
       },
       dodged: (how) => {
-        const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, how === 'swat' ? 'SWAT!' : 'DODGE!', 40, how === 'swat' ? '#ffb347' : '#ffd60a').setStroke('#000000', 6).setDepth(25);
+        const word = how === 'swat' ? 'SWAT!' : how === 'cloak' ? 'CLOAKED!' : 'DODGE!';
+        const color = how === 'swat' ? '#ffb347' : how === 'cloak' ? '#c9a6ff' : '#ffd60a';
+        const t = text(this, W / 2 + Phaser.Math.Between(-120, 120), 380, word, 40, color).setStroke('#000000', 6).setDepth(25);
         this.tweens.add({ targets: t, y: 320, alpha: 0, duration: 800, onComplete: () => t.destroy() });
       },
     });
@@ -599,8 +601,22 @@ export class InvasionScene extends Phaser.Scene {
       } else if (this.mission.id === 'sea-deep' && firstWin) {
         dialog(this, [
           { who: 'volt', text: 'The Kraken Walker is scrap! The aliens are gone, from the city to the bottom of the sea!' },
-          { who: 'volt', text: 'BOLT, STRIKER, TITAN, RHINO and TRIDENT... the best team on the planet.' },
+          { who: 'volt', text: 'Wait... one ship escaped the ocean. It\'s flying to a VOLCANO ISLAND, and it\'s hiding in the smoke!' },
+          { who: 'sprocket', text: 'Hiding, huh? Then we need a robot that can hide better. I\'ve been building something sneaky...' },
         ], after);
+      } else if (this.mission.id === 'vol-drop' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'PHANTOM! Our stealth robot made it onto the island!' },
+          { who: 'sprocket', text: 'PHANTOM does the volcano missions. When its cloak is on, alien shots go right THROUGH it.' },
+          { who: 'sprocket', text: 'Its armor is cloak cells: power bars cut into equal parts. Let\'s go charge its first cells!' },
+        ], after);
+      } else if (this.mission.id === 'vol-core' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Magma Walker sank into the lava! Their volcano forge is finished!' },
+          { who: 'volt', text: 'BOLT, STRIKER, TITAN, RHINO, TRIDENT and PHANTOM... the best team on the planet.' },
+        ], after);
+      } else if (next.key === 'CellForge' && (next.data as { mode: string }).mode === 'repair') {
+        dialog(this, [{ who: 'sprocket', text: 'PHANTOM\'s cloak cells got drained. Let\'s charge them back up, part by part!' }], after);
       } else if (next.key === 'HullForge' || (next.key === 'WallForge' && this.bot === 'sub')) {
         dialog(this, [{ who: 'sprocket', text: 'TRIDENT lost some hull tiles. Let\'s put the rows back, before it springs a leak!' }], after);
       } else if (next.key === 'WallForge') {

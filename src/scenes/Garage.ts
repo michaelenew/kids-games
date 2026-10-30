@@ -7,7 +7,7 @@ import {
   startPreview, takeFreshAlert,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
-import { BASE_PIECES, basePieces, piecesNeeded } from '../skills/area';
+import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
@@ -204,6 +204,15 @@ export class GarageScene extends Phaser.Scene {
         fill: 0xc1121f, edge: 0xffb3b3, size: 28,
       });
       this.tweens.add({ targets: rb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+    }
+
+    // The Moon base: a piece is ready to build (one after each Moon mission won).
+    const piece = nextPiece(s);
+    if (piece !== undefined && !fixFor) {
+      const bb = button(this, 300, 175, 420, 70, `🌕 BUILD THE ${BASE_PIECES[piece].name.toUpperCase()}!`, () => this.scene.start('BaseBuilder', {}), {
+        fill: 0x3a5a8c, edge: 0xcfe8ff, size: 24,
+      });
+      this.tweens.add({ targets: bb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
     }
 
     // Engineering Zone.

@@ -164,17 +164,45 @@ export function recordMath(p: MathProgress, firstTry: boolean): boolean {
 
 // ---- Names -----------------------------------------------------------------
 
+/**
+ * Unicorn names, in the order she meets them: her 1st unicorn is always
+ * Sparkle, her 2nd Moonbeam, and so on. Fixed order (not random) so that the
+ * same number of unicorns means the same unicorns on every device.
+ */
 export const NAMES = [
   'Sparkle', 'Moonbeam', 'Starlight', 'Bubbles', 'Rosie', 'Twinkle', 'Daisy', 'Cupcake', 'Shimmer', 'Sunny',
   'Pebble', 'Glimmer', 'Cookie', 'Blossom', 'Misty', 'Jellybean', 'Clover', 'Snowflake', 'Honey', 'Comet',
   'Marshmallow', 'Rainbow', 'Pixie', 'Lulu', 'Sprinkles', 'Peaches', 'Willow', 'Dewdrop', 'Gumdrop', 'Ziggy',
+  'Buttercup', 'Lollipop', 'Stardust', 'Poppy', 'Bluebell', 'Cinnamon', 'Fizz', 'Gingersnap', 'Halo', 'Iris',
+  'Jasmine', 'Kiwi', 'Lavender', 'Maple', 'Nutmeg', 'Opal', 'Pudding', 'Quilt', 'Ruby', 'Saffron',
+  'Taffy', 'Velvet', 'Waffles', 'Yo-Yo', 'Zinnia', 'Apricot', 'Biscuit', 'Cherry', 'Dazzle', 'Echo',
+  'Fable', 'Glitter', 'Hazel', 'Ivy', 'Juniper', 'Kitty', 'Lemondrop', 'Mango', 'Nova', 'Olive',
+  'Pumpkin', 'Raindrop', 'Sugar', 'Tulip', 'Unity', 'Violet', 'Whisper', 'Snowdrop', 'Zuzu', 'Aurora',
+  'Bonbon', 'Coco', 'Dreamy', 'Ember', 'Feather', 'Goldie', 'Hopscotch', 'Jingle', 'Kaleidoscope', 'Lucky',
+  'Muffin', 'Nimbus', 'Orchid', 'Pippin', 'Rosebud', 'Sundae', 'Tinsel', 'Velvetine', 'Wish', 'Zephyr',
 ];
 
-/** A name none of her unicorns has yet. */
-export function freshName(taken: string[], rand: Rand): string {
-  const free = NAMES.filter((n) => !taken.includes(n));
-  const list = free.length ? free : NAMES;
-  return list[Math.floor(rand() * list.length)];
+const NAME_COLORS = ['Pink', 'Purple', 'Blue', 'Golden', 'Silver', 'Rainbow', 'Starry', 'Sunny', 'Misty', 'Sparkly'];
+
+/** The name of her nth unicorn (0 = the first). Never repeats. */
+export function unicornName(n: number): string {
+  if (n < NAMES.length) return NAMES[n];
+  // After the first hundred: "Pink Sparkle", "Pink Moonbeam", … then "Purple Sparkle", …
+  const k = n - NAMES.length;
+  const color = NAME_COLORS[Math.floor(k / NAMES.length) % NAME_COLORS.length];
+  return `${color} ${NAMES[k % NAMES.length]}`;
+}
+
+/** A repeatable random-number sequence from a number (the same seed, the same numbers). */
+export function seededRand(seed: number): Rand {
+  let s = (seed * 2654435761 + 0x9e3779b9) >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 // ---- Pacing: fun first, learning layered in -------------------------------

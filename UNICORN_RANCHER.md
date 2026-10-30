@@ -11,6 +11,9 @@ The rule from Mecha Forge applies here too: the learning is how things happen in
 - **The ranch** (home). Her unicorns wander a fenced paddock beside a red barn, rolling hills and a rainbow while the camera drifts around. Tapping a unicorn makes it rear up, whinny and say its name. Big buttons: Explore, Race, Style, and later Feed. Race and Style unlock once she has a unicorn; Feed appears (glowing, "Your unicorns are hungry!") once learning has started.
 - **Explore (trails).** The ride moves on its own: on foot the first time, then on her favorite unicorn's back. Trails take turns among Blossom Woods, Candy Hills and Twilight Glade. Shiny bubbles float along the path for her to pop any time. Three glowing crystals block the path; each one is either a letter to say or a crystal to tap (see Pacing). Either way it shatters into shards and sparkles, and a line of flowers blooms along the path. At the end a shy wild unicorn waits in a glade. Three times she either says a letter (it floats up from the unicorn's horn into the middle of the view) or pets the unicorn with a tap, and each time it comes closer. On the last one it rears up, there are rainbow rings and confetti, it gets a name, and it gallops into the ranch.
 - **Race.** Four unicorns gallop around a road in the clouds, past balloons and floating islands. At each of four rainbow gates, time slows to slow motion and a letter (or, for a fun gate, a star to tap) appears inside the arch. Doing it gives a rainbow-trail speed boost, with a whoosh and the camera widening. The finish has fireworks, confetti and a ribbon (1st, 2nd or 3rd).
+- **Aliens.** Night falls and silly aliens in flying saucers float over the ranch. Tap one and her unicorn zaps it with a rainbow laser from its horn; it spins away home. Their goo splats harmlessly on her unicorn's shield. Three waves, then the big mothership: its shield is a letter to say (or a tap), then all her unicorns gallop in and zap it together, tap by tap, until it spins off in fireworks and she gets a space medal. A later wave can bring one alien with a letter shield.
+- **Stars.** Golden stars drift down over a twilight meadow; tap one and it zooms into her unicorn's horn. After a dozen, a star shower, then a shooting star to wish on. A big letter star may stop in the sky to be named.
+- **Dance** (no learning). Her unicorns bounce to a tune on a light-up dance floor with a disco ball and swinging lights. Big buttons: spin, jump, change the lights, fireworks, and done.
 - **Style** (no learning). A unicorn on a little stage; tap colors for its coat, mane and horn, with arrows to switch unicorns. Every change sparkles.
 - **Feed (math).** Apples pop onto a picnic table with her unicorns behind it. She says (or taps) how many there are, the apples fly into the unicorns' mouths, and hearts float up. Three problems per visit.
 
@@ -63,12 +66,15 @@ Press and hold the ⚙ in the top-right corner for a second. The panel has:
 - Answer by talking or tapping (tapping shows three letter buttons).
 - Letters: ABC, abc or both. Math level.
 - Her progress for every letter, and "Start over".
+- **Set her ranch**: type the unicorn, ribbon and heart totals and tap Set. Unicorns come in a fixed order (her 1st is always Sparkle, her 27th Willow, each with the same colors), so setting two devices to the same numbers gives the same unicorns, and the next one she finds is the same new friend on both. There are 100 names, then "Pink Sparkle", "Pink Moonbeam" and so on, so names never repeat. Hearts are shared out among the unicorns; letter and math progress aren't changed. Setting the ranch resets any Style colors.
 
 Also:
 - **A two-finger tap anywhere** counts the current answer as right, for when the recognizer mishears her.
 - On a laptop, **typing** the letter or number works too.
 
 ## Notes for iPad
+
+- Her ranch (unicorns, their colors, letter and math progress, ribbons) is saved in the browser after every change and comes back on the next visit. It's saved per browser, so the iPad and the laptop each keep their own ranch.
 
 - Use the GitHub Pages link (https). Browsers only allow the microphone on secure sites.
 - The first visit downloads the 40 MB model; after that it's instant. Safari may clear site storage for sites that go unused for a few weeks. Adding the game to the Home Screen helps keep it.

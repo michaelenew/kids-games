@@ -1,4 +1,5 @@
 import { type CaseMode, type LetterStat, type MathProgress, newMath, newPace, type Pace } from './learn';
+import { canonicalHerd, HERD_VERSION } from './herd';
 import type { UnicornLook } from './three/unicorn';
 
 /** Her ranch, saved in this browser's local storage. */
@@ -27,6 +28,8 @@ export interface Save {
   feedShown: boolean;
   /** Save format changes already applied. */
   version: number;
+  /** Which unicorn naming scheme the herd uses (see herd.ts). */
+  herdVersion: number;
   /** What the recognizer heard in the grown-ups' voice check, per letter. */
   voiceCheck: Record<string, string>;
 }
@@ -48,6 +51,7 @@ function fresh(): Save {
     pace: newPace(),
     feedShown: false,
     version: VERSION,
+    herdVersion: HERD_VERSION,
     voiceCheck: {},
   };
 }
@@ -59,11 +63,17 @@ export function save(): Save {
     current = fresh();
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) current = { ...current, version: 1, ...JSON.parse(raw) };
+      if (raw) current = { ...current, version: 1, herdVersion: 0, ...JSON.parse(raw) };
       // Saves from before both cases were the default switch over once.
       if (current!.version < 2) {
         current!.caseMode = 'both';
         current!.version = 2;
+      }
+      // Older saves named unicorns at random; give them the fixed-order
+      // names and colors so every device agrees.
+      if (current!.herdVersion < HERD_VERSION) {
+        current!.unicorns = canonicalHerd(current!.unicorns);
+        current!.herdVersion = HERD_VERSION;
       }
     } catch {
       // Private browsing or a broken save: start fresh.

@@ -400,7 +400,7 @@ function makeMats() {
       color: 0xbfeeff, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.3, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide,
     })),
     painted: d(new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.35, roughness: 0.45 })),
-    solar: d(new THREE.MeshStandardMaterial({ map: solarTexture(), color: 0xffffff, metalness: 0.55, roughness: 0.22, emissive: 0x0a2a6a, emissiveIntensity: 0.6 })),
+    solar: d(new THREE.MeshStandardMaterial({ map: solarTexture(), color: 0xffffff, metalness: 0.3, roughness: 0.4, emissive: 0x0a2a6a, emissiveIntensity: 0.6 })),
     core: glow(0x8ffbff, 2.6),
     cockpit: d(new THREE.MeshStandardMaterial({ color: 0x1b3f7a, metalness: 0.6, roughness: 0.1 })),
     cyan: glow(0x4cf0ff, 2.4),
@@ -898,7 +898,7 @@ function solarFarm(parent: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
       const x = x0 + (c + 0.5) * TILE;
       inst(mesh(parent, boxGeo(0.14, 0.75, 0.14), m.dark, x, y0 + 0.37, z - 0.1));
       inst(mesh(parent, boxGeo(1.0, 0.1, 0.12), m.grey, x, y0 + 0.72, z - 0.1, { shadow: false }));
-      inst(mesh(parent, boxGeo(1.72, 0.07, 1.5), m.solar, x, y0 + 0.9, z, { rx: 0.42 }));
+      inst(mesh(parent, boxGeo(1.6, 0.07, 1.4), m.solar, x, y0 + 0.9, z, { rx: 0.42 }));
     }
     // A cable along each row, into the trunk cable down the left side.
     inst(mesh(parent, boxGeo(n * TILE - 0.6, 0.06, 0.09), m.dark, x0 + (n * TILE) / 2, y0 + 0.04, z - 0.75, { shadow: false }));
@@ -947,10 +947,10 @@ function wallRun(parent: THREE.Object3D, m: Mats, a: THREE.Vector3, b: THREE.Vec
 
 /** A square pillar at a corner of the wall, with a red light on top. */
 function wallPillar(parent: THREE.Object3D, m: Mats, p: THREE.Vector3, h: number) {
-  inst(mesh(parent, boxGeo(2.3, h + 1, 2.3), m.panel, p.x, (h + 1) / 2, p.z));
-  inst(mesh(parent, boxGeo(2.42, 0.42, 2.42), m.orange, p.x, h * 0.62, p.z, { shadow: false }));
-  inst(mesh(parent, boxGeo(2.7, 0.3, 2.7), m.grey, p.x, h + 1.15, p.z));
-  inst(mesh(parent, sphereGeo(0.24, 10), m.red, p.x, h + 1.5, p.z, { shadow: false }));
+  inst(mesh(parent, boxGeo(2.0, h + 0.7, 2.0), m.panel, p.x, (h + 0.7) / 2, p.z));
+  inst(mesh(parent, boxGeo(2.12, 0.42, 2.12), m.orange, p.x, h * 0.62, p.z, { shadow: false }));
+  inst(mesh(parent, boxGeo(2.3, 0.26, 2.3), m.grey, p.x, h + 0.83, p.z));
+  inst(mesh(parent, sphereGeo(0.22, 10), m.red, p.x, h + 1.15, p.z, { shadow: false }));
 }
 
 /** A wall along `pts`, segment i being hs[i] tall, with pillars at the corners. */
@@ -967,7 +967,7 @@ function wallLine(parent: THREE.Object3D, m: Mats, pts: THREE.Vector3[], hs: num
 function wallYard(parent: THREE.Object3D, m: Mats): Turret[] {
   lSlab(parent, m, 'yard', 6, 4, [2, 2], 0, 0, 0.2);
   const V = (x: number, z: number) => new THREE.Vector3(x, 0, z);
-  wallLine(parent, m, [V(-3, 5.2), V(-7.2, 5.2), V(-7.2, -5.2), V(7.2, -5.2), V(7.2, 1.2), V(3.2, 1.2), V(3.2, 5.2), V(1.2, 5.2)], [1.4, 4, 4, 4, 2.6, 2.6, 1.4]);
+  wallLine(parent, m, [V(-3, 5.2), V(-7.2, 5.2), V(-7.2, -5.2), V(7.2, -5.2), V(7.2, 1.2), V(3.2, 1.2), V(3.2, 5.2), V(1.2, 5.2)], [1.2, 3.4, 3.4, 3.4, 2.2, 2.2, 1.2]);
   return [tower(parent, m, -8.8, -6.8, 7), tower(parent, m, 8.8, -6.8, 7)];
 }
 
@@ -1001,10 +1001,10 @@ function shieldPylon(parent: THREE.Object3D, m: Mats, anim: Anim, H = 15): Turre
     mesh(pivot, torusGeo(1.65, 0.09, 32), m.cyan, 0, 0, 0, { rx: Math.PI / 2 + tilt, shadow: false });
     anim.spin.push({ o: pivot, speed });
   }
-  const halo = glowSprite(0x6ff4ff, 7, 1.5);
+  const halo = glowSprite(0x6ff4ff, 5, 1.3);
   halo.position.set(0, top + 1.55, 0);
   parent.add(halo);
-  anim.pulse.push({ o: halo, base: 7, speed: 3, phase: 1 });
+  anim.pulse.push({ o: halo, base: 5, speed: 3, phase: 1 });
   return [turret(parent, m, -4.3, 0, 3.4), turret(parent, m, 4.3, 0, 3.4)];
 }
 
@@ -1044,7 +1044,7 @@ function shieldDome(parent: THREE.Object3D, m: Mats, at: THREE.Vector3, R: numbe
         float hex = texture2D(map, vUv * vec2(26.0, 7.0)).r;
         float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 3.0);
         float wave = 1.0 - smoothstep(0.0, 0.06, abs(fract(vUv.y * 1.2 - time * 0.12) - 0.5));
-        float k = 0.012 + rim * 0.22 + hex * (0.05 + rim * 0.25 + wave * 0.18) + wave * 0.025;
+        float k = 0.003 + rim * 0.1 + hex * (0.009 + rim * 0.14 + wave * 0.05) + wave * 0.008;
         // Fade out right at the ground, so it doesn't draw a hard line there.
         k *= smoothstep(0.0, 0.03, vUv.y);
         gl_FragColor = vec4(color * k * strength, 1.0);
@@ -1218,34 +1218,34 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
     // The Moon Siege pieces stand out past the line on both sides, where he can see them,
     // leaving the road and the aliens' way in clear.
     if (pieces >= 5) {
-      const plant = placeAt(new THREE.Group(), 0, 27, -34);
+      const plant = placeAt(new THREE.Group(), 0, 30, -28);
       groupTurrets.push(...powerPlant(plant, m, anim));
-      reserve(27, -37, 14);
+      reserve(30, -32, 14);
     }
     if (pieces >= 6) {
-      const farm = placeAt(new THREE.Group(), 0, 30, 33);
+      const farm = placeAt(new THREE.Group(), 0, 34, 27);
       groupTurrets.push(...solarFarm(farm, m, anim));
-      reserve(30, 33, 10);
+      reserve(34, 27, 10);
     }
     if (pieces >= 7) {
       // The wall: low across the road (so he can see over it), higher beside it, then round
       // an L-shaped yard that holds the power plant. Two turret towers stand on it.
       const W = DEFENSE_LINE - 1.1;
       const P = (s: number, d: number) => roadSpot(0, s, d);
-      wallLine(root, m, [P(W, 27), P(W, 12), P(W, -12), P(W, -26), P(41, -26), P(41, -49), P(26, -49), P(26, -63), P(W, -63), P(W, -26)], [2.4, 1.5, 2.4, 1.4, 4, 4, 4, 4, 2.4]);
-      for (const d of [-60, -45, -30, 0, 30]) reserve(W, d, 8);
-      for (let s = W; s <= 41; s += 7) reserve(s, -26, 3);
-      for (let s = W; s <= 41; s += 7) reserve(s, -49, 3);
-      reserve(26, -56, 6);
+      wallLine(root, m, [P(W, 27), P(W, 12), P(W, -12), P(W, -21.5), P(43, -21.5), P(43, -45), P(28, -45), P(28, -59), P(W, -59), P(W, -21.5)], [2.4, 1.5, 2.4, 0.9, 4, 4, 4, 4, 2.4]);
+      for (const d of [-55, -40, -25, 0, 25]) reserve(W, d, 8);
+      for (let s = W; s <= 43; s += 7) reserve(s, -21.5, 3);
+      for (let s = W; s <= 43; s += 7) reserve(s, -45, 3);
+      reserve(28, -52, 6);
       for (const side of [-1, 1]) {
         const at = P(W, side * 19);
         groupTurrets.push(tower(root, m, at.x, at.z, 8));
       }
     }
     if (pieces >= 8) {
-      const pylon = placeAt(new THREE.Group(), 0, 18, 24);
+      const pylon = placeAt(new THREE.Group(), 0, 19, 25);
       groupTurrets.push(...shieldPylon(pylon, m, anim));
-      reserve(18, 24, 5);
+      reserve(19, 25, 5);
       shields.push(shieldDome(root, m, roadSpot(0, 8, -4), 50));
     }
     root.updateMatrixWorld(true);

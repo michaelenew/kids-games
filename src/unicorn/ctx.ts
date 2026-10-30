@@ -76,7 +76,7 @@ export function stats(ctx: Ctx): void {
   const sv = save();
   const hearts = sv.unicorns.reduce((a, u) => a + u.hearts, 0);
   const ribbons = sv.ribbons.reduce((a, b) => a + b, 0);
-  ctx.ui.setStats(sv.unicorns.length ? `<span>🦄 ${sv.unicorns.length}</span><span>🎀 ${ribbons}</span><span>❤️ ${hearts}</span>` : '');
+  ctx.ui.setStats(sv.unicorns.length ? `<span>🦄 ${sv.unicorns.length}</span><span>🏅 ${ribbons}</span><span>❤️ ${hearts}</span>` : '');
 }
 
 export const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);

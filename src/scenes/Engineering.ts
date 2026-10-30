@@ -134,9 +134,12 @@ export class EngineeringScene extends Phaser.Scene {
   /** Big tabs: the robots, and (once found) the Super Lab. In the lab, the robot tabs pick whose gadgets. */
   private botMenu(bot: BotId) {
     const lab = labBots().length > 0;
-    const tabs: { id: BotId | 'lab'; label: string; fill: number; edge: number }[] = [
+    // The Moon base's builder gets a tab once he has landed there.
+    const base = save().levelsDone.includes('moon-land');
+    const tabs: { id: BotId | 'lab' | 'base'; label: string; fill: number; edge: number }[] = [
       ...botsUnlocked().map((b) => ({ id: b, label: `${TAB(b).icon} ${botName(b)}`, fill: TAB(b).fill, edge: TAB(b).edge })),
       ...(lab ? [{ id: 'lab' as const, label: '⚡ SUPER LAB', fill: 0x7b2cbf, edge: 0xe0aaff }] : []),
+      ...(base ? [{ id: 'base' as const, label: '🌕 MOON BASE', fill: 0x3a4a66, edge: 0xcfe8ff }] : []),
     ];
     // The tabs share the space right of the Garage button.
     const left = 200;
@@ -148,6 +151,10 @@ export class EngineeringScene extends Phaser.Scene {
       const on = t.id === 'lab' ? this.lab : t.id === bot;
       const b = button(this, x, 92, w, 46, t.label, () => {
         if (on) return;
+        if (t.id === 'base') {
+          this.scene.start('BaseBuilder', {});
+          return;
+        }
         if (t.id === 'lab') {
           if (!labBots().includes(bot)) setActiveBot(labBots()[0]);
           this.scene.restart({ lab: true });

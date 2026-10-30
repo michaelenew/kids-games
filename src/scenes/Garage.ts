@@ -7,6 +7,7 @@ import {
   startPreview, takeFreshAlert,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
+import { BASE_PIECES, basePieces, piecesNeeded } from '../skills/area';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
@@ -39,6 +40,8 @@ const SKILL_LABELS: Record<string, string> = {
   multiply: 'TITAN walls: rows of bricks (multiplying)',
   divide: 'TRIDENT hull: sharing tiles into equal rows (dividing)',
   fractions: 'PHANTOM cloak cells: equal parts, naming and placing fractions',
+  area: 'Moon base: area (floor tiles: counting, then rows × columns)',
+  perimeter: 'Moon base: perimeter (fences: adding the sides)',
 };
 
 
@@ -126,6 +129,13 @@ export class GarageScene extends Phaser.Scene {
     // Missions. Damaged or missing armor (on whoever flies it) has to be fixed in the forge first.
     // In a pick-your-robot mission he chooses the robot first.
     const go = (key: string, data: object, missionId: string, gateId = missionId) => {
+      // The Moon base needs its next piece built before they attack again.
+      if (key === 'Invasion' && basePieces(s) < piecesNeeded(missionId) && missionById(missionId).env === 'moon') {
+        const piece = BASE_PIECES[basePieces(s)].name.toLowerCase();
+        dialog(this, [{ who: 'sprocket', text: `They're coming back! Quick, let's build the base's ${piece} first. Its turrets will help!` }],
+          () => this.scene.start('BaseBuilder', { then: missionId }));
+        return;
+      }
       if (key === 'Invasion' && isPick(missionId)) {
         this.scene.start('Pick', { missionId });
         return;
@@ -384,6 +394,7 @@ const AREAS: { env: string; label: string; color: string; fill: number; edge: nu
   { env: 'tour', label: 'COUNTERATTACK', color: '#e0aaff', fill: 0x6a2c91, edge: 0xe0aaff },
   { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
   { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
+  { env: 'moon', label: 'MOON BASE', color: '#cfe8ff', fill: 0x3a4a66, edge: 0xcfe8ff },
 ];
 
 const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';

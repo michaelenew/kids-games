@@ -55,6 +55,8 @@ export interface SaveData {
   titan?: BotData;
   /** Which robot he picked for each pick-your-robot mission. */
   picks?: Record<string, BotId>;
+  /** The Moon base: how many of its pieces he has built (see skills/area.ts). */
+  base?: number;
   /** Which robot he picked as backup for each mission with reinforcements. */
   backups?: Record<string, BotId>;
   /** Gear and plates of the robots that joined later (RHINO the tank, and on). */

@@ -8,6 +8,7 @@ import {
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
+import { nextPiece } from '../skills/area';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
@@ -116,6 +117,7 @@ export class InvasionScene extends Phaser.Scene {
       dodge: dodgeOf(this.bot),
       swapDodge: dodgeOf(ender),
       allyLook: this.mission.steps.some((st) => st.kind === 'reinforce') ? lookFromSave(s, allyFor(this.bot, this.mission.id, s)) : undefined,
+      baseLevel: s.base ?? 0,
     }, {
       hit: (raw, from) => this.onHit(raw, from),
       kill: (k) => this.onKill(k),
@@ -485,6 +487,8 @@ export class InvasionScene extends Phaser.Scene {
     const forge = forgeScene(this.bot);
     if (!built) return { key: forge, data: { mode: 'build', mark: 1 }, label: this.bot === 'titan' ? 'Build walls!' : 'Build armor!' };
     if (repairsNeeded(d.armor ?? {}).length) return { key: forge, data: { mode: 'repair' }, label: 'Repair bay' };
+    // On the Moon, a win means the next piece of the base can go up.
+    if (this.mission.env === 'moon' && nextPiece(s) !== undefined) return { key: 'BaseBuilder', label: 'Build the base!' };
     return { key: 'Garage', label: 'Back to Garage' };
   }
 
@@ -617,8 +621,21 @@ export class InvasionScene extends Phaser.Scene {
       } else if (this.mission.id === 'vol-core' && firstWin) {
         dialog(this, [
           { who: 'volt', text: 'The Magma Walker sank into the lava! Their volcano forge is finished!' },
-          { who: 'volt', text: 'BOLT, STRIKER, TITAN, RHINO, TRIDENT and PHANTOM... the best team on the planet.' },
+          { who: 'volt', text: 'Wait... their very last ship just blasted off. It\'s heading for the MOON!' },
+          { who: 'sprocket', text: 'Then we\'re going to the Moon too. We\'ll need a base up there, and I know who\'s going to build it: YOU!' },
         ], after);
+      } else if (this.mission.id === 'moon-land' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'We\'re on the Moon! But they know we\'re here. They\'ll be back.' },
+          { who: 'sprocket', text: 'Then let\'s build a base, with turrets! First a landing pad: a floor of square tiles.' },
+        ], after);
+      } else if (this.mission.id === 'moon-core' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Lunar Walker is down! Their last outpost is finished!' },
+          { who: 'volt', text: 'And we have a whole Moon base of our own. Next stop: the rest of the solar system!' },
+        ], after);
+      } else if (next.key === 'BaseBuilder') {
+        dialog(this, [{ who: 'sprocket', text: 'They\'ll attack again soon. Let\'s build the next piece of the base!' }], after);
       } else if (next.key === 'CellForge' && (next.data as { mode: string }).mode === 'repair') {
         dialog(this, [{ who: 'sprocket', text: 'PHANTOM\'s cloak cells got drained. Let\'s charge them back up, part by part!' }], after);
       } else if (next.key === 'HullForge' || (next.key === 'WallForge' && this.bot === 'sub')) {

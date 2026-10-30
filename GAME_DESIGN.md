@@ -266,7 +266,7 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 ### What's next (agreed plan)
 
 - **No more review rounds.** Patrol alerts (pick any robot, the pre-launch check takes turns through every concept he has learned) plus super gadgets keep the old ideas coming back.
-- **Moon base (41–45): area and perimeter.** A Base Builder bench: count floor tiles, then rows × columns, then laser fences around the edge (adding the sides), then "inside or around?". The base grows on the Moon mission by mission. Each defense mission starts at WHO'S GOING? (any robot, super gadgets welcome), and the turrets he built shoot alongside him without ever taking damage, so repairs stay one robot's worth.
+- **The Moon base (41–45) is built** (see the table above).
 - **Then across the solar system (46 on):** a planet or moon per set, with space chase sections. Each set he builds a space vehicle for one of his old robots (BOLT a rocket fighter, TITAN a mining lander, RHINO a Mars rover, TRIDENT an ice-moon sub, PHANTOM a stealth shuttle, STRIKER a starfighter upgrade), and that vehicle's bench carries the set's one new concept: measurement (liters and kilograms) first, then comparing and equivalent fractions, then two-step word problems. The asteroid belt (rounding and estimating) comes later.
 
 ### Where each skill lives, by area
@@ -281,6 +281,7 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 | Counterattack (26–30) | Any robot he picks | Nothing new: a review round, with reinforcements | All of the above, on whichever robot he takes; gadgets for every robot |
 | The Deep (31–35) | TRIDENT (submarine) | Dividing: sharing hull tiles equally into rows | Multiplying (missing rows on repairs), every report kind, time, money |
 | Volcano Island (36–40) | PHANTOM (stealth) | Fractions: equal parts, naming fractions, fractions on a number line, one whole | Every report kind, time, money |
+| Moon base (41–45) | Any robot he picks | Area (counting tiles, then rows × columns) and perimeter (adding the sides), then telling them apart | Multiplying, adding; every report kind; patrol alerts review everything |
 
 ---
 

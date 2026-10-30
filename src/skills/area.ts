@@ -1,0 +1,78 @@
+import type { SaveData } from '../state';
+
+/**
+ * Area and perimeter, for the Moon base. The base is built from four pieces,
+ * one after each Moon mission, and each piece is a few floors or fences:
+ *
+ * 1. Landing pad: area by counting. He lays every floor tile, then says how many.
+ * 2. Hangar: area as rows × columns (the multiplying he knows).
+ * 3. Laser fence: perimeter. The fence goes all the way around: add the sides.
+ * 4. Command dome: inside or around? The same kind of rectangle, and each
+ *    job asks for one or the other (floor tiles inside, or fence around).
+ */
+
+export type AreaKind = 'count' | 'rows' | 'fence' | 'mixed';
+
+export interface AreaJob {
+  /** What this job asks for: the floor tiles inside, or the fence around. */
+  ask: 'area' | 'perimeter';
+  /** The way he works it out (how much help the screen gives). */
+  kind: AreaKind;
+  cols: number;
+  rows: number;
+}
+
+export interface BasePiece {
+  name: string;
+  kind: AreaKind;
+  /** The floors (or fences) to build: [cols, rows] each. */
+  sizes: [number, number][];
+}
+
+export const BASE_PIECES: BasePiece[] = [
+  { name: 'Landing pad', kind: 'count', sizes: [[3, 2], [4, 2], [3, 3]] },
+  { name: 'Hangar', kind: 'rows', sizes: [[4, 3], [5, 2], [6, 3]] },
+  { name: 'Laser fence', kind: 'fence', sizes: [[4, 2], [5, 3], [6, 4]] },
+  { name: 'Command dome', kind: 'mixed', sizes: [[5, 3], [4, 4], [6, 2], [5, 4]] },
+];
+
+/** The Moon missions, in order. */
+export const MOON_MISSIONS = ['moon-land', 'moon-crater', 'moon-ridge', 'moon-dark', 'moon-core'];
+
+/** The jobs for one piece of the base. The command dome takes turns: tiles inside, fence around. */
+export function pieceJobs(piece: number, rng: () => number = Math.random): AreaJob[] {
+  const p = BASE_PIECES[piece];
+  const jobs = p.sizes.map(([cols, rows], i): AreaJob => ({
+    kind: p.kind,
+    cols,
+    rows,
+    ask: p.kind === 'fence' ? 'perimeter' : p.kind === 'mixed' ? (i % 2 ? 'perimeter' : 'area') : 'area',
+  }));
+  // A little variety in the sizes, after the first one (which is where each idea is met).
+  return jobs.map((j, i) => (i === 0 ? j : { ...j, cols: Math.max(2, j.cols + Math.floor(rng() * 3) - 1) }));
+}
+
+export function areaOf(j: { cols: number; rows: number }): number {
+  return j.cols * j.rows;
+}
+
+export function perimeterOf(j: { cols: number; rows: number }): number {
+  return 2 * (j.cols + j.rows);
+}
+
+/** Pieces of the base built so far (0 to 4). */
+export function basePieces(s: SaveData): number {
+  return s.base ?? 0;
+}
+
+/** The next piece he can build now: one after each Moon mission beaten (undefined if he's waiting on a mission, or it's all built). */
+export function nextPiece(s: SaveData): number | undefined {
+  const won = MOON_MISSIONS.filter((id) => s.levelsDone.includes(id)).length;
+  const built = basePieces(s);
+  return built < Math.min(won, BASE_PIECES.length) ? built : undefined;
+}
+
+/** How many pieces a Moon mission needs built first (the first one needs none). */
+export function piecesNeeded(missionId: string): number {
+  return Math.max(0, MOON_MISSIONS.indexOf(missionId));
+}

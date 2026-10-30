@@ -166,6 +166,8 @@ export interface CityOptions {
   highway?: boolean;
   /** Distances along the path (fraction 0..1) where buildings leave open plazas. */
   plazas?: [number, number][];
+  /** The Moon: how many pieces of the base he has built so far (0 to 5). */
+  base?: number;
 }
 
 export function buildCity(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {

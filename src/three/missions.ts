@@ -49,7 +49,7 @@ export interface Mission {
   /** Where the boss stands (boss missions). */
   boss?: [number, number, number];
   /** Where it happens (default the city). */
-  env?: 'city' | 'desert' | 'jungle' | 'canyon' | 'arctic' | 'ocean' | 'volcano';
+  env?: 'city' | 'desert' | 'jungle' | 'canyon' | 'arctic' | 'ocean' | 'volcano' | 'moon';
   /** Who flies it (default BOLT). A mission with a swap starts with `swapFrom` and ends with this one. */
   bot?: BotId;
   /** Who starts a hand-over mission (default BOLT). */
@@ -1140,6 +1140,122 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'MAGMA WALKER!' },
     ],
   },
+  // ---- The Moon base: any robot he picks. Area and perimeter (building the base) are the one new thing ----------
+  {
+    id: 'moon-land',
+    dmg: 4.5, hp: 1.2, fire: 0.85, extra: 0.7,
+    env: 'moon',
+    pick: true,
+    title: 'Invasion 41: Moon Landing',
+    blurb: 'Pick a robot and land on the Moon!',
+    seed: 331,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.15, 0.3], [0.42, 0.58], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'We made it to the Moon! Their last outpost is out here somewhere. Watch out, they saw us land!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR')] },
+      { kind: 'wave', banner: 'MOON WALKERS!', spawns: [kr(0, 'roofL'), kr(0.8, 'roofR'), sk(2, 'above'), kr(3, 'ahead')] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1.5, 'behindL'), rd(3, 'behindR'), sk(4.5, 'above'), rd(6, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'CRATER PATROL!', spawns: [kr(0, 'roofL', true), kr(0.6, 'roofR'), sk(1.8, 'above'), kr(3, 'ahead')] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL'), sk(2, 'left')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), kr(0.6, 'roofL'), sk(1.5, 'above', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'moon-crater',
+    dmg: 3.8, hp: 1.3, fire: 0.82, extra: 0.8,
+    env: 'moon',
+    pick: true,
+    title: 'Invasion 42: Defend the Landing Pad',
+    blurb: 'They\'re attacking the base. Pick a robot!',
+    seed: 337,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.15, 0.3], [0.55, 0.7], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Saucers coming in over the landing pad! The turrets will help. Go, go, go!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2.5, 'roofR')] },
+      { kind: 'wave', banner: 'DEFEND THE PAD!', spawns: [sk(0, 'above', true), kr(0.6, 'roofL', true), kr(1.2, 'roofR'), sk(2.2, 'left'), kr(3.2, 'ahead', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(2.2, 'behindR'), sk(3.5, 'above', true), rd(5, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'MOON DUST!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), sk(1.5, 'above', true), kr(2.5, 'ahead'), sk(3.5, 'right', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [sk(1, 'right', true), kr(2.5, 'roofL')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), sk(0.6, 'above', true), kr(1.2, 'roofL', true), sk(2, 'left', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'moon-ridge',
+    dmg: 2.8, hp: 1.4, fire: 0.8, extra: 0.9,
+    env: 'moon',
+    pick: true,
+    title: 'Invasion 43: Hangar Siege',
+    blurb: 'Keep them away from the new hangar!',
+    seed: 347,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.15, 0.3], [0.55, 0.7], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They want our new hangar. Not on your watch!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'HANGAR DOORS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 5, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR'), rd(6, 'behindL')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'RIDGE RAIDERS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true)] },
+      { kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true)] },
+      { kind: 'move', to: 9, speed: 5, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'moon-dark',
+    dmg: 1, hp: 1.5, fire: 0.78, extra: 1.1,
+    env: 'moon',
+    pick: true,
+    title: 'Invasion 44: The Dark Side',
+    blurb: 'Chase them to the dark side of the Moon!',
+    seed: 353,
+    path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
+    plazas: [[0.15, 0.3], [0.42, 0.58], [0.85, 1]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re hiding on the dark side, where the sun never shines. Turrets on, headlights on!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },
+      { kind: 'wave', banner: 'IN THE DARK!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), sk(2, 'above', true), sk(3, 'right'), kr(4, 'ahead', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 22, vehicle: 'car', spawns: [rd(1, 'behindR'), rd(2.2, 'behindL'), sk(3.5, 'above', true), rd(4.5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'wave', banner: 'SHADOW CRATERS!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL', true), kr(0.8, 'roofR'), sk(1.6, 'above', true), sk(2.4, 'left', true), kr(3.5, 'roofR', true), sk(4.5, 'right')] },
+      { kind: 'move', to: 6, speed: 6, vehicle: 'foot', spawns: [kr(1, 'roofL', true), sk(2, 'right', true), kr(3, 'ahead')] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'ahead', true), sk(1.8, 'above', true), sk(2.5, 'left', true), kr(3.5, 'ahead', true)] },
+      { kind: 'move', to: 9, speed: 6, vehicle: 'foot' },
+    ],
+  },
+  {
+    id: 'moon-core',
+    dmg: 2.8, hp: 2.2, fire: 0.74, extra: 1.4,
+    env: 'moon',
+    pick: true,
+    title: 'Invasion 45: The Last Outpost',
+    blurb: 'Their last outpost on the Moon. Boss!',
+    seed: 359,
+    path: [[0, 0, 20], [0, 0, -20], [10, 0, -110], [-10, 0, -200], [8, 0, -290], [0, 0, -360], [0, 0, -410], [0, 0, -450]],
+    plazas: [[0.15, 0.3], [0.8, 1]],
+    boss: [0, -8, -520],
+    bossHp: 3,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their last outpost, and their biggest walker yet. The whole base has your back!' }] },
+      { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR', true), sk(3.5, 'above', true)] },
+      { kind: 'wave', banner: 'OUTPOST GUARDS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(2, 'above', true), sk(3, 'left', true)] },
+      { kind: 'transform', to: 'car' },
+      { kind: 'move', to: 4, speed: 24, vehicle: 'car', spawns: [rd(1, 'behindL'), rd(1.8, 'behindR'), sk(3, 'above', true), rd(4, 'behindL'), rd(5, 'behindR')] },
+      { kind: 'transform', to: 'robot' },
+      { kind: 'move', to: 6, speed: 5, vehicle: 'foot' },
+      { kind: 'boss', banner: 'LUNAR WALKER!' },
+    ],
+  },
 ];
 
 export function missionById(id: string): Mission {
@@ -1149,15 +1265,30 @@ export function missionById(id: string): Mission {
 export const MISSION_IDS = MISSIONS.map((m) => m.id);
 
 /**
- * A past mission for a patrol alert: one flown by an older robot (not the
- * one the current missions use), never a hand-over mission.
+ * A past mission for a patrol alert: back in an older place (not one the
+ * current missions use), never a hand-over mission, and not one already
+ * waiting in the tray.
  */
-export function alertMission(done: string[], rng: () => number = Math.random): string | undefined {
+export function alertMission(done: string[], rng: () => number = Math.random, waiting: string[] = []): string | undefined {
   const next = MISSIONS.find((m) => !done.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
   // In the pick-your-robot missions any robot can go on patrol.
   const current = next.pick ? null : (next.bot ?? 'bolt');
-  const pool = MISSIONS.filter((m) => done.includes(m.id) && !m.pick && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
+  const pool = MISSIONS.filter((m) => done.includes(m.id) && !m.pick && !waiting.includes(m.id)
+    && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
   return pool.length ? pool[Math.floor(rng() * pool.length)].id : undefined;
+}
+
+/**
+ * Who can go on an alert: any robot when the mission is on foot or in
+ * vehicle mode; STRIKER alone when it flies through the sky (Egypt and the
+ * Amazon); BOLT alone on the city missions that ride the dropship.
+ */
+export function alertBots(id: string): BotId[] | 'any' {
+  const m = missionById(id);
+  const moves = m.steps.flatMap((st) => (st.kind === 'move' ? [st.vehicle] : []));
+  if (moves.includes('jet')) return ['jet'];
+  if (moves.includes('ship')) return [m.bot ?? 'bolt'];
+  return 'any';
 }
 
 /** Who flies a mission (by the end of it). */

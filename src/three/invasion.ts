@@ -20,6 +20,7 @@ import { Titan } from './titan';
 import { ARCTIC_FOG, arcticSky, buildArctic } from './arctic';
 import { OCEAN_FOG, buildOcean, oceanSky } from './ocean';
 import { VOLCANO_FOG, buildVolcano, volcanoSky } from './volcano';
+import { MOON_FOG, type Turret, buildMoon, moonSky } from './moon';
 import { CANYON_FOG, buildCanyon, canyonSky } from './canyon';
 import { BOTS } from '../state';
 
@@ -51,6 +52,8 @@ const TITAN_CAM_EXTRA = new THREE.Vector3(-0.4, 0.5, -1.1);
 const MEGA_CAM_EXTRA = new THREE.Vector3(-0.9, 2.1, -3.8);
 /** Where reinforcements fight: on his left, a little ahead, so they're in view. */
 const ALLY_AT = new THREE.Vector3(3, 0, 1.5);
+/** What one shot from a Moon base turret does. */
+const TURRET_DAMAGE = 3;
 /** The jet is drawn a bit bigger in missions so its gear reads from behind. */
 const JET_SCALE = 1.3;
 
@@ -144,6 +147,8 @@ export interface InvasionOptions {
   swapDodge?: number;
   /** Who comes as reinforcements at a reinforce step. */
   allyLook?: RobotLook;
+  /** The Moon: how many pieces of the base he has built (more pieces, more turrets). */
+  baseLevel?: number;
   enemyHp: number;
   fireDelay: number;
   /** Chance the jet rolls past an incoming shot (its afterburners), or TITAN swats it (its treads). */
@@ -218,10 +223,14 @@ export class Invasion {
     const arctic = mission.env === 'arctic';
     const ocean = mission.env === 'ocean';
     const volcano = mission.env === 'volcano';
-    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas };
-    this.city = desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
+    const moon = mission.env === 'moon';
+    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas, base: opts.baseLevel };
+    const moonBase = moon ? buildMoon(this.curve, where) : null;
+    this.city = moonBase ?? (desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
       : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
-        : ocean ? buildOcean(this.curve, where) : volcano ? buildVolcano(this.curve, where) : buildCity(this.curve, where);
+        : ocean ? buildOcean(this.curve, where) : volcano ? buildVolcano(this.curve, where) : buildCity(this.curve, where));
+    // The Moon base's turrets shoot alongside him.
+    this.turrets = (moonBase?.turrets ?? []).map((t) => ({ ...t, cooldown: Math.random() }));
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
@@ -254,7 +263,13 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    if (volcano) {
+    if (moon) {
+      // Harsh, bright sunlight with no air: black sky, crisp shadows. The dark side is lit only by starlight and lamps.
+      const darkSide = mission.id === 'moon-dark';
+      stage.activate(moonSky(), new THREE.Fog(MOON_FOG, darkSide ? 110 : 180, darkSide ? 620 : 880));
+      stage.key.color.setHex(darkSide ? 0xc8d0f0 : 0xfafbff);
+      stage.key.intensity = darkSide ? 1.7 : 2.9;
+    } else if (volcano) {
       // Smoky orange light from the lava and a hazy red sky.
       stage.activate(volcanoSky(), new THREE.Fog(VOLCANO_FOG, 70, 560));
       stage.key.color.setHex(0xffb38a);
@@ -500,6 +515,37 @@ export class Invasion {
       this.fx.tracer(from, at, BOLT_COLOR[mark], 0.05 + mark * 0.02);
       this.damageBoss(i >= 0 ? 'pod' : 'core', i, dmg, at);
     } else a.cooldown = 0.3;
+  }
+
+  // ---- The Moon base's turrets --------------------------------------------------
+
+  /** Turrets he built at the base: when he's close by, each one picks the nearest alien and shoots it. They never get hit. */
+  private turrets: (Turret & { cooldown: number })[] = [];
+
+  private updateTurrets(dt: number) {
+    for (const t of this.turrets) {
+      t.cooldown -= dt;
+      if (t.cooldown > 0) continue;
+      const from = model3dWorld(t.root);
+      if (from.distanceTo(this.rig.position) > 90) {
+        t.cooldown = 0.5;
+        continue;
+      }
+      const near = this.enemies
+        .map((e) => ({ e, at: this.enemyCenter(e) }))
+        .filter((x) => x.at.distanceTo(from) < 65 && !this.project(x.at).behind)
+        .sort((p, q) => p.at.distanceTo(from) - q.at.distanceTo(from))[0];
+      if (!near) {
+        t.cooldown = 0.3;
+        continue;
+      }
+      t.cooldown = 0.7 + Math.random() * 0.4;
+      t.head.lookAt(near.at);
+      const muzzle = model3dWorld(t.muzzle);
+      this.fx.tracer(muzzle, near.at, 0x4cf0ff, 0.07);
+      this.fx.flash(muzzle, 0x9fefff, 1.2, 0.08);
+      this.damageEnemy(near.e, TURRET_DAMAGE, near.at);
+    }
   }
 
   // ---- TITAN + RHINO: the mega bot ---------------------------------------------
@@ -1394,6 +1440,7 @@ export class Invasion {
     this.updateShooting(dt);
     this.updateDrones(dt);
     this.updateAlly(dt);
+    this.updateTurrets(dt);
     this.city.update(dt);
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {

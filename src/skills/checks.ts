@@ -37,8 +37,10 @@ export const PRACTICE: Record<'bolt' | 'later', PracticeKind[]> = {
  * A practice check for `name`'s robot. The armor gauge and the clock are
  * typed on a keypad (no buttons to guess from); the barrel is read off a ruler.
  */
-export function practiceCheck(rng: Rng, bot: 'bolt' | 'later', n: number, name = bot === 'bolt' ? 'BOLT' : 'STRIKER'): PracticeCheck {
-  const kind = PRACTICE[bot][n % PRACTICE[bot].length];
+export function practiceCheck(
+  rng: Rng, bot: 'bolt' | 'later', n: number, name = bot === 'bolt' ? 'BOLT' : 'STRIKER', only?: PracticeKind,
+): PracticeCheck {
+  const kind = only ?? PRACTICE[bot][n % PRACTICE[bot].length];
   switch (kind) {
     case 'cells': {
       const a = randInt(rng, 4, 9);

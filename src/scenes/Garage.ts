@@ -3,12 +3,13 @@ import { COLORS, FONT } from '../art';
 import { LEVELS } from '../levels';
 import {
   BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName,
-  botsUnlocked, endPreview, gearInfo, alerts, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
-  startPreview,
+  botsUnlocked, endPreview, gearInfo, alertQueue, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
+  startPreview, takeFreshAlert,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
-import { MISSIONS, alertMission, isPick, missionById, startBot } from '../three/missions';
-import { launchMission, needsFirstArmor, needsRepairs, readyThenGo } from './launch';
+import { BASE_PIECES, basePieces, piecesNeeded } from '../skills/area';
+import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
+import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
 import { onMissionCleared } from '../assist';
 import { Showcase } from '../three/showcase';
@@ -39,6 +40,8 @@ const SKILL_LABELS: Record<string, string> = {
   multiply: 'TITAN walls: rows of bricks (multiplying)',
   divide: 'TRIDENT hull: sharing tiles into equal rows (dividing)',
   fractions: 'PHANTOM cloak cells: equal parts, naming and placing fractions',
+  area: 'Moon base: area (floor tiles: counting, then rows × columns)',
+  perimeter: 'Moon base: perimeter (fences: adding the sides)',
 };
 
 
@@ -126,6 +129,13 @@ export class GarageScene extends Phaser.Scene {
     // Missions. Damaged or missing armor (on whoever flies it) has to be fixed in the forge first.
     // In a pick-your-robot mission he chooses the robot first.
     const go = (key: string, data: object, missionId: string, gateId = missionId) => {
+      // The Moon base needs its next piece built before they attack again.
+      if (key === 'Invasion' && basePieces(s) < piecesNeeded(missionId) && missionById(missionId).env === 'moon') {
+        const piece = BASE_PIECES[basePieces(s)].name.toLowerCase();
+        dialog(this, [{ who: 'sprocket', text: `They're coming back! Quick, let's build the base's ${piece} first. Its turrets will help!` }],
+          () => this.scene.start('BaseBuilder', { then: missionId }));
+        return;
+      }
       if (key === 'Invasion' && isPick(missionId)) {
         this.scene.start('Pick', { missionId });
         return;
@@ -134,17 +144,6 @@ export class GarageScene extends Phaser.Scene {
     };
     text(this, 880, 44, 'MISSIONS', 36);
     // Two columns: the area he's in now, and the one before it.
-    const AREAS: { env: string; label: string; color: string; fill: number; edge: number }[] = [
-      { env: 'city', label: 'CITY', color: '#9ad1ff', fill: 0x7b2cbf, edge: 0xd0a7ff },
-      { env: 'desert', label: 'EGYPT', color: '#ffc98a', fill: 0xb5651d, edge: 0xffc98a },
-      { env: 'jungle', label: 'AMAZON', color: '#8ef0a0', fill: 0x2d8a4e, edge: 0x9ff0b8 },
-      { env: 'canyon', label: 'GRAND CANYON', color: '#ffb38a', fill: 0xb5482a, edge: 0xffb38a },
-      { env: 'arctic', label: 'ARCTIC', color: '#bfe6ff', fill: 0x2f6f9f, edge: 0xbfe6ff },
-      { env: 'tour', label: 'COUNTERATTACK', color: '#e0aaff', fill: 0x6a2c91, edge: 0xe0aaff },
-      { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
-      { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
-    ];
-    const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';
     const nextMission = MISSIONS.find((m) => !s.levelsDone.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
     const cur = Math.max(0, AREAS.findIndex((a) => a.env === envOf(nextMission)));
     const shown = cur === 0 ? [0, 1] : [cur - 1, cur];
@@ -171,19 +170,17 @@ export class GarageScene extends Phaser.Scene {
         if (unlocked && !done) b.add(this.add.text(0, 14, locked ? lockText : m.blurb, { fontFamily: FONT, fontSize: '12px', color: '#f1e6ff', wordWrap: { width: 264 } }).setOrigin(0.5));
       });
     });
-    // A patrol alert: an older robot goes back to a past map.
-    const al = alerts(s);
-    if (al.count > 0 && !al.mission) {
-      al.mission = alertMission(s.levelsDone);
-      persist();
-    }
-    if (al.count > 0 && al.mission) {
-      const am = missionById(al.mission);
-      const who: BotId = am.bot ?? 'bolt';
-      const ab = button(this, 880, 566, 560, 46, `🚨 ALERT: aliens back at ${am.title.replace(/^Invasion \d+: /, '')}! Send ${botName(who, s)}`, () =>
-        this.scene.start('PreLaunch', { missionId: am.id, bot: who }), { fill: 0xc1121f, edge: 0xffb3b3, size: 19 });
-      this.tweens.add({ targets: ab, scale: 1.03, duration: 450, yoyo: true, repeat: -1 });
-    }
+    // Patrol alerts waiting: one button each, side by side (up to three).
+    const queue = alertQueue(s);
+    const aw = queue.length > 1 ? (560 - 8 * (queue.length - 1)) / queue.length : 560;
+    queue.forEach((id, i) => {
+      const am = missionById(id);
+      const label = queue.length === 1 ? `🚨 ALERT: aliens are back at ${shortTitle(am.title)}!` : `🚨 ${placeOf(am)}`;
+      const ab = button(this, 600 + aw / 2 + i * (aw + 8), 566, aw, 46, label, () => startAlert(this, id), {
+        fill: 0xc1121f, edge: 0xffb3b3, size: queue.length === 1 ? 19 : 17,
+      });
+      this.tweens.add({ targets: ab, scale: 1.03, duration: 450 + i * 60, yoyo: true, repeat: -1 });
+    });
     // The side-scrolling patrols open up after the first invasion.
     text(this, 880, 462, 'PATROLS', 22, '#9ad1ff');
     LEVELS.forEach((lvl, i) => {
@@ -226,6 +223,10 @@ export class GarageScene extends Phaser.Scene {
       this.tweens.add({ targets: badge, scale: 1.08, duration: 500, yoyo: true, repeat: -1 });
     }
 
+    // A new alert pops up once, when he comes back to the garage.
+    const fresh = hasSeen('garage-intro') ? takeFreshAlert(s) : undefined;
+    if (fresh) this.alertPopup(fresh);
+
     if (s.levelsDone.length > 0 && !hasSeen('garage-intro')) {
       dialog(this, [
         { who: 'sprocket', text: `Welcome home, ${s.name}! This is our garage.` },
@@ -234,6 +235,25 @@ export class GarageScene extends Phaser.Scene {
         { who: 'sprocket', text: 'Oh! And I fixed your transformation gears. You can turn into a car now! Try the TRANSFORM button.' },
       ], () => markSeen('garage-intro'));
     }
+  }
+
+  /** The new alert, big: where it is, and GO or LATER (it waits in the tray). */
+  private alertPopup(id: string) {
+    const m = missionById(id);
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const close = () => items.forEach((o) => o.destroy());
+    items.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55).setInteractive().setDepth(50));
+    items.push(panel(this, W / 2, H / 2, 680, 380, 0x2a0d14, 0xff6b6b).setDepth(51));
+    const head = text(this, W / 2, H / 2 - 130, '🚨 ALERT! 🚨', 56, '#ff6b6b').setStroke('#000000', 8).setDepth(52);
+    this.tweens.add({ targets: head, scale: 1.08, duration: 420, yoyo: true, repeat: -1 });
+    items.push(head);
+    items.push(text(this, W / 2, H / 2 - 50, `Aliens are back at ${shortTitle(m.title)}!`, 32, '#ffffff', { wordWrap: { width: 620 } }).setDepth(52));
+    items.push(text(this, W / 2, H / 2 + 10, placeOf(m), 24, '#ffb3b3').setDepth(52));
+    items.push(text(this, W / 2, H / 2 + 56, 'Send a robot (super gadgets work!) and win scrap.', 22, '#c9d6ff').setDepth(52));
+    items.push(button(this, W / 2 - 130, H / 2 + 130, 220, 76, 'GO! 🚀', () => startAlert(this, id), {
+      fill: 0xc1121f, edge: 0xffb3b3, size: 32,
+    }).setDepth(52));
+    items.push(button(this, W / 2 + 130, H / 2 + 130, 220, 76, 'Later', close, { fill: 0x3d4458, size: 28 }).setDepth(52));
   }
 
   private settings() {
@@ -364,3 +384,27 @@ export class GarageScene extends Phaser.Scene {
   }
 }
 
+/** The areas, in order: the mission list shows the current one and the one before. */
+const AREAS: { env: string; label: string; color: string; fill: number; edge: number }[] = [
+  { env: 'city', label: 'CITY', color: '#9ad1ff', fill: 0x7b2cbf, edge: 0xd0a7ff },
+  { env: 'desert', label: 'EGYPT', color: '#ffc98a', fill: 0xb5651d, edge: 0xffc98a },
+  { env: 'jungle', label: 'AMAZON', color: '#8ef0a0', fill: 0x2d8a4e, edge: 0x9ff0b8 },
+  { env: 'canyon', label: 'GRAND CANYON', color: '#ffb38a', fill: 0xb5482a, edge: 0xffb38a },
+  { env: 'arctic', label: 'ARCTIC', color: '#bfe6ff', fill: 0x2f6f9f, edge: 0xbfe6ff },
+  { env: 'tour', label: 'COUNTERATTACK', color: '#e0aaff', fill: 0x6a2c91, edge: 0xe0aaff },
+  { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
+  { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
+  { env: 'moon', label: 'MOON BASE', color: '#cfe8ff', fill: 0x3a4a66, edge: 0xcfe8ff },
+];
+
+const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';
+
+/** The area a mission is in, as the mission list names it. */
+function placeOf(m: (typeof MISSIONS)[number]): string {
+  return AREAS.find((a) => a.env === envOf(m))?.label ?? 'CITY';
+}
+
+/** A mission's name without its number ("Invasion 12: The Canopy" is "The Canopy"). */
+function shortTitle(title: string): string {
+  return title.replace(/^Invasion \d+: /, '');
+}

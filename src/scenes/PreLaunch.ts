@@ -3,7 +3,7 @@ import { lookFromSave } from '../armor';
 import { music, sfx } from '../audio';
 import { practiceCheck, type PracticeCheck } from '../skills/checks';
 import { RAMP, rampProblem } from '../skills/steps';
-import { BOTS, type BotId, alerts, botName, bumpGuide, guideCount, persist, recordSkill, save, setActiveBot, titanUnlocked } from '../state';
+import { BOTS, type BotId, type Review, botName, bumpGuide, guideCount, nextCheckTurn, recordSkill, reviewKinds, save, setActiveBot } from '../state';
 import { missionById } from '../three/missions';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
@@ -13,13 +13,14 @@ import { numpad } from '../ui/numpad';
 import { button, panel, sparks, text, toast } from '../ui/widgets';
 
 /**
- * A patrol alert's pre-launch check. The old robot has been in storage, so
- * Sprocket runs down a checklist: most of it is already fine, and one item
- * is his to check. Every other alert it's practice from that robot's own
- * benches; the rest, it's the math the current missions are about (fuel to
- * top up, worked out by counting up; in the canyon, crates to load, worked
- * out by multiplying). Then: launch.
+ * A patrol alert's pre-launch check. Sprocket runs down a checklist: most of
+ * it is already fine, and one item is his to check. Each alert reviews the
+ * next of the concepts he has learned, taking turns (see reviewKinds), so
+ * old ideas keep coming back: place value, counting up, multiplying, time,
+ * dividing, fractions, adding. Then: launch.
  */
+
+
 
 export interface PreLaunchData {
   missionId: string;
@@ -59,26 +60,31 @@ export class PreLaunchScene extends Phaser.Scene {
     text(this, RIGHT_X, 46, 'PRE-LAUNCH CHECK', 34, '#ffd166');
     this.layer = this.add.container(0, 0);
 
-    const a = alerts(s);
-    const focus = a.next === 'focus';
-    // In the canyon the focus is multiplying (once he has built a couple of walls).
-    const crates = focus && titanUnlocked(s) && guideCount('wall') >= 2;
-    const item = crates ? 'Supply crates' : focus ? 'Fuel' : '';
-    const check = focus ? null : practiceCheck(Math.random, bot === 'bolt' ? 'bolt' : 'later', guideCount('prelaunch'), botName(bot, s));
-    const lines = ['✓ Radio', '✓ Engines warm', `☐ ${check?.item ?? item}`];
+    const kinds = reviewKinds(s);
+    const kind = kinds[nextCheckTurn(s) % kinds.length];
+    const typed = kind === 'gauge' || kind === 'clock' || kind === 'cells';
+    const check = typed ? practiceCheck(Math.random, bot === 'bolt' ? 'bolt' : 'later', guideCount('prelaunch'), botName(bot, s), kind) : null;
+    const ITEMS: Record<Review, string> = {
+      gauge: '', clock: '', cells: '', fuel: 'Fuel', crates: 'Supply crates', share: 'Cargo sleds', cell: bot === 'stealth' ? 'Cloak cell' : 'Spare power cell',
+    };
+    const item = check?.item ?? ITEMS[kind];
+    const lines = ['✓ Radio', '✓ Engines warm', `☐ ${item}`];
     this.add.text(RIGHT_X - 330, 80, lines.slice(0, 2).join('     '), { fontFamily: 'Arial', fontSize: '22px', color: '#06d6a0' });
     this.checkText = this.add.text(RIGHT_X + 50, 80, lines[2], { fontFamily: 'Arial', fontSize: '22px', fontStyle: 'bold', color: '#ffd166' });
 
-    const done = (firstTry: boolean) => {
-      recordSkill(crates ? 'multiply' : focus ? 'countup' : `check-${check!.kind}`, firstTry);
-      bumpGuide('prelaunch');
-      a.next = focus ? 'practice' : 'focus';
-      persist();
-      this.ready(check?.item ?? item);
+    const SKILL: Record<Review, string> = {
+      gauge: 'check-gauge', clock: 'check-clock', cells: 'check-cells', fuel: 'countup', crates: 'multiply', share: 'divide', cell: 'fractions',
     };
-    if (crates) this.crateCheck(bot, done);
-    else if (focus) this.fuelCheck(bot, done);
-    else this.practice(check!, done);
+    const done = (firstTry: boolean) => {
+      recordSkill(SKILL[kind], firstTry);
+      bumpGuide('prelaunch');
+      this.ready(item);
+    };
+    if (check) this.practice(check, done);
+    else if (kind === 'crates') this.crateCheck(bot, done);
+    else if (kind === 'share') this.shareCheck(bot, done);
+    else if (kind === 'cell') this.fractionCheck(bot, done);
+    else this.fuelCheck(bot, done);
   }
 
   /** Current focus: top up the fuel, by counting up (sized by where his count-up practice is). */
@@ -142,6 +148,116 @@ export class PreLaunchScene extends Phaser.Scene {
       // Second miss: count the rows out loud beside them.
       for (let r = 0; r < rows; r++) this.layer.add(text(this, x0 + cols * size + 26, yBase - (r + 0.5) * size, `${(r + 1) * cols}`, 22, '#ffd166'));
     }, 2);
+  }
+
+  /** Dividing: crates shared equally onto sleds (like TRIDENT's hull tiles). */
+  private shareCheck(bot: BotId, done: (firstTry: boolean) => void) {
+    const easy = guideCount('share') < 6;
+    const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+    const sleds = pick(easy ? [2, 5] : [2, 3, 4, 5]);
+    const each = 2 + Math.floor(Math.random() * (easy ? 3 : 5));
+    const n = sleds * each;
+    const ask = needsIntro('divide') ? `${n} shared into ${sleds}` : `${n} ÷ ${sleds}`;
+    text(this, RIGHT_X, 140, `${n} supply crates go onto ${sleds} sleds for ${botName(bot)}, the SAME number on each. How many on each sled?`, 22, '#ffffff', { wordWrap: { width: 700 } });
+    const g = this.add.graphics();
+    this.layer.add(g);
+    const x0 = RIGHT_X - 350;
+    // The pile.
+    const pile = (left: number) => {
+      g.clear();
+      for (let i = 0; i < left; i++) {
+        const x = x0 + (i % 12) * 26;
+        const y = 270 + Math.floor(i / 12) * 26;
+        g.fillStyle(0xc98a3a, 1).fillRect(x, y, 22, 22);
+        g.lineStyle(2, 0x6b3f14, 1).strokeRect(x, y, 22, 22);
+      }
+      for (let r = 0; r < sleds; r++) g.lineStyle(3, 0x8d99ae, 1).strokeRoundedRect(x0, 380 + r * 46, 320, 38, 8);
+    };
+    pile(n);
+    this.layer.add(text(this, x0 + 160, 238, `${ask} = ?`, 34, '#ffd166'));
+    let misses = 0;
+    const pad = numpad(this, RIGHT_X + 230, 300, (v) => {
+      if (v === each) {
+        pad.destroy();
+        sfx.success();
+        this.layer.add(text(this, x0 + 160, 238, `${ask} = ${each}`, 34, '#06d6a0').setStroke('#16213e', 12));
+        this.time.delayedCall(700, () => done(misses === 0));
+        return;
+      }
+      misses++;
+      sfx.buzz();
+      pad.display.setColor('#ef476f');
+      this.time.delayedCall(500, () => pad.clear());
+      if (misses === 1) {
+        toast(this, RIGHT_X - 140, 650, `Deal one crate to each of the ${sleds} sleds, again and again!`, '#ff9f9f', 22);
+        return;
+      }
+      // Second miss: deal them all out, so he can count one sled.
+      pile(0);
+      for (let r = 0; r < sleds; r++) {
+        for (let c = 0; c < each; c++) {
+          g.fillStyle(0xc98a3a, 1).fillRect(x0 + 6 + c * 26, 386 + r * 46, 22, 22);
+          g.lineStyle(2, 0x6b3f14, 1).strokeRect(x0 + 6 + c * 26, 386 + r * 46, 22, 22);
+        }
+      }
+      toast(this, RIGHT_X - 140, 650, 'Now count the crates on ONE sled!', '#ff9f9f', 22);
+    }, 2);
+  }
+
+  /** Fractions: a power cell cut into equal parts, some lit (like PHANTOM's cloak cells). */
+  private fractionCheck(bot: BotId, done: (firstTry: boolean) => void) {
+    const easy = guideCount('cell-name') < 4;
+    const parts = [2, 3, 4, 6, 8].slice(0, easy ? 3 : 5);
+    const bottom = parts[Math.floor(Math.random() * parts.length)];
+    const top = 1 + Math.floor(Math.random() * (bottom - 1));
+    const what = bot === 'stealth' ? 'cloak cell' : 'spare power cell';
+    text(this, RIGHT_X, 140, `${botName(bot)}'s ${what} is cut into EQUAL parts. What fraction of it is charged?`, 22, '#ffffff', { wordWrap: { width: 700 } });
+    const g = this.add.graphics();
+    this.layer.add(g);
+    const x0 = RIGHT_X - 360;
+    const x1 = RIGHT_X - 60;
+    const w = (x1 - x0 - 4 * (bottom - 1)) / bottom;
+    g.lineStyle(4, 0xd6c2ff, 1).strokeRoundedRect(x0 - 6, 254, x1 - x0 + 12, 92, 10);
+    for (let i = 0; i < bottom; i++) {
+      g.fillStyle(i < top ? 0xc77dff : 0x1c1630, 1).fillRect(x0 + i * (w + 4), 260, w, 80);
+    }
+    const nums = Array.from({ length: bottom }, (_, i) => text(this, x0 + i * (w + 4) + w / 2, 300, String(i + 1), 22, '#ffffff').setStroke('#000000', 4).setVisible(false));
+    nums.forEach((t) => this.layer.add(t));
+    const fx = RIGHT_X - 210;
+    const fracTop = text(this, fx, 430, '?', 48, '#ffd166');
+    const fracBottom = text(this, fx, 520, '?', 48, '#ffd166');
+    g.lineStyle(5, 0xffffff, 1).lineBetween(fx - 40, 475, fx + 40, 475);
+    this.layer.add([fracTop, fracBottom]);
+    const ask = this.add.text(RIGHT_X - 360, 600, 'Bottom number first: how many equal parts in all?', { fontFamily: 'Arial', fontSize: '20px', color: '#9ad1ff', wordWrap: { width: 380 } });
+    this.layer.add(ask);
+    let stage: 'bottom' | 'top' = 'bottom';
+    let misses = 0;
+    const pad = numpad(this, RIGHT_X + 230, 300, (v) => {
+      const want = stage === 'bottom' ? bottom : top;
+      if (v === want) {
+        sfx.success();
+        pad.clear();
+        if (stage === 'bottom') {
+          stage = 'top';
+          fracBottom.setText(String(bottom));
+          ask.setText('Now the top number: how many parts are lit?');
+          return;
+        }
+        pad.destroy();
+        fracTop.setText(String(top)).setColor('#06d6a0');
+        fracBottom.setColor('#06d6a0');
+        ask.setText(`${top}/${bottom} of the cell is charged!`).setColor('#06d6a0');
+        this.time.delayedCall(900, () => done(misses === 0));
+        return;
+      }
+      misses++;
+      sfx.buzz();
+      pad.display.setColor('#ef476f');
+      this.time.delayedCall(500, () => pad.clear());
+      // A miss numbers the parts (all of them for the bottom, just the lit ones for the top).
+      nums.forEach((t, i) => t.setVisible(stage === 'bottom' || i < top));
+      toast(this, RIGHT_X - 140, 660, stage === 'bottom' ? 'Count every part, lit or dark!' : 'Count just the glowing parts!', '#ff9f9f', 22);
+    }, 1);
   }
 
   private practice(c: PracticeCheck, done: (firstTry: boolean) => void) {
@@ -253,7 +369,7 @@ export class PreLaunchScene extends Phaser.Scene {
       void cover;
       text(this, RIGHT_X, 300, 'ALL SYSTEMS GO!', 48, '#06d6a0').setDepth(901);
       const b = button(this, RIGHT_X, 450, 360, 100, 'LAUNCH! 🚀', () =>
-        this.scene.start('Invasion', { missionId: this.job.missionId, alert: true }), { fill: 0xf77f00, edge: 0xffd166, size: 40 });
+        this.scene.start('Invasion', { missionId: this.job.missionId, alert: true, bot: this.job.bot }), { fill: 0xf77f00, edge: 0xffd166, size: 40 });
       b.setDepth(902);
       this.tweens.add({ targets: b, scale: 1.06, duration: 500, yoyo: true, repeat: -1 });
     });

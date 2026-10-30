@@ -14,6 +14,7 @@ import { WallForge } from './scenes/WallForge';
 import { PickScene } from './scenes/Pick';
 import { HullForge } from './scenes/HullForge';
 import { CellForge } from './scenes/CellForge';
+import { BaseBuilder } from './scenes/BaseBuilder';
 import { ControlScene } from './scenes/Control';
 import { RecapScene } from './scenes/Recap';
 import { TraderScene } from './scenes/Trader';
@@ -43,7 +44,7 @@ const game = new Phaser.Game({
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 1500 }, debug: false },
   },
-  scene: [BootScene, TitleScene, GarageScene, LevelScene, EngineeringScene, ArmorBench, BlasterBench, BootsBench, InstallScene, InvasionScene, ArmorForge, ControlScene, RecapScene, TraderScene, PreLaunchScene, WallForge, PickScene, HullForge, CellForge],
+  scene: [BootScene, TitleScene, GarageScene, LevelScene, EngineeringScene, ArmorBench, BlasterBench, BootsBench, InstallScene, InvasionScene, ArmorForge, ControlScene, RecapScene, TraderScene, PreLaunchScene, WallForge, PickScene, HullForge, CellForge, BaseBuilder],
 });
 
 // Draw the 3D layer once per game step, after the game logic has run.

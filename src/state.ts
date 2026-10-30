@@ -55,6 +55,8 @@ export interface SaveData {
   titan?: BotData;
   /** Which robot he picked for each pick-your-robot mission. */
   picks?: Record<string, BotId>;
+  /** The Moon base: how many of its pieces he has built (see skills/area.ts). */
+  base?: number;
   /** Which robot he picked as backup for each mission with reinforcements. */
   backups?: Record<string, BotId>;
   /** Gear and plates of the robots that joined later (RHINO the tank, and on). */
@@ -62,11 +64,13 @@ export interface SaveData {
   /** Which robot the Engineering Zone, benches and forge are working on. */
   bot?: BotId;
   /**
-   * Patrol alerts: a past map replayed with an older robot. One is earned
-   * per new mission beaten (two can wait at most). `next` is which kind of
-   * pre-launch check comes up: practice from earlier, or the current focus.
+   * Patrol alerts: a past mission replayed for fun, scrap and a quick review.
+   * One is earned per new mission beaten; up to MAX_ALERTS wait in the tray.
+   * `fresh` is the newest one (it pops up in the garage once). `turn` picks
+   * which old concept the next pre-launch check reviews.
+   * (Older saves kept a count and one mission; they're moved into the queue.)
    */
-  alerts?: { count: number; next: 'practice' | 'focus'; mission?: string };
+  alerts?: { queue?: string[]; fresh?: string; turn?: number; count?: number; next?: string; mission?: string };
   /** Old saves: STRIKER's gadget (now in `gadgets`). */
   gadget?: GadgetId;
   /** A super gadget built for each robot's next mission (it breaks at the end of it). */
@@ -494,16 +498,73 @@ export function setGadget(bot: BotId, g: GadgetId | undefined, s: SaveData = sav
 
 // ---- Patrol alerts ----------------------------------------------------------------
 
-export function alerts(s: SaveData = save()): { count: number; next: 'practice' | 'focus'; mission?: string } {
-  return (s.alerts ??= { count: 0, next: 'practice' });
+/** How many alerts can wait in the garage tray. */
+export const MAX_ALERTS = 3;
+
+/** The alerts waiting, oldest first (mission ids). */
+export function alertQueue(s: SaveData = save()): string[] {
+  const a = (s.alerts ??= {});
+  if (!a.queue) {
+    a.queue = a.count && a.mission ? [a.mission] : [];
+    delete a.count;
+    delete a.mission;
+    delete a.next;
+  }
+  return a.queue;
 }
 
-/** A new mission was beaten: if there's an older robot to send, an alert comes up. */
-export function earnAlert(s: SaveData = save()): void {
-  if (!jetUnlocked(s)) return;
-  const a = alerts(s);
-  a.count = Math.min(2, a.count + 1);
+/** A new mission was beaten: an alert for `mission` comes up (once the jet has joined, while there's room). */
+export function queueAlert(mission: string | undefined, s: SaveData = save()): void {
+  const q = alertQueue(s);
+  if (!mission || !jetUnlocked(s) || q.length >= MAX_ALERTS || q.includes(mission)) return;
+  q.push(mission);
+  s.alerts!.fresh = mission;
   persist();
+}
+
+/** The newest alert, if it hasn't popped up yet (and stops it popping up again). */
+export function takeFreshAlert(s: SaveData = save()): string | undefined {
+  const a = (s.alerts ??= {});
+  const f = a.fresh;
+  if (f) {
+    delete a.fresh;
+    persist();
+  }
+  return f && alertQueue(s).includes(f) ? f : undefined;
+}
+
+/** An alert was cleared. */
+export function clearAlert(mission: string, s: SaveData = save()): void {
+  const q = alertQueue(s);
+  const i = q.indexOf(mission);
+  if (i >= 0) q.splice(i, 1);
+  persist();
+}
+
+/** What a pre-launch check can review. */
+export type Review = 'gauge' | 'fuel' | 'crates' | 'clock' | 'share' | 'cell' | 'cells';
+
+/** The concepts he has met so far, in the order they take turns. */
+export function reviewKinds(s: SaveData = save()): Review[] {
+  const met: Record<Review, boolean> = {
+    gauge: true,
+    fuel: true,
+    crates: titanUnlocked(s) && (s.guide?.wall ?? 0) >= 2,
+    clock: s.levelsDone.includes('egy-drop'),
+    share: (s.guide?.share ?? 0) >= 2,
+    cell: (s.guide?.['cell-light'] ?? 0) >= 2,
+    cells: true,
+  };
+  return (Object.keys(met) as Review[]).filter((k) => met[k]);
+}
+
+/** Whose turn it is among the review checks (counts up each time). */
+export function nextCheckTurn(s: SaveData = save()): number {
+  const a = (s.alerts ??= {});
+  const t = a.turn ?? 0;
+  a.turn = t + 1;
+  persist();
+  return t;
 }
 
 /** Count an upgrade for a robot. */

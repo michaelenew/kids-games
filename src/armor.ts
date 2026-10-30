@@ -58,8 +58,19 @@ export const SUB_REGION_NAMES: Record<Region, string> = {
   legR: 'Right leg hull',
 };
 
+/** PHANTOM's armor is cloak cells: power bars cut into equal parts. */
+export const STEALTH_REGION_NAMES: Record<Region, string> = {
+  chest: 'Chest cloak cell',
+  armL: 'Left arm cloak cell',
+  armR: 'Right arm cloak cell',
+  legL: 'Left leg cloak cell',
+  legR: 'Right leg cloak cell',
+};
+
 export function regionName(r: Region, bot: BotId): string {
-  const names = { bolt: REGION_NAMES, jet: JET_REGION_NAMES, titan: TITAN_REGION_NAMES, tank: TANK_REGION_NAMES, sub: SUB_REGION_NAMES };
+  const names = {
+    bolt: REGION_NAMES, jet: JET_REGION_NAMES, titan: TITAN_REGION_NAMES, tank: TANK_REGION_NAMES, sub: SUB_REGION_NAMES, stealth: STEALTH_REGION_NAMES,
+  };
   return names[bot][r];
 }
 
@@ -70,6 +81,8 @@ export interface Plate {
   /** TITAN's brick walls: rows of bricks, each brick worth BRICK points. */
   rows?: number;
   cols?: number;
+  /** PHANTOM's cloak cells: how many equal parts the cell is cut into. */
+  parts?: number;
 }
 
 /** Armor points per brick in TITAN's walls. */
@@ -276,8 +289,8 @@ export function wallTarget(rng: Rng, mark: 1 | 2 | 3, region: Region, index: num
 }
 
 /** Where a robot's armor is built and fixed: TITAN's brick walls have their own yard. */
-export function forgeScene(bot: BotId): 'ArmorForge' | 'WallForge' | 'HullForge' {
-  return bot === 'titan' ? 'WallForge' : bot === 'sub' ? 'HullForge' : 'ArmorForge';
+export function forgeScene(bot: BotId): 'ArmorForge' | 'WallForge' | 'HullForge' | 'CellForge' {
+  return bot === 'titan' ? 'WallForge' : bot === 'sub' ? 'HullForge' : bot === 'stealth' ? 'CellForge' : 'ArmorForge';
 }
 
 /**

@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { RobotLook } from '../art';
 import { Jet } from './jet';
+import { Phantom } from './phantom';
 import { Sub } from './sub';
 import { Tank } from './tank';
 import { Titan } from './titan';
@@ -38,7 +39,7 @@ export interface Mech {
   readonly isVehicle: boolean;
   readonly vehicleAmount: number;
   /** How its upgraded boots get it out of a shot's way (the jet rolls, on its own terms). */
-  readonly dodgeStyle?: 'swat' | 'dash';
+  readonly dodgeStyle?: 'swat' | 'dash' | 'cloak';
   /** Start that dodge. */
   evade?(): void;
   readonly evading?: boolean;
@@ -52,5 +53,6 @@ export function makeMech(look: RobotLook): Mech {
   if (look.kind === 'titan') return new Titan(look);
   if (look.kind === 'tank') return new Tank(look);
   if (look.kind === 'sub') return new Sub(look);
+  if (look.kind === 'stealth') return new Phantom(look);
   return new Robot(look);
 }

@@ -38,6 +38,7 @@ const SKILL_LABELS: Record<string, string> = {
   written: 'Repairs (Amazon on): written subtraction with borrowing',
   multiply: 'TITAN walls: rows of bricks (multiplying)',
   divide: 'TRIDENT hull: sharing tiles into equal rows (dividing)',
+  fractions: 'PHANTOM cloak cells: equal parts, naming and placing fractions',
 };
 
 
@@ -141,6 +142,7 @@ export class GarageScene extends Phaser.Scene {
       { env: 'arctic', label: 'ARCTIC', color: '#bfe6ff', fill: 0x2f6f9f, edge: 0xbfe6ff },
       { env: 'tour', label: 'COUNTERATTACK', color: '#e0aaff', fill: 0x6a2c91, edge: 0xe0aaff },
       { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
+      { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
     ];
     const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';
     const nextMission = MISSIONS.find((m) => !s.levelsDone.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];

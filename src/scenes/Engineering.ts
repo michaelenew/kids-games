@@ -32,6 +32,11 @@ const STORY: Record<BotId, Record<GearId, string>> = {
     blaster: 'Cut new torpedo tubes for bigger shots.',
     boots: 'Fuel the jet fins to dash past shots.',
   },
+  stealth: {
+    armor: 'Charge cloak cells: equal parts, lit just right.',
+    blaster: 'Cut new pulse barrels for bigger shots.',
+    boots: 'Charge the cloak emitter so shots pass through.',
+  },
   tank: {
     armor: 'Forge heavy tank plates so hits hurt less.',
     blaster: 'Cut new cannon barrels for bigger shots.',
@@ -98,6 +103,11 @@ export class EngineeringScene extends Phaser.Scene {
         { who: 'sprocket', text: 'This is my favorite place! Each bench builds one kind of upgrade.' },
         { who: 'sprocket', text: 'Building takes scrap, and a little brain power. Pick whatever you like!' },
       ], () => markSeen('engineering-intro'));
+    } else if (bot === 'stealth' && !hasSeen('engineering-stealth')) {
+      dialog(this, [
+        { who: 'sprocket', text: 'PHANTOM\'s benches! Cloak cells, a pulse blaster and a cloak emitter.' },
+        { who: 'sprocket', text: 'Cloak cells are new: you cut power bars into EQUAL parts and light some up. That\'s FRACTIONS!' },
+      ], () => markSeen('engineering-stealth'));
     } else if (bot === 'sub' && !hasSeen('engineering-sub')) {
       dialog(this, [
         { who: 'sprocket', text: 'TRIDENT\'s benches! Hull tiles, torpedoes and jet fins.' },
@@ -148,6 +158,9 @@ export class EngineeringScene extends Phaser.Scene {
         this.scene.restart({ lab: this.lab && labBots().includes(t.id) });
       }, { fill: on ? t.fill : 0x2b2f3a, edge: on ? t.edge : 0x5c677d, size: 22 });
       if (!on) b.label.setColor('#9aa3b5');
+      // With lots of robots the tabs get narrow: keep each label on one line, shrunk to fit.
+      b.label.setWordWrapWidth(null);
+      if (b.label.width > w - 14) b.label.setScale((w - 14) / b.label.width);
     });
   }
 

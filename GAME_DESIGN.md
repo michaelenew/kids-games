@@ -260,7 +260,7 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 - **TITAN** (built): an orange construction robot that transforms into a bulldozer. Drops in for STRIKER in the first Grand Canyon mission and does the canyon. Its armor is brick walls built in rows, which is where multiplying lives; its repairs are missing rows of bricks.
 - **RHINO** (built): an army-green camo tank robot that transforms into a tank. Drops in for TITAN in the first Arctic mission. Review only: its armor uses the regular forge.
 - **TRIDENT** (built): a sea-teal submarine robot with a glass dome helmet. Drops in for RHINO in the first ocean mission. Its armor is hull tiles shared into equal rows, which is where dividing lives.
-- **Planned**: a robot with invisibility powers.
+- **PHANTOM** (built): a violet stealth robot that cloaks (shots pass through it) and rides a hoverbike. Drops in for TRIDENT in the first volcano mission. Its armor is cloak cells, power bars cut into equal parts, which is where fractions live.
 
 ### Where each skill lives, by area
 
@@ -273,6 +273,7 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 | Arctic (21–25) | RHINO (tank) | Nothing new: a review round | Place value and written subtraction (RHINO's armor), multiplying (supply drops), every report kind, time, money |
 | Counterattack (26–30) | Any robot he picks | Nothing new: a review round, with reinforcements | All of the above, on whichever robot he takes; gadgets for every robot |
 | The Deep (31–35) | TRIDENT (submarine) | Dividing: sharing hull tiles equally into rows | Multiplying (missing rows on repairs), every report kind, time, money |
+| Volcano Island (36–40) | PHANTOM (stealth) | Fractions: equal parts, naming fractions, fractions on a number line, one whole | Every report kind, time, money |
 
 ---
 

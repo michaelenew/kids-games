@@ -182,3 +182,21 @@ describe('teaching new letters', () => {
     expect(needsIntro({ B: { box: 2, seen: 2, right: 2 } }, 'B')).toBe(false);
   });
 });
+
+describe('setting her ranch', () => {
+  it('sets unicorns, ribbons and hearts, keeping the unicorns she has', async () => {
+    const { restoreRanch } = await import('../src/unicorn/restore');
+    const { resetSave, save } = await import('../src/unicorn/state');
+    resetSave();
+    const sv = save();
+    sv.unicorns.push({ name: 'Daisy', look: { body: 1, mane: 0, horn: 0 }, hearts: 2 });
+    restoreRanch(sv, { unicorns: 26, ribbons: 3, hearts: 18 }, seeded(5));
+    expect(sv.unicorns).toHaveLength(26);
+    expect(sv.unicorns[0].name).toBe('Daisy');
+    expect(new Set(sv.unicorns.map((u) => u.name)).size).toBe(26);
+    expect(sv.unicorns.reduce((a, u) => a + u.hearts, 0)).toBe(18);
+    expect(sv.ribbons.reduce((a, b) => a + b, 0)).toBe(3);
+    expect(sv.pace.played).toBeGreaterThanOrEqual(26);
+    expect(sv.feedShown).toBe(true);
+  });
+});

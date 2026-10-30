@@ -124,4 +124,48 @@ export const sfx = {
   hoof(): void {
     tone(180, 0, 0.05, 'square', 0.05, 90);
   },
+  /** A sparkly laser "pew" from a unicorn horn. */
+  zap(): void {
+    tone(1800, 0, 0.18, 'sawtooth', 0.07, 300);
+    tone(2600, 0.02, 0.12, 'sine', 0.06, 900);
+  },
+  /** A silly alien "bloop" as it zooms away. */
+  bloop(): void {
+    tone(300, 0, 0.25, 'sine', 0.2, 900);
+    tone(900, 0.12, 0.2, 'triangle', 0.12, 1500);
+  },
+  boing(): void {
+    tone(220, 0, 0.3, 'triangle', 0.18, 520);
+  },
+  /** A big happy boom (no scary explosion). */
+  kaboom(): void {
+    noise(0, 0.8, 0.4, 200, 60);
+    [0, 4, 7, 12].forEach((n, i) => tone(C[Math.min(8, n % 9)] / (i < 2 ? 2 : 1), 0.1 + i * 0.08, 0.5, 'triangle', 0.15));
+  },
 };
+
+let musicTimer = 0;
+
+/** A bouncy dance tune that loops until stopMusic(). */
+export function startMusic(): void {
+  stopMusic();
+  const bass = [0, 0, 5, 5, 3, 3, 4, 4];
+  const lead = [7, 9, 7, 4, 5, 7, 4, 2, 7, 9, 12, 9, 7, 5, 4, 2];
+  let step = 0;
+  const beat = 0.2;
+  const play = () => {
+    const i = step++;
+    if (i % 2 === 0) tone(C[bass[(i / 2) % bass.length] % 9] / 4, 0, beat * 1.8, 'triangle', 0.18);
+    if (i % 4 === 0) noise(0, 0.08, 0.25, 120, 60);
+    if (i % 4 === 2) noise(0, 0.06, 0.12, 5000, 8000);
+    const n = lead[i % lead.length];
+    tone(C[n % 9] * (n >= 9 ? 2 : 1), 0, beat * 0.9, 'square', 0.04);
+  };
+  play();
+  musicTimer = window.setInterval(play, beat * 1000);
+}
+
+export function stopMusic(): void {
+  clearInterval(musicTimer);
+  musicTimer = 0;
+}

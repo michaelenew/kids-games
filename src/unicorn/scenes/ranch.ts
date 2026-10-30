@@ -7,7 +7,7 @@ import { type OwnedUnicorn, persist, save } from '../state';
 import { Unicorn } from '../three/unicorn';
 import { barn, cloud, fence, flowers, ground, hills, rainbow, trees } from '../three/world';
 
-export type Activity = 'trail' | 'race' | 'style' | 'feed';
+export type Activity = 'trail' | 'race' | 'aliens' | 'stars' | 'dance' | 'style' | 'feed';
 
 const PADDOCK = 13;
 
@@ -153,6 +153,9 @@ export function ranch(ctx: Ctx, opts: { arrival?: OwnedUnicorn; backdrop?: boole
     ui.showMenu([
       { icon: '🌳', label: 'Explore', glow: none, onTap: () => pick('trail') },
       { icon: '🏁', label: 'Race', locked: none, onTap: () => (none ? needOne() : pick('race')) },
+      { icon: '🛸', label: 'Aliens', locked: none, onTap: () => (none ? needOne() : pick('aliens')) },
+      { icon: '⭐', label: 'Stars', locked: none, onTap: () => (none ? needOne() : pick('stars')) },
+      { icon: '💃', label: 'Dance', locked: none, onTap: () => (none ? needOne() : pick('dance')) },
       { icon: '🎀', label: 'Style', locked: none, onTap: () => (none ? needOne() : pick('style')) },
       ...(feed ? [{ icon: '🍎', label: 'Feed', glow: feedIsNew, onTap: () => pick('feed') }] : []),
     ]);
@@ -169,7 +172,7 @@ export function ranch(ctx: Ctx, opts: { arrival?: OwnedUnicorn; backdrop?: boole
     } else if (feedIsNew) {
       void say('Your unicorns are hungry! Tap the apple to feed them!');
     } else if (Math.random() < 0.5) {
-      void say(['What should we do now?', 'Your unicorns missed you!', 'Explore, race, or play dress up?'][Math.floor(Math.random() * 3)]);
+      void say(['What should we do now?', 'Your unicorns missed you!', 'Uh oh, aliens? Or a dance party?'][Math.floor(Math.random() * 3)]);
     }
   });
 }

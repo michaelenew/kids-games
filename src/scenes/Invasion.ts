@@ -649,7 +649,14 @@ export class InvasionScene extends Phaser.Scene {
       } else if (this.mission.id === 'moon-core' && firstWin) {
         dialog(this, [
           { who: 'volt', text: 'The Lunar Walker is down! Their last outpost is finished!' },
-          { who: 'volt', text: 'And we have a whole Moon base of our own. Next stop: the rest of the solar system!' },
+          { who: 'volt', text: 'Wait... my radar is full of dots. Something BIG is coming around the Moon.' },
+          { who: 'sprocket', text: 'Then let\'s make the base bigger, fast. Next up: a power plant!' },
+        ], after);
+      } else if (this.mission.id === 'siege-final' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'Their giant walker is DOWN, and the whole fleet is flying away! The base held!' },
+          { who: 'volt', text: 'A power plant, a solar farm, a wall and a force field... you built a real Moon fortress.' },
+          { who: 'sprocket', text: 'And now that the Moon is safe... the whole solar system is out there. Who wants to build a spaceship?' },
         ], after);
       } else if (next.key === 'BaseBuilder') {
         dialog(this, [{ who: 'sprocket', text: 'They\'ll attack again soon. Let\'s build the next piece of the base!' }], after);

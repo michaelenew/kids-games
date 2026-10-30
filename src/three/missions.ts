@@ -63,7 +63,7 @@ export interface Mission {
   /** He picks which of his robots plays it (the Counterattack missions). */
   pick?: boolean;
   /** Which column it sits in on the Garage (default: where it happens). */
-  area?: 'tour';
+  area?: 'tour' | 'siege';
   /** Skip mission control before it (the jet's story mission opens straight into the action). */
   noControl?: boolean;
   /** Boss health multiplier (default 1). */
@@ -1251,6 +1251,110 @@ export const MISSIONS: Mission[] = [
       { kind: 'wave', banner: 'HOLD THE LINE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead'), kr(1.8, 'ahead'), sk(2.5, 'left', true), sk(3, 'right', true), kr(3.6, 'ahead', true)] },
       { kind: 'say', lines: [{ who: 'volt', text: 'HERE IT COMES! Knock out its pods before it wrecks the base!' }] },
       { kind: 'boss', banner: 'LUNAR WALKER!' },
+    ],
+  },
+  // ---- The Moon Siege: the whole alien fleet comes back. The base grows (L-shaped floors and fences) ----------
+  {
+    id: 'siege-wave',
+    dmg: 2.6, hp: 1.7, fire: 0.8, extra: 1,
+    env: 'moon',
+    area: 'siege',
+    pick: true,
+    defend: true,
+    title: 'Invasion 46: The Fleet Returns',
+    blurb: 'Their whole fleet is back. Defend the base!',
+    seed: 401,
+    path: DEFEND_PATH,
+    steps: [
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'Uh oh. That wasn\'t their last walker. Their WHOLE FLEET just came out from behind the Moon!' },
+          { who: 'sprocket', text: 'Then our base has to get bigger and stronger. Hold them off, and we\'ll build between attacks!' },
+        ],
+      },
+      { kind: 'wave', banner: 'THE FLEET RETURNS!', spawns: [kr(0, 'ahead'), kr(0.8, 'ahead'), sk(1.5, 'above', true), kr(2.4, 'ahead'), kr(3.2, 'ahead')] },
+      { kind: 'wave', banner: 'DROP PODS!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR'), kr(1.2, 'ahead'), sk(2, 'left'), kr(2.8, 'ahead', true)] },
+      { kind: 'wave', banner: 'MARCHING ARMY!', spawns: [kr(0, 'ahead'), kr(0.5, 'ahead'), kr(1, 'ahead'), kr(1.5, 'ahead'), sk(2.2, 'right', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), kr(0.6, 'ahead'), sk(1.2, 'above', true), kr(1.8, 'roofL'), kr(2.4, 'roofR', true)] },
+    ],
+  },
+  {
+    id: 'siege-power',
+    dmg: 2.6, hp: 1.75, fire: 0.8, extra: 1,
+    env: 'moon',
+    area: 'siege',
+    pick: true,
+    defend: true,
+    title: 'Invasion 47: Power Plant Raid',
+    blurb: 'They\'re after our new power plant!',
+    seed: 409,
+    path: DEFEND_PATH,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They spotted the power plant glowing. Here they come for it!' }] },
+      { kind: 'wave', banner: 'POWER PLANT RAID!', spawns: [kr(0, 'ahead'), kr(0.6, 'ahead'), kr(1.2, 'ahead'), sk(1.8, 'above', true), kr(2.6, 'ahead', true)] },
+      { kind: 'wave', banner: 'SAUCERS!', spawns: [sk(0, 'left', true), sk(0.5, 'right', true), sk(1, 'above'), kr(1.8, 'ahead'), kr(2.5, 'ahead')] },
+      { kind: 'wave', banner: 'WALKER WALL!', spawns: [kr(0, 'ahead', true), kr(0.4, 'ahead'), kr(0.8, 'ahead'), kr(1.2, 'ahead'), kr(1.6, 'ahead', true), sk(2.4, 'above', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'roofL', true), kr(0.5, 'roofR', true), kr(1.2, 'ahead', true), sk(1.8, 'left', true), kr(2.6, 'ahead')] },
+    ],
+  },
+  {
+    id: 'siege-sun',
+    dmg: 2.4, hp: 1.8, fire: 0.8, extra: 1,
+    env: 'moon',
+    area: 'siege',
+    pick: true,
+    defend: true,
+    title: 'Invasion 48: Solar Storm',
+    blurb: 'Protect the solar farm!',
+    seed: 419,
+    path: DEFEND_PATH,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'They\'re attacking from every side to get at the solar farm. Keep your eyes moving!' }] },
+      { kind: 'wave', banner: 'SOLAR STORM!', spawns: [kr(0, 'ahead'), kr(0.6, 'roofL'), kr(1.2, 'roofR'), kr(1.8, 'ahead'), sk(2.4, 'above', true)] },
+      { kind: 'wave', banner: 'FROM THE LEFT!', spawns: [sk(0, 'left', true), kr(0.5, 'roofL', true), kr(1, 'roofL'), kr(1.6, 'ahead'), sk(2.2, 'left')] },
+      { kind: 'wave', banner: 'FROM THE RIGHT!', spawns: [sk(0, 'right', true), kr(0.5, 'roofR', true), kr(1, 'roofR'), kr(1.6, 'ahead'), sk(2.2, 'right')] },
+      { kind: 'wave', banner: 'EVERYWHERE!', spawns: [kr(0, 'ahead', true), kr(0.4, 'roofL'), kr(0.8, 'roofR'), sk(1.2, 'above', true), kr(1.8, 'ahead'), kr(2.4, 'ahead', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), sk(0.5, 'left', true), sk(1, 'right', true), kr(1.6, 'roofL', true), kr(2.2, 'roofR', true)] },
+    ],
+  },
+  {
+    id: 'siege-wall',
+    dmg: 2.4, hp: 1.85, fire: 0.78, extra: 1.1,
+    env: 'moon',
+    area: 'siege',
+    pick: true,
+    defend: true,
+    title: 'Invasion 49: Hold the Wall',
+    blurb: 'The new wall has to hold!',
+    seed: 421,
+    path: DEFEND_PATH,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'The big wall is up. Now let\'s see it hold! Their toughest walkers are leading the charge.' }] },
+      { kind: 'wave', banner: 'HOLD THE WALL!', spawns: [kr(0, 'ahead', true), kr(0.6, 'ahead'), kr(1.2, 'ahead'), kr(1.8, 'ahead', true), sk(2.4, 'above', true)] },
+      { kind: 'wave', banner: 'ARMORED WALKERS!', spawns: [kr(0, 'ahead', true), kr(0.7, 'ahead', true), sk(1.4, 'left', true), kr(2, 'ahead', true), sk(2.6, 'right')] },
+      { kind: 'wave', banner: 'OVER THE TOP!', spawns: [kr(0, 'roofL', true), kr(0.4, 'roofR', true), kr(1, 'roofL'), kr(1.4, 'roofR'), sk(2, 'above', true)] },
+      { kind: 'wave', banner: 'LAST WAVE!', spawns: [kr(0, 'ahead', true), kr(0.4, 'ahead', true), kr(0.8, 'ahead'), kr(1.2, 'ahead'), sk(1.8, 'left', true), sk(2.2, 'right', true), kr(2.8, 'ahead', true)] },
+    ],
+  },
+  {
+    id: 'siege-final',
+    dmg: 4.5, hp: 2, fire: 0.75, extra: 1,
+    env: 'moon',
+    area: 'siege',
+    pick: true,
+    defend: true,
+    title: 'Invasion 50: The Mothership\'s Walker',
+    blurb: 'Their biggest walker yet, at the shield. Boss!',
+    seed: 431,
+    path: DEFEND_PATH,
+    boss: [0, -8, -95],
+    bossHp: 12,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'The mothership dropped its giant walker right in front of the shield. This is it: save the base!' }] },
+      { kind: 'wave', banner: 'ITS BODYGUARDS!', spawns: [kr(0, 'ahead', true), kr(0.6, 'ahead'), kr(1.2, 'ahead'), sk(1.8, 'above', true), kr(2.4, 'roofL', true), kr(3, 'roofR', true)] },
+      { kind: 'wave', banner: 'SAUCER SWARM!', spawns: [sk(0, 'above', true), sk(0.4, 'left', true), sk(0.8, 'right', true), sk(1.2, 'above'), kr(2, 'ahead', true), kr(2.6, 'ahead')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'HERE IT COMES! Pods first, then the core. The whole base is fighting with you!' }] },
+      { kind: 'boss', banner: 'TITAN WALKER!' },
     ],
   },
 ];

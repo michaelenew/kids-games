@@ -404,6 +404,7 @@ const AREAS: { env: string; label: string; color: string; fill: number; edge: nu
   { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
   { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
   { env: 'moon', label: 'MOON BASE', color: '#cfe8ff', fill: 0x3a4a66, edge: 0xcfe8ff },
+  { env: 'siege', label: 'MOON SIEGE', color: '#9ff0ff', fill: 0x24506a, edge: 0x9ff0ff },
 ];
 
 const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';

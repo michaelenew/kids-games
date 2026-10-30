@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { needsUpgrade } from '../src/assist';
-import { BASE_PIECES, MOON_MISSIONS, areaOf, nextPiece, perimeterOf, pieceJobs, piecesNeeded } from '../src/skills/area';
+import { BASE_PIECES, MOON_MISSIONS, areaOf, nextPiece, perimeterOf, pieceJobs, piecesNeeded, sidesOf, splitL } from '../src/skills/area';
 import { freshSave } from '../src/state';
 import { MISSIONS, alertBots, isPick } from '../src/three/missions';
 
@@ -10,6 +10,9 @@ describe('the Moon base missions', () => {
     expect(moon.map((m) => m.id)).toEqual(MOON_MISSIONS);
     expect(moon.every((m) => isPick(m.id) && alertBots(m.id) === 'any')).toBe(true);
     expect(moon[4].steps.some((st) => st.kind === 'boss')).toBe(true);
+    expect(moon[9].steps.some((st) => st.kind === 'boss')).toBe(true);
+    // The landing walks in; every other Moon mission defends the base.
+    expect(moon.filter((m) => m.defend).map((m) => m.id)).toEqual(MOON_MISSIONS.slice(1));
     // Review missions don't wait on robot upgrades; the base is what they wait on.
     const s = freshSave();
     expect(needsUpgrade('moon-ridge', s)).toBe(false);
@@ -25,7 +28,13 @@ describe('the Moon base missions', () => {
     expect(piecesNeeded('moon-land')).toBe(0);
     expect(piecesNeeded('moon-crater')).toBe(1);
     expect(piecesNeeded('moon-core')).toBe(4);
-    s.levelsDone.push(...MOON_MISSIONS.slice(1));
+    // The Moon Siege starts with the base he already built, and keeps growing.
+    expect(piecesNeeded('siege-wave')).toBe(5);
+    expect(piecesNeeded('siege-final')).toBe(8);
+    s.levelsDone.push(...MOON_MISSIONS.slice(1, 5));
+    s.base = 4;
+    expect(nextPiece(s)).toBe(4);
+    s.levelsDone.push(...MOON_MISSIONS.slice(5));
     s.base = BASE_PIECES.length;
     expect(nextPiece(s)).toBeUndefined();
   });
@@ -33,7 +42,7 @@ describe('the Moon base missions', () => {
 
 describe('area and perimeter', () => {
   it('counts first, then rows × columns, then fences, then both', () => {
-    expect(BASE_PIECES.map((p) => p.kind)).toEqual(['count', 'rows', 'fence', 'mixed']);
+    expect(BASE_PIECES.map((p) => p.kind)).toEqual(['count', 'rows', 'fence', 'mixed', 'rows', 'rows', 'fence', 'mixed']);
     const first = pieceJobs(0, () => 0.5)[0];
     expect(first).toEqual({ kind: 'count', cols: 3, rows: 2, ask: 'area' });
     expect(pieceJobs(2).every((j) => j.ask === 'perimeter')).toBe(true);
@@ -47,11 +56,38 @@ describe('area and perimeter', () => {
       for (let p = 0; p < BASE_PIECES.length; p++) {
         for (const j of pieceJobs(p)) {
           expect(j.cols).toBeGreaterThanOrEqual(2);
-          expect(j.cols).toBeLessThanOrEqual(7);
-          expect(areaOf(j)).toBeLessThanOrEqual(28);
+          // Round 1 stays small; the Moon Siege's power plant has bigger floors.
+          expect(j.cols).toBeLessThanOrEqual(p < 4 ? 7 : 9);
+          expect(areaOf(j)).toBeLessThanOrEqual(p < 4 ? 28 : 32);
         }
       }
     }
     expect(perimeterOf({ cols: 4, rows: 2 })).toBe(12);
+  });
+});
+
+describe('L-shaped floors (the Moon Siege)', () => {
+  it('splits into two rectangles whose areas add up', () => {
+    const j = { cols: 5, rows: 4, cut: { cols: 2, rows: 2 } };
+    const { left, right } = splitL(j);
+    expect(left).toEqual({ cols: 3, rows: 4 });
+    expect(right).toEqual({ cols: 2, rows: 2 });
+    expect(areaOf(j)).toBe(areaOf(left) + areaOf(right));
+    expect(areaOf(j)).toBe(16);
+  });
+
+  it('has six sides that add up to the perimeter', () => {
+    const j = { cols: 6, rows: 4, cut: { cols: 3, rows: 2 } };
+    expect(sidesOf(j)).toHaveLength(6);
+    expect(sidesOf(j).reduce((a, b) => a + b, 0)).toBe(perimeterOf(j));
+    expect(sidesOf({ cols: 4, rows: 2 })).toEqual([4, 2, 4, 2]);
+  });
+
+  it('the solar farm and the wall are L-shapes; the shield generator mixes', () => {
+    expect(pieceJobs(5).every((j) => j.cut && j.ask === 'area')).toBe(true);
+    expect(pieceJobs(6).every((j) => j.cut && j.ask === 'perimeter')).toBe(true);
+    const mix = pieceJobs(7);
+    expect(mix.some((j) => j.cut) && mix.some((j) => !j.cut)).toBe(true);
+    for (const p of [5, 6, 7]) for (const j of pieceJobs(p)) if (j.cut) expect(j.cut.cols < j.cols && j.cut.rows < j.rows).toBe(true);
   });
 });

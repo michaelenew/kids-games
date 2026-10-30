@@ -11,12 +11,16 @@ import type { SaveData } from '../state';
  * 4. Command dome: inside or around? The same kind of rectangle, and each
  *    job asks for one or the other (floor tiles inside, or fence around).
  *
- * Round 2, the Moon Siege (missions 46 to 50): the base grows.
- * 5. Power plant: bigger floors, rows × columns with bigger numbers.
- * 6. Solar farm: L-shaped floors. Split the L into two rectangles, find each
- *    one's area, and add them.
- * 7. Defense wall: perimeter of an L-shaped yard (six sides, not four).
- * 8. Shield generator: inside or around, with rectangles and L-shapes mixed.
+ * Round 2, the Moon Siege (missions 46 to 50): the base grows, and it's the
+ * same ideas again with less help (no walk-through unless he misses twice):
+ * 5. Power plant: bigger floors, rows × columns, on his own.
+ * 6. Solar farm: just the floor's outline and side lengths, no squares to
+ *    count: area by multiplying the sides.
+ * 7. Defense wall: an outline with only two sides labelled; opposite sides
+ *    match, so he works out the other two and adds all four.
+ * 8. Shield generator: inside or around, outlines only.
+ * A miss brings the squares (and every side length) back; a second miss,
+ * the walk-through. (L-shaped floors are supported too, for later.)
  */
 
 export type AreaKind = 'count' | 'rows' | 'fence' | 'mixed';
@@ -30,6 +34,12 @@ export interface AreaJob {
   rows: number;
   /** An L-shape: this many columns and rows are cut out of the top-right corner. */
   cut?: { cols: number; rows: number };
+  /**
+   * Less help (the Moon Siege): 'solo' answers on his own straight away;
+   * 'outline' also hides the squares (and, for a fence, two of the side
+   * lengths) until he misses.
+   */
+  help?: 'solo' | 'outline';
 }
 
 export interface BasePiece {
@@ -37,6 +47,7 @@ export interface BasePiece {
   kind: AreaKind;
   /** The floors (or fences) to build: [cols, rows] each, with an optional corner cut out [cols, rows] (an L). */
   sizes: ([number, number] | [number, number, number, number])[];
+  help?: AreaJob['help'];
 }
 
 export const BASE_PIECES: BasePiece[] = [
@@ -44,10 +55,10 @@ export const BASE_PIECES: BasePiece[] = [
   { name: 'Hangar', kind: 'rows', sizes: [[4, 3], [5, 2], [6, 3]] },
   { name: 'Laser fence', kind: 'fence', sizes: [[4, 2], [5, 3], [6, 4]] },
   { name: 'Command dome', kind: 'mixed', sizes: [[5, 3], [4, 4], [6, 2], [5, 4]] },
-  { name: 'Power plant', kind: 'rows', sizes: [[7, 3], [6, 4], [8, 3]] },
-  { name: 'Solar farm', kind: 'rows', sizes: [[5, 4, 2, 2], [6, 3, 3, 1], [5, 5, 2, 3]] },
-  { name: 'Defense wall', kind: 'fence', sizes: [[5, 4, 2, 2], [6, 4, 3, 2], [7, 5, 3, 2]] },
-  { name: 'Shield generator', kind: 'mixed', sizes: [[6, 4, 2, 2], [5, 4, 2, 1], [7, 3], [6, 5, 3, 2]] },
+  { name: 'Power plant', kind: 'rows', help: 'solo', sizes: [[7, 3], [6, 4], [8, 3]] },
+  { name: 'Solar farm', kind: 'rows', help: 'outline', sizes: [[6, 5], [7, 4], [8, 3]] },
+  { name: 'Defense wall', kind: 'fence', help: 'outline', sizes: [[8, 5], [8, 4], [7, 6]] },
+  { name: 'Shield generator', kind: 'mixed', help: 'outline', sizes: [[6, 4], [8, 3], [5, 5], [7, 4]] },
 ];
 
 /** The Moon missions, in order: round 1, then the Moon Siege. */
@@ -64,6 +75,7 @@ export function pieceJobs(piece: number, rng: () => number = Math.random): AreaJ
     cols,
     rows,
     ...(cutC && cutR ? { cut: { cols: cutC, rows: cutR } } : {}),
+    ...(p.help ? { help: p.help } : {}),
     ask: p.kind === 'fence' ? 'perimeter' : p.kind === 'mixed' ? (i % 2 ? 'perimeter' : 'area') : 'area',
   }));
   // A little variety in the sizes, after the first one (which is where each idea is met). L-shapes stay as planned.

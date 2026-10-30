@@ -58,7 +58,7 @@ describe('area and perimeter', () => {
           expect(j.cols).toBeGreaterThanOrEqual(2);
           // Round 1 stays small; the Moon Siege's power plant has bigger floors.
           expect(j.cols).toBeLessThanOrEqual(p < 4 ? 7 : 9);
-          expect(areaOf(j)).toBeLessThanOrEqual(p < 4 ? 28 : 32);
+          if (j.ask === 'area') expect(areaOf(j)).toBeLessThanOrEqual(p < 4 ? 28 : 32);
         }
       }
     }
@@ -66,7 +66,7 @@ describe('area and perimeter', () => {
   });
 });
 
-describe('L-shaped floors (the Moon Siege)', () => {
+describe('L-shaped floors (supported for later)', () => {
   it('splits into two rectangles whose areas add up', () => {
     const j = { cols: 5, rows: 4, cut: { cols: 2, rows: 2 } };
     const { left, right } = splitL(j);
@@ -83,11 +83,14 @@ describe('L-shaped floors (the Moon Siege)', () => {
     expect(sidesOf({ cols: 4, rows: 2 })).toEqual([4, 2, 4, 2]);
   });
 
-  it('the solar farm and the wall are L-shapes; the shield generator mixes', () => {
-    expect(pieceJobs(5).every((j) => j.cut && j.ask === 'area')).toBe(true);
-    expect(pieceJobs(6).every((j) => j.cut && j.ask === 'perimeter')).toBe(true);
-    const mix = pieceJobs(7);
-    expect(mix.some((j) => j.cut) && mix.some((j) => !j.cut)).toBe(true);
-    for (const p of [5, 6, 7]) for (const j of pieceJobs(p)) if (j.cut) expect(j.cut.cols < j.cols && j.cut.rows < j.rows).toBe(true);
+  it('the Moon Siege goes over the same ideas with less help', () => {
+    expect(pieceJobs(4).every((j) => j.help === 'solo' && j.ask === 'area' && !j.cut)).toBe(true);
+    expect(pieceJobs(5).every((j) => j.help === 'outline' && j.ask === 'area' && !j.cut)).toBe(true);
+    expect(pieceJobs(6).every((j) => j.help === 'outline' && j.ask === 'perimeter' && !j.cut)).toBe(true);
+    const mix = pieceJobs(7).map((j) => j.ask);
+    expect(mix).toContain('area');
+    expect(mix).toContain('perimeter');
+    // Round 1 keeps all its help.
+    expect(pieceJobs(1).every((j) => !j.help)).toBe(true);
   });
 });

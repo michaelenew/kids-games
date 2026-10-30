@@ -205,16 +205,25 @@ describe('patrol alerts', () => {
     expect(alertMission(['inv-drop'], rng(1))).toBeUndefined();
   });
 
-  it('one per mission beaten, two waiting at most', async () => {
-    const { earnAlert, alerts } = await import('../src/state');
+  it('one per mission beaten, three waiting at most, newest pops up once', async () => {
+    const { MAX_ALERTS, alertQueue, clearAlert, queueAlert, takeFreshAlert } = await import('../src/state');
     const s = freshSave();
-    earnAlert(s);
-    expect(alerts(s).count).toBe(0);
+    queueAlert('inv-streets', s);
+    expect(alertQueue(s)).toHaveLength(0);
     s.levelsDone.push('egy-drop');
-    earnAlert(s);
-    earnAlert(s);
-    earnAlert(s);
-    expect(alerts(s).count).toBe(2);
+    for (const id of ['inv-streets', 'inv-chase', 'inv-queen', 'cyn-river']) queueAlert(id, s);
+    expect(alertQueue(s)).toHaveLength(MAX_ALERTS);
+    expect(takeFreshAlert(s)).toBe('inv-queen');
+    expect(takeFreshAlert(s)).toBeUndefined();
+    clearAlert('inv-chase', s);
+    expect(alertQueue(s)).toEqual(['inv-streets', 'inv-queen']);
+  });
+
+  it('old saves move their waiting alert into the queue', async () => {
+    const { alertQueue } = await import('../src/state');
+    const s = freshSave();
+    s.alerts = { count: 2, next: 'focus', mission: 'inv-chase' };
+    expect(alertQueue(s)).toEqual(['inv-chase']);
   });
 });
 

@@ -261,6 +261,13 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 - **RHINO** (built): an army-green camo tank robot that transforms into a tank. Drops in for TITAN in the first Arctic mission. Review only: its armor uses the regular forge.
 - **TRIDENT** (built): a sea-teal submarine robot with a glass dome helmet. Drops in for RHINO in the first ocean mission. Its armor is hull tiles shared into equal rows, which is where dividing lives.
 - **PHANTOM** (built): a violet stealth robot that cloaks (shots pass through it) and rides a hoverbike. Drops in for TRIDENT in the first volcano mission. Its armor is cloak cells, power bars cut into equal parts, which is where fractions live.
+- **Planned: a brand-new space robot** for the solar-system sets (for example an astronaut robot that turns into a starfighter), debuting partway through them, probably with the first space chase, to keep new characters coming.
+
+### What's next (agreed plan)
+
+- **No more review rounds.** Patrol alerts (pick any robot, the pre-launch check takes turns through every concept he has learned) plus super gadgets keep the old ideas coming back.
+- **Moon base (41–45): area and perimeter.** A Base Builder bench: count floor tiles, then rows × columns, then laser fences around the edge (adding the sides), then "inside or around?". The base grows on the Moon mission by mission. Each defense mission starts at WHO'S GOING? (any robot, super gadgets welcome), and the turrets he built shoot alongside him without ever taking damage, so repairs stay one robot's worth.
+- **Then across the solar system (46 on):** a planet or moon per set, with space chase sections. Each set he builds a space vehicle for one of his old robots (BOLT a rocket fighter, TITAN a mining lander, RHINO a Mars rover, TRIDENT an ice-moon sub, PHANTOM a stealth shuttle, STRIKER a starfighter upgrade), and that vehicle's bench carries the set's one new concept: measurement (liters and kilograms) first, then comparing and equivalent fractions, then two-step word problems. The asteroid belt (rounding and estimating) comes later.
 
 ### Where each skill lives, by area
 

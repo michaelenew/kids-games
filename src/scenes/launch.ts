@@ -2,7 +2,7 @@ import type Phaser from 'phaser';
 import { upgradeRequired } from '../assist';
 import { REGIONS, forgeScene, repairsNeeded } from '../armor';
 import { type BotId, botData, botName, botUnlocked, botsUnlocked, save, setActiveBot, wantsControl } from '../state';
-import { missionById, startBot } from '../three/missions';
+import { alertBots, missionById, startBot } from '../three/missions';
 import { dialog } from '../ui/widgets';
 
 /**
@@ -61,4 +61,14 @@ export function readyThenGo(scene: Phaser.Scene, missionId: string, next: () => 
   if (needsFirstArmor(flier)) scene.scene.start(forge, { mode: 'build', mark: 1, then });
   else if (needsRepair) scene.scene.start(forge, { mode: 'repair', then });
   else next();
+}
+
+/**
+ * Answer a patrol alert: pick any robot when the mission allows it (see
+ * alertBots), then the pre-launch check. Alerts never wait on repairs.
+ */
+export function startAlert(scene: Phaser.Scene, missionId: string) {
+  const who = alertBots(missionId);
+  if (who === 'any') scene.scene.start('Pick', { missionId, alert: true });
+  else scene.scene.start('PreLaunch', { missionId, bot: who[0] });
 }

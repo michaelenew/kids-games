@@ -1149,15 +1149,30 @@ export function missionById(id: string): Mission {
 export const MISSION_IDS = MISSIONS.map((m) => m.id);
 
 /**
- * A past mission for a patrol alert: one flown by an older robot (not the
- * one the current missions use), never a hand-over mission.
+ * A past mission for a patrol alert: back in an older place (not one the
+ * current missions use), never a hand-over mission, and not one already
+ * waiting in the tray.
  */
-export function alertMission(done: string[], rng: () => number = Math.random): string | undefined {
+export function alertMission(done: string[], rng: () => number = Math.random, waiting: string[] = []): string | undefined {
   const next = MISSIONS.find((m) => !done.includes(m.id)) ?? MISSIONS[MISSIONS.length - 1];
   // In the pick-your-robot missions any robot can go on patrol.
   const current = next.pick ? null : (next.bot ?? 'bolt');
-  const pool = MISSIONS.filter((m) => done.includes(m.id) && !m.pick && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
+  const pool = MISSIONS.filter((m) => done.includes(m.id) && !m.pick && !waiting.includes(m.id)
+    && (m.bot ?? 'bolt') !== current && !m.steps.some((st) => st.kind === 'swap'));
   return pool.length ? pool[Math.floor(rng() * pool.length)].id : undefined;
+}
+
+/**
+ * Who can go on an alert: any robot when the mission is on foot or in
+ * vehicle mode; STRIKER alone when it flies through the sky (Egypt and the
+ * Amazon); BOLT alone on the city missions that ride the dropship.
+ */
+export function alertBots(id: string): BotId[] | 'any' {
+  const m = missionById(id);
+  const moves = m.steps.flatMap((st) => (st.kind === 'move' ? [st.vehicle] : []));
+  if (moves.includes('jet')) return ['jet'];
+  if (moves.includes('ship')) return [m.bot ?? 'bolt'];
+  return 'any';
 }
 
 /** Who flies a mission (by the end of it). */

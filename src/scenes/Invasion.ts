@@ -3,13 +3,16 @@ import { type Tuning, botForMission, cheapestUpgrade, missionStart, tuning, onMi
 import { MissionArmor, REGIONS, type Region, forgeScene, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import {
-  BOTS, type BotId, actionDone, botsUnlocked, alerts, botColor, botData, botName, earnAlert, persist, save, setActiveBot,
+  BOTS, type BotId, actionDone, botsUnlocked, alertQueue, botColor, botData, botName, clearAlert, persist, queueAlert, save, setActiveBot,
   gadgetInfo, gadgetOf, setGadget, wallStage, wantsRecap, writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
+
+/** Extra scrap for clearing an alert. */
+const ALERT_BONUS = 15;
 
 /**
  * Reinforcements: the backup he picked (see Pick.ts), or else his
@@ -64,12 +67,14 @@ export class InvasionScene extends Phaser.Scene {
     super('Invasion');
   }
 
-  /** A patrol alert: a past mission with an older robot, just for fun (and a little scrap). */
+  /** A patrol alert: a past mission replayed for fun (and scrap), with whichever robot he sent. */
   private alert = false;
+  private alertBot?: BotId;
 
-  init(data: { missionId?: string; shield?: number; alert?: boolean }) {
+  init(data: { missionId?: string; shield?: number; alert?: boolean; bot?: BotId }) {
     this.mission = missionById(data.missionId ?? 'inv-drop');
     this.alert = !!data.alert;
+    this.alertBot = data.alert ? data.bot : undefined;
     this.shieldBonus = data.shield ?? 0;
     this.over = false;
     this.paused = false;
@@ -94,8 +99,8 @@ export class InvasionScene extends Phaser.Scene {
     // Playing a mission counts as action, so the math between missions starts over.
     actionDone(s);
     const hasSwap = isHandOver(this.mission.id);
-    const ender = missionBot(this.mission.id);
-    this.bot = startBot(this.mission.id);
+    const ender = this.alertBot ?? missionBot(this.mission.id);
+    this.bot = this.alertBot ?? startBot(this.mission.id);
     // Each robot's own way of beating shots: the jet rolls past them, TITAN swats them.
     const dodgeOf = (b: BotId) => BOTS[b].dodge[botData(b, s).gear.boots];
     // The Energy Armor gadget: a big force field on top of the plates, this mission only.
@@ -457,7 +462,7 @@ export class InvasionScene extends Phaser.Scene {
   /** End of a mission: the super gadget explodes off the robot, with a banner. */
   private blowOffGadget() {
     const g = gadgetOf(this.bot);
-    if (!g || this.alert) return;
+    if (!g) return;
     this.game3d.blowOffGadget();
     this.banner(`${gadgetInfo(this.bot, g).title.toUpperCase()} BLEW OFF!`, '#e0aaff');
   }
@@ -488,6 +493,7 @@ export class InvasionScene extends Phaser.Scene {
     this.over = true;
     this.game3d.pointer.down = false;
     if (this.alert) {
+      this.blowOffGadget();
       this.alertDone(true);
       return;
     }
@@ -496,10 +502,8 @@ export class InvasionScene extends Phaser.Scene {
     if (firstWin) s.levelsDone.push(this.mission.id);
     onMissionCleared(this.mission.id);
     if (firstWin) {
-      // A new mission beaten: an older robot gets a patrol alert.
-      earnAlert(s);
-      const a = alerts(s);
-      if (a.count > 0 && !a.mission) a.mission = alertMission(s.levelsDone);
+      // A new mission beaten: an alert comes up, back in an older place.
+      queueAlert(alertMission(s.levelsDone, Math.random, alertQueue(s)), s);
     }
     this.blowOffGadget();
     this.bank(true);
@@ -666,15 +670,22 @@ export class InvasionScene extends Phaser.Scene {
     button(this, W / 2 + 180, H / 2 + 100, 300, 84, 'Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 }).setDepth(62);
   }
 
-  /** End of a patrol alert. Plates aren't damaged and nothing locks; a win pays half scrap. */
+  /**
+   * End of a patrol alert. Plates aren't damaged and nothing locks. A win
+   * pays half the mission's scrap plus a bonus (for more super gadgets), and
+   * the gadget burns out as usual.
+   */
   private alertDone(won: boolean) {
     const s = save();
-    const a = alerts(s);
-    const earned = won ? Math.ceil(this.scrap / 2) : 0;
+    const earned = won ? Math.ceil(this.scrap / 2) + ALERT_BONUS : 0;
     if (won) {
       s.scrap += earned;
-      a.count = Math.max(0, a.count - 1);
-      a.mission = a.count > 0 ? alertMission(s.levelsDone) : undefined;
+      clearAlert(this.mission.id, s);
+      const g = gadgetOf(this.bot, s);
+      if (g) {
+        this.brokenGadget = gadgetInfo(this.bot, g).title;
+        setGadget(this.bot, undefined, s);
+      }
     }
     persist();
     music('calm');
@@ -684,6 +695,7 @@ export class InvasionScene extends Phaser.Scene {
       panel(this, W / 2, H / 2, 700, 380).setDepth(60);
       text(this, W / 2, H / 2 - 120, won ? 'ALERT CLEARED!' : 'RETREAT!', 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
       text(this, W / 2, H / 2 - 30, won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!', 30, '#ffffff').setDepth(61);
+      this.gadgetNote(H / 2 + 20);
       const b = button(this, W / 2, H / 2 + 100, 320, 84, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
       this.tweens.add({ targets: b, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });
     });

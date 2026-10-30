@@ -70,6 +70,8 @@ Also:
 
 ## Notes for iPad
 
+- Her ranch (unicorns, their colors, letter and math progress, ribbons) is saved in the browser after every change and comes back on the next visit. It's saved per browser, so the iPad and the laptop each keep their own ranch.
+
 - Use the GitHub Pages link (https). Browsers only allow the microphone on secure sites.
 - The first visit downloads the 40 MB model; after that it's instant. Safari may clear site storage for sites that go unused for a few weeks. Adding the game to the Home Screen helps keep it.
 - If the microphone is blocked or missing, the game still works: she taps the answers instead.

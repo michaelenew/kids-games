@@ -23,6 +23,11 @@ const ctx: Ctx = { stage, ui };
 onCaption((t) => ui.setCaption(t));
 ui.onGearHold(1200, () => openGrownups(ui, () => stats(ctx)));
 
+// Her ranch is saved in this browser's local storage after every change
+// (see state.ts). Ask the browser to keep it rather than clear it when space
+// runs low or the site hasn't been opened for a while.
+navigator.storage?.persist?.().catch(() => {});
+
 // Start downloading the speech model straight away (no tap needed for that).
 const wantVoice = !save().tapMode;
 if (wantVoice) voice.load().catch(() => {});

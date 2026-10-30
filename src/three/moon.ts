@@ -47,16 +47,16 @@ function cachedTex(key: string, make: () => THREE.Texture) {
 
 /** A little bowl-shaped pit drawn on the ground: shadow on the sun side's inner wall, bright rim opposite. */
 function drawPit(g: CanvasRenderingContext2D, x: number, y: number, r: number) {
-  g.fillStyle = 'rgba(40,40,44,0.35)';
+  g.fillStyle = 'rgba(60,60,64,0.18)';
   g.beginPath();
   g.arc(x, y, r, 0, Math.PI * 2);
   g.fill();
-  g.strokeStyle = 'rgba(20,20,24,0.45)';
+  g.strokeStyle = 'rgba(40,40,46,0.3)';
   g.lineWidth = Math.max(1, r * 0.35);
   g.beginPath();
   g.arc(x, y, r * 0.8, Math.PI * 0.9, Math.PI * 1.9);
   g.stroke();
-  g.strokeStyle = 'rgba(230,230,235,0.4)';
+  g.strokeStyle = 'rgba(230,230,235,0.3)';
   g.beginPath();
   g.arc(x, y, r * 1.05, Math.PI * 1.9, Math.PI * 2.9);
   g.stroke();
@@ -72,7 +72,7 @@ function regolithTexture() {
       const s = 1 + Math.random() * 3;
       g.fillRect(Math.random() * 256, Math.random() * 256, s, s);
     }
-    for (let i = 0; i < 22; i++) drawPit(g, 10 + Math.random() * 236, 10 + Math.random() * 236, 2 + Math.random() * 7);
+    for (let i = 0; i < 7; i++) drawPit(g, 12 + Math.random() * 232, 12 + Math.random() * 232, 2 + Math.random() * 9);
   }, [75, 75]));
 }
 
@@ -93,9 +93,9 @@ function roadTexture() {
     }
     // Two pairs of rover tracks, with tread marks across them.
     for (const x of [30, 46, 78, 94]) {
-      g.fillStyle = 'rgba(70,70,76,0.45)';
+      g.fillStyle = 'rgba(90,90,96,0.22)';
       g.fillRect(x, 0, 7, 256);
-      g.fillStyle = 'rgba(40,40,46,0.5)';
+      g.fillStyle = 'rgba(60,60,66,0.16)';
       for (let y = 0; y < 256; y += 6) g.fillRect(x, y, 7, 2);
     }
   }));
@@ -222,16 +222,12 @@ function earthTexture() {
     g.fillStyle = '#f4f8ff';
     g.fillRect(0, 0, 512, 14);
     g.fillRect(0, 242, 512, 14);
-    // Swirly clouds.
-    g.strokeStyle = 'rgba(255,255,255,0.75)';
-    g.lineCap = 'round';
-    for (let i = 0; i < 40; i++) {
-      g.lineWidth = 2 + Math.random() * 5;
-      const x = Math.random() * 512;
-      const y = 20 + Math.random() * 216;
+    // Soft streaks of cloud.
+    for (let i = 0; i < 70; i++) {
+      g.fillStyle = `rgba(255,255,255,${0.25 + Math.random() * 0.4})`;
       g.beginPath();
-      g.arc(x, y, 8 + Math.random() * 26, Math.random() * 3, Math.random() * 3 + 1.5);
-      g.stroke();
+      g.ellipse(Math.random() * 512, 20 + Math.random() * 216, 10 + Math.random() * 34, 2 + Math.random() * 5, (Math.random() - 0.5) * 0.4, 0, Math.PI * 2);
+      g.fill();
     }
   }));
 }
@@ -249,19 +245,39 @@ function cachedGeo(key: string, make: () => THREE.BufferGeometry) {
 }
 const boxGeo = (w: number, h: number, d: number) => cachedGeo(`box${w},${h},${d}`, () => new THREE.BoxGeometry(w, h, d));
 
-/** The turret's barrels: two tubes along +Z (lookAt points +Z at the target). */
-function barrelGeo() {
-  return cachedGeo('barrels', () => mergeGeometries([-0.26, 0.26].map((x) => new THREE.CylinderGeometry(0.12, 0.14, 1.7, 10).rotateX(Math.PI / 2).translate(x, 0.05, 1.15))));
+/** Geometry parts painted with a vertex colour each, merged into one. */
+function painted(parts: [THREE.BufferGeometry, number][]) {
+  return mergeGeometries(parts.map(([g, hex]) => {
+    const n = g.index ? g.toNonIndexed() : g.clone();
+    const c = new THREE.Color(hex);
+    const col = new Float32Array(n.attributes.position.count * 3);
+    for (let i = 0; i < col.length; i += 3) col.set([c.r, c.g, c.b], i);
+    n.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return n;
+  }));
 }
-function barrelTipGeo() {
-  return cachedGeo('barrelTips', () => mergeGeometries([-0.26, 0.26].map((x) => new THREE.CylinderGeometry(0.17, 0.17, 0.22, 10).rotateX(Math.PI / 2).translate(x, 0.05, 2.0))));
+
+/** The turret's head: a housing with an orange stripe and two barrels along +Z (lookAt points +Z at the target). */
+function turretHeadGeo() {
+  return cachedGeo('turretHead', () => painted([
+    [rboxGeo(1.25, 0.8, 1.4, 0.22), 0xbcc3cd],
+    [rboxGeo(1.32, 0.18, 1.0, 0.06).clone().translate(0, 0.18, -0.1), 0xff8a2a],
+    ...[-0.26, 0.26].map((x): [THREE.BufferGeometry, number] => [new THREE.CylinderGeometry(0.12, 0.14, 1.7, 10).rotateX(Math.PI / 2).translate(x, 0.05, 1.15), 0x2c323c]),
+  ]));
+}
+function turretGlowGeo() {
+  return cachedGeo('turretGlow', () => mergeGeometries([
+    ...[-0.26, 0.26].map((x) => new THREE.CylinderGeometry(0.17, 0.17, 0.22, 10).rotateX(Math.PI / 2).translate(x, 0.05, 2.0)),
+    new THREE.BoxGeometry(0.5, 0.16, 0.05).translate(0, 0.2, 0.71),
+  ].map((g) => g.toNonIndexed())));
 }
 
 /** A crater: a low rim around a shallow bowl, unit radius, with darker vertex colours inside. */
 function craterGeo() {
   return cachedGeo('crater', () => {
-    const prof: [number, number, number][] = [[0, 0.02, 0.62], [0.45, 0.03, 0.66], [0.72, 0.08, 0.74], [0.9, 0.17, 0.9], [1, 0.22, 1.05], [1.12, 0.15, 1.02], [1.32, 0.05, 0.98], [1.6, 0, 0.97]];
-    const geo = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 28);
+    const prof: [number, number, number][] = [[0, 0.02, 0.8], [0.45, 0.03, 0.82], [0.72, 0.08, 0.86], [0.9, 0.17, 0.95], [1, 0.22, 1.05], [1.12, 0.15, 1.02], [1.32, 0.05, 0.98], [1.6, 0, 0.97]].reverse() as [number, number, number][];
+    // Outside in, so the faces point up.
+    const geo = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 20);
     const pos = geo.attributes.position;
     const col = new Float32Array(pos.count * 3);
     const uv = new Float32Array(pos.count * 2);
@@ -285,8 +301,8 @@ function makeMats() {
     return m;
   };
   return {
-    panel: d(new THREE.MeshStandardMaterial({ color: 0xe2e6ec, metalness: 0.25, roughness: 0.5 })),
-    shell: d(new THREE.MeshStandardMaterial({ map: panelTexture(), color: 0xf0f2f6, metalness: 0.2, roughness: 0.55, side: THREE.DoubleSide })),
+    panel: d(new THREE.MeshStandardMaterial({ color: 0xbcc3cd, metalness: 0.25, roughness: 0.5 })),
+    shell: d(new THREE.MeshStandardMaterial({ map: panelTexture(), color: 0xb8bec8, metalness: 0.2, roughness: 0.55, side: THREE.DoubleSide })),
     grey: d(new THREE.MeshStandardMaterial({ color: 0x8e98a6, metalness: 0.5, roughness: 0.45 })),
     dark: d(new THREE.MeshStandardMaterial({ color: 0x2c323c, metalness: 0.7, roughness: 0.4 })),
     orange: d(new THREE.MeshStandardMaterial({ color: 0xff8a2a, metalness: 0.3, roughness: 0.45 })),
@@ -294,6 +310,7 @@ function makeMats() {
     glass: d(new THREE.MeshPhysicalMaterial({
       color: 0xbfeeff, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.3, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide,
     })),
+    painted: d(new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.35, roughness: 0.45 })),
     cockpit: d(new THREE.MeshStandardMaterial({ color: 0x1b3f7a, metalness: 0.6, roughness: 0.1 })),
     cyan: glow(0x4cf0ff, 2.4),
     beam: glow(0x4cf0ff, 2.8),
@@ -311,40 +328,63 @@ interface Anim {
   blink: { m: THREE.Object3D; phase: number }[];
 }
 
-/** Mark a static mesh so the instancing pass can batch it with its twins. */
+/** Mark a static mesh that has many twins (fence posts, lights...). Everything static gets merged anyway. */
 function inst<T extends THREE.Object3D>(o: T): T {
   o.userData.inst = true;
   return o;
 }
 
+/** Keep this object (and everything under it) out of the merge: it moves. */
+function dynamic<T extends THREE.Object3D>(o: T): T {
+  o.userData.dynamic = true;
+  return o;
+}
+
 /**
- * Replace every marked mesh with InstancedMeshes, one per geometry and
- * material (fence posts, beams, lights, tower legs...), to keep draw calls low.
+ * Merge every static, opaque mesh into one mesh per material (and per patch
+ * of ground, so far-away parts can still be culled), to keep draw calls low.
  */
-function batchStatic(root: THREE.Object3D) {
+function mergeStatic(root: THREE.Object3D, cell = 120) {
   root.updateMatrixWorld(true);
   const inv = root.matrixWorld.clone().invert();
-  const groups = new Map<string, THREE.Mesh[]>();
-  root.traverse((o) => {
-    const m = o as THREE.Mesh;
-    if (!m.isMesh || !m.userData.inst || Array.isArray(m.material)) return;
-    const key = `${m.geometry.uuid}/${(m.material as THREE.Material).uuid}`;
-    const list = groups.get(key) ?? [];
-    list.push(m);
-    groups.set(key, list);
-  });
+  const groups = new Map<string, { mat: THREE.Material; shadow: boolean; geos: THREE.BufferGeometry[]; meshes: THREE.Mesh[] }>();
   const m4 = new THREE.Matrix4();
-  for (const list of groups.values()) {
-    if (list.length < 3) continue;
-    const im = new THREE.InstancedMesh(list[0].geometry, list[0].material, list.length);
-    list.forEach((m, i) => {
-      im.setMatrixAt(i, m4.multiplyMatrices(inv, m.matrixWorld));
-      m.removeFromParent();
-    });
-    im.castShadow = list[0].castShadow;
-    im.receiveShadow = list[0].receiveShadow;
-    im.computeBoundingSphere();
-    root.add(im);
+  const at = new THREE.Vector3();
+  const walk = (o: THREE.Object3D) => {
+    if (o.userData.dynamic) return;
+    for (const c of o.children) walk(c);
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || (m as THREE.InstancedMesh).isInstancedMesh || Array.isArray(m.material)) return;
+    const mat = m.material as THREE.Material;
+    if (mat.transparent || m.renderOrder !== 0) return;
+    const src = m.geometry;
+    if (!src.attributes.position || !src.attributes.normal || !src.attributes.uv || src.attributes.color) return;
+    m4.multiplyMatrices(inv, m.matrixWorld);
+    at.setFromMatrixPosition(m4);
+    const key = `${mat.uuid}/${m.castShadow}/${Math.floor(at.x / cell)},${Math.floor(at.z / cell)}`;
+    let gr = groups.get(key);
+    if (!gr) {
+      gr = { mat, shadow: m.castShadow, geos: [], meshes: [] };
+      groups.set(key, gr);
+    }
+    const g = src.index ? src.toNonIndexed() : src.clone();
+    for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+    g.morphAttributes = {};
+    g.clearGroups();
+    g.applyMatrix4(m4);
+    gr.geos.push(g);
+    gr.meshes.push(m);
+  };
+  walk(root);
+  for (const gr of groups.values()) {
+    if (gr.meshes.length < 2) continue;
+    const merged = mergeGeometries(gr.geos);
+    if (!merged) continue;
+    for (const m of gr.meshes) m.removeFromParent();
+    const big = new THREE.Mesh(merged, gr.mat);
+    big.castShadow = gr.shadow;
+    big.receiveShadow = gr.mat.type !== 'MeshBasicMaterial';
+    root.add(big);
   }
 }
 
@@ -354,15 +394,13 @@ const TILE = 2;
 
 /** A raised slab floored with `cols` by `rows` square tiles, lights on its corners. */
 function tileSlab(parent: THREE.Object3D, m: Mats, kind: 'pad' | 'apron' | 'dome' | 'small', cols: number, rows: number, x = 0, z = 0, h = 0.3) {
-  const top = new THREE.MeshStandardMaterial({ map: tileTexture(kind, cols, rows), metalness: 0.15, roughness: 0.6 });
+  const top = new THREE.MeshStandardMaterial({ map: tileTexture(kind, cols, rows), color: 0xb4bac4, metalness: 0.15, roughness: 0.7 });
   top.userData.disposable = true;
   const W = cols * TILE;
   const D = rows * TILE;
-  const slab = new THREE.Mesh(boxGeo(W, h, D), [m.slabSide, m.slabSide, top, m.slabSide, m.slabSide, m.slabSide]);
-  slab.position.set(x, h / 2, z);
+  mesh(parent, boxGeo(W, h - 0.02, D), m.slabSide, x, (h - 0.02) / 2, z, { shadow: false });
+  const slab = mesh(parent, cachedGeo(`tileTop${W},${D}`, () => new THREE.PlaneGeometry(W, D).rotateX(-Math.PI / 2)), top, x, h, z, { shadow: false });
   slab.receiveShadow = true;
-  slab.castShadow = false;
-  parent.add(slab);
   // Little lights at every tile seam round the edge.
   for (let c = 0; c <= cols; c++) {
     for (const r of [0, rows]) inst(mesh(parent, boxGeo(0.22, 0.1, 0.22), m.cyan, x - W / 2 + c * TILE, h + 0.04, z - D / 2 + r * TILE, { shadow: false }));
@@ -384,11 +422,9 @@ function turret(parent: THREE.Object3D, m: Mats, x: number, y: number, z: number
   const head = new THREE.Group();
   head.position.y = 2.05;
   root.add(head);
-  mesh(head, rboxGeo(1.25, 0.8, 1.4, 0.22), m.panel, 0, 0, 0);
-  mesh(head, rboxGeo(1.32, 0.18, 1.0, 0.06), m.orange, 0, 0.18, -0.1, { shadow: false });
-  mesh(head, barrelGeo(), m.dark, 0, 0, 0);
-  mesh(head, barrelTipGeo(), m.cyan, 0, 0, 0, { shadow: false });
-  mesh(head, boxGeo(0.5, 0.16, 0.05), m.cyan, 0, 0.2, 0.71, { shadow: false });
+  dynamic(head);
+  mesh(head, turretHeadGeo(), m.painted, 0, 0, 0);
+  mesh(head, turretGlowGeo(), m.cyan, 0, 0, 0, { shadow: false });
   const muzzle = new THREE.Object3D();
   muzzle.position.set(0, 0.05, 2.15);
   head.add(muzzle);
@@ -400,6 +436,7 @@ function shuttle(parent: THREE.Object3D, m: Mats, x: number, y: number, z: numbe
   const s = new THREE.Group();
   s.position.set(x, y, z);
   s.rotation.y = ry;
+  s.scale.setScalar(1.35);
   parent.add(s);
   mesh(s, rboxGeo(2.6, 1.9, 4.6, 0.6), m.panel, 0, 2.3, 0);
   mesh(s, rboxGeo(2.7, 0.35, 4.0, 0.12), m.orange, 0, 2.45, -0.1, { shadow: false });
@@ -454,8 +491,7 @@ function hangar(parent: THREE.Object3D, m: Mats): Turret[] {
   mesh(parent, shellGeo, m.shell, 0, 0, back + L / 2);
   // Ribs every few metres, and a light strip along the top.
   for (let k = 0; k <= 4; k++) {
-    const rib = inst(mesh(parent, cachedGeo('rib', () => new THREE.TorusGeometry(R + 0.08, 0.16, 6, 28, Math.PI)), m.grey, 0, 0, back + (k * L) / 4, { shadow: false }));
-    rib.rotation.set(0, 0, 0);
+    inst(mesh(parent, cachedGeo('rib', () => new THREE.TorusGeometry(R + 0.08, 0.16, 6, 28, Math.PI)), m.grey, 0, 0, back + (k * L) / 4, { shadow: false }));
   }
   mesh(parent, boxGeo(0.35, 0.12, L - 1), m.cyan, 0, R + 0.12, back + L / 2, { shadow: false });
   // Back wall, and the front wall with its door opening.
@@ -519,27 +555,36 @@ function fence(parent: THREE.Object3D, m: Mats, pts: THREE.Vector3[], closed = f
   }
 }
 
-/** Fence posts round a rectangle of `cols` × `rows` tiles (one post per tile edge). */
-function rectFence(parent: THREE.Object3D, m: Mats, cx: number, cz: number, cols: number, rows: number, y = 0, gap?: [number, number]) {
-  const W = cols * TILE;
-  const D = rows * TILE;
-  const x0 = cx - W / 2;
-  const z0 = cz - D / 2;
-  const ring: THREE.Vector3[] = [];
-  for (let c = 0; c < cols; c++) ring.push(new THREE.Vector3(x0 + c * TILE, y, z0));
-  for (let r = 0; r < rows; r++) ring.push(new THREE.Vector3(x0 + W, y, z0 + r * TILE));
-  for (let c = cols; c > 0; c--) ring.push(new THREE.Vector3(x0 + c * TILE, y, z0 + D));
-  for (let r = rows; r > 0; r--) ring.push(new THREE.Vector3(x0, y, z0 + r * TILE));
-  if (!gap) {
-    fence(parent, m, ring, true);
+/**
+ * Fence posts round a rectangle of `cols` × `rows` tiles, one post per tile
+ * edge. `gap` leaves a gate in the front (+Z) side between those tile columns;
+ * `back: false` leaves the back side open (the hangar doors).
+ */
+function rectFence(parent: THREE.Object3D, m: Mats, cx: number, cz: number, cols: number, rows: number, y = 0, gap?: [number, number], back = true) {
+  const x0 = cx - (cols * TILE) / 2;
+  const z0 = cz - (rows * TILE) / 2;
+  const P = (c: number, r: number) => new THREE.Vector3(x0 + c * TILE, y, z0 + r * TILE);
+  const front = (from: number, to: number) => {
+    const out: THREE.Vector3[] = [];
+    for (let c = from; from < to ? c <= to : c >= to; c += from < to ? 1 : -1) out.push(P(c, rows));
+    return out;
+  };
+  const left = Array.from({ length: rows + 1 }, (_, r) => P(0, rows - r)); // front-left to back-left
+  const right = Array.from({ length: rows + 1 }, (_, r) => P(cols, r)); // back-right to front-right
+  const backEdge = Array.from({ length: cols - 1 }, (_, c) => P(c + 1, 0));
+  if (!gap && back) {
+    fence(parent, m, [...left, ...backEdge, ...right, ...front(cols - 1, 1)], true);
     return;
   }
-  // A gate: leave out the segments on the front (+Z) side between tile columns gap[0]..gap[1].
-  const front0 = cols + rows; // index of the front-right corner
-  const from = front0 + (cols - gap[1]);
-  const to = front0 + (cols - gap[0]);
-  const run = [...ring.slice(to), ...ring.slice(0, from + 1)];
-  fence(parent, m, run);
+  const g = gap ?? [cols, cols];
+  const a = front(g[0], 0).slice(0, -1);
+  const b = front(cols, g[1]).slice(1);
+  if (back) {
+    fence(parent, m, [...a, ...left, ...backEdge, ...right, ...b]);
+  } else {
+    fence(parent, m, [...a, ...left]);
+    fence(parent, m, [...right, ...b]);
+  }
 }
 
 /** A tall lattice tower with a turret on top. */
@@ -551,8 +596,7 @@ function tower(parent: THREE.Object3D, m: Mats, x: number, z: number, h: number)
   for (let k = 1; k < 4; k++) {
     for (const ry of [0, Math.PI / 2]) {
       for (const s of [-1, 1]) {
-        const b = inst(mesh(t, boxGeo(1.8, 0.12, 0.12), m.orange, ry ? s * 0.9 : 0, (k * h) / 4, ry ? 0 : s * 0.9, { ry, shadow: false }));
-        b.userData.inst = true;
+        inst(mesh(t, boxGeo(1.8, 0.12, 0.12), m.orange, ry ? s * 0.9 : 0, (k * h) / 4, ry ? 0 : s * 0.9, { ry, shadow: false }));
       }
     }
   }
@@ -592,12 +636,12 @@ function commandDome(parent: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
   for (let k = 0; k < 4; k++) mesh(parent, cylGeo(0.16 - k * 0.025, 0.18 - k * 0.025, 3, 8), k % 2 ? m.orange : m.panel, ax, y0 + 1.5 + k * 3, az);
   for (const h of [5, 8.5]) mesh(parent, boxGeo(1.8, 0.08, 0.08), m.grey, ax, y0 + h, az, { shadow: false });
   const tip = mesh(parent, sphereGeo(0.3, 10), m.red, ax, y0 + 12.2, az, { shadow: false });
-  anim.blink.push({ m: tip, phase: 0 });
+  anim.blink.push({ m: dynamic(tip), phase: 0 });
   // The radar dish, turning slowly.
   const dx = -4.6;
   const dz = -6.4;
   mesh(parent, cylGeo(0.3, 0.45, 3.2, 10), m.grey, dx, y0 + 1.6, dz);
-  const pivot = new THREE.Group();
+  const pivot = dynamic(new THREE.Group());
   pivot.position.set(dx, y0 + 3.3, dz);
   parent.add(pivot);
   const dish = new THREE.Group();
@@ -663,7 +707,7 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
   const isFree = (x: number, z: number, r: number) => reserved.every((c) => (c.x - x) ** 2 + (c.z - z) ** 2 > (c.r + r) ** 2);
 
   // ---- Ground and road ----
-  const floorGeo = new THREE.PlaneGeometry(1800, 1800, 150, 150);
+  const floorGeo = new THREE.PlaneGeometry(1800, 1800, 110, 110);
   floorGeo.rotateX(-Math.PI / 2);
   {
     const pos = floorGeo.attributes.position;
@@ -698,7 +742,7 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
   const turrets: Turret[] = [];
   const plazas = opts.plazas?.length ? opts.plazas : [[0.15, 0.3] as [number, number]];
   /** Place an object at (s along, d sideways) from a spot on the road, its front (+Z) facing the road. */
-  const placeAt = (o: THREE.Object3D, uc: number, s: number, d: number) => {
+  const placeAt = <T extends THREE.Object3D>(o: T, uc: number, s: number, d: number): T => {
     const { p, n } = frame(uc + s / len);
     o.position.copy(p).addScaledVector(n, d);
     const dir = n.clone().multiplyScalar(-Math.sign(d));
@@ -724,8 +768,9 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
       const pad = placeAt(new THREE.Group(), uc, 22, sg * 22);
       groupTurrets.push(...landingPad(pad, m));
       reserve(22, sg * 22, 14);
+      let hg: THREE.Group | null = null;
       if (pieces >= 2) {
-        const hg = placeAt(new THREE.Group(), uc, 18, -sg * 21.5);
+        hg = placeAt(new THREE.Group(), uc, 18, -sg * 21.5);
         groupTurrets.push(...hangar(hg, m));
         reserve(16, -sg * 27, 14);
         reserve(18, -sg * 16, 9);
@@ -733,14 +778,11 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
       if (pieces >= 3) {
         // A laser fence all the way round the pad, round the apron, and along the road.
         rectFence(pad, m, 0, 0, 8, 8, 0.3, [3, 5]);
-        if (pieces >= 2) {
-          const hg = root.children[root.children.length - 1];
-          rectFence(hg, m, 0, 5, 7, 3, 0.2, [2, 5]);
-        }
+        if (hg) rectFence(hg, m, 0, 5, 7, 3, 0.2, [2, 5], false);
         for (const side of [-1, 1]) {
           const d = side * 12.5;
           // Leave gaps in front of the pad, the apron and beside the turrets.
-          const busy = side === sg ? [[11, 33], [-15, -9], [52, 64]] : [[7, 29], [24, 30], [44, 58]];
+          const busy = side === sg ? [[11, 33], [-15, -9]] : [[7, 29], [37, 43]];
           let run: THREE.Vector3[] = [];
           for (let s = -40; s <= 70; s += TILE) {
             const free = !busy.some(([lo, hi]) => s >= lo && s <= hi);
@@ -750,12 +792,12 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
               run = [];
             }
           }
-          reserve(15, d, 3);
+          for (let s = -40; s <= 70; s += 5) reserve(s, d, 2);
         }
         groupTurrets.push(turret(root, m, 0, 0, 0), turret(root, m, 0, 0, 0));
         const [t1, t2] = groupTurrets.slice(-2);
         t1.root.position.copy(roadSpot(uc, -12, sg * 12.8));
-        t2.root.position.copy(roadSpot(uc, 27, -sg * 12.8));
+        t2.root.position.copy(roadSpot(uc, 40, -sg * 12.8));
       }
       if (pieces >= 4) {
         const dome = placeAt(new THREE.Group(), uc, 52, sg * 24);
@@ -796,7 +838,7 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
   root.add(craters);
 
   // ---- Boulders and pebbles ----
-  const rockMat = disposable(new THREE.MeshLambertMaterial({ color: dark ? 0x6e7078 : 0x9e9c98, flatShading: true }));
+  const rockMat = disposable(new THREE.MeshLambertMaterial({ color: dark ? 0x707278 : 0xa09e9c, emissive: 0x121212, flatShading: true }));
   const ROCKS = 220;
   const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), rockMat, ROCKS);
   let ri = 0;
@@ -827,9 +869,9 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
   }
 
   // ---- Low ridges and mountains in the distance ----
-  const hillMat = disposable(new THREE.MeshLambertMaterial({ color: dark ? 0x60636c : 0x9c9a96, flatShading: true }));
+  const hillMat = disposable(new THREE.MeshLambertMaterial({ color: dark ? 0x585b64 : 0x86878a, emissive: 0x0c0d10, flatShading: true }));
   const HILLS = 90;
-  const hills = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), hillMat, HILLS);
+  const hills = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), hillMat, HILLS + 7);
   let hi = 0;
   for (let k = 0; k < HILLS * 3 && hi < HILLS; k++) {
     const { p, n } = frame(-0.2 + rnd() * 1.6);
@@ -911,6 +953,7 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
   // ---- Sky: stars, the Earth and the Sun, always far away (they move with the camera) ----
   const pin = (o: THREE.Object3D, dir: THREE.Vector3, dist: number) => {
     const at = dir.clone().normalize().multiplyScalar(dist);
+    dynamic(o);
     o.frustumCulled = false;
     o.onBeforeRender = (_r, _s, cam) => {
       const w = cam.getWorldPosition(new THREE.Vector3()).add(at);
@@ -957,20 +1000,17 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
     pin(halo, sunDir, 610);
   }
 
-  // The alien fleet, with searchlights tinted green and dim (no air on the Moon to light up).
+  // The alien fleet. No searchlight beams: there's no air on the Moon to light up.
   const before = root.children.length;
   const sky = addAlienSky(root, curve, rnd, 0);
   for (const o of root.children.slice(before)) {
     o.traverse((x) => {
       const mat = (x as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
-      if (mat && !mat.map && mat.blending === THREE.AdditiveBlending && mat.opacity < 0.1) {
-        mat.color.setHex(0x5dff7a);
-        mat.opacity = 0.03;
-      }
+      if (mat && !mat.map && mat.blending === THREE.AdditiveBlending && mat.opacity < 0.1) x.visible = false;
     });
   }
 
-  batchStatic(root);
+  mergeStatic(root);
 
   let time = 0;
   return {
@@ -1004,7 +1044,7 @@ export function basePieceModel(piece: number): THREE.Group {
     turret(inner, m, -5.2, 0, 3.8);
     turret(inner, m, 5.2, 0, 3.8);
   } else commandDome(inner, m, anim);
-  batchStatic(inner);
+  mergeStatic(inner, 1000);
   // Scale to about 6 units across and centre it on the stand.
   const box = new THREE.Box3().setFromObject(inner);
   const size = box.getSize(new THREE.Vector3());

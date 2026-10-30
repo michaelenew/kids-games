@@ -264,10 +264,11 @@ export class Invasion {
     this.fx = new FX(this.root);
     stage.content.add(this.root);
     if (moon) {
-      // Harsh, bright sunlight with no air: black sky, long shadows.
-      stage.activate(moonSky(), new THREE.Fog(MOON_FOG, 120, 700));
-      stage.key.color.setHex(0xf4f6ff);
-      stage.key.intensity = 2.6;
+      // Harsh, bright sunlight with no air: black sky, crisp shadows. The dark side is lit only by starlight and lamps.
+      const darkSide = mission.id === 'moon-dark';
+      stage.activate(moonSky(), new THREE.Fog(MOON_FOG, darkSide ? 110 : 180, darkSide ? 620 : 880));
+      stage.key.color.setHex(darkSide ? 0xc8d0f0 : 0xfafbff);
+      stage.key.intensity = darkSide ? 1.7 : 2.9;
     } else if (volcano) {
       // Smoky orange light from the lava and a hazy red sky.
       stage.activate(volcanoSky(), new THREE.Fog(VOLCANO_FOG, 70, 560));

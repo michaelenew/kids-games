@@ -1150,7 +1150,7 @@ export const MISSIONS: Mission[] = [
     blurb: 'Pick a robot and land on the Moon!',
     seed: 331,
     path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
-    plazas: [[0.15, 0.3], [0.85, 1]],
+    plazas: [[0.15, 0.3], [0.42, 0.58], [0.85, 1]],
     steps: [
       { kind: 'say', lines: [{ who: 'volt', text: 'We made it to the Moon! Their last outpost is out here somewhere. Watch out, they saw us land!' }] },
       { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left'), kr(2.5, 'roofR')] },
@@ -1219,7 +1219,7 @@ export const MISSIONS: Mission[] = [
     blurb: 'Chase them to the dark side of the Moon!',
     seed: 353,
     path: [[0, 0, 20], [0, 0, -20], [8, 0, -100], [-8, 0, -180], [10, 0, -260], [-6, 0, -340], [6, 0, -420], [-4, 0, -500], [0, 0, -560], [0, 0, -590]],
-    plazas: [[0.15, 0.3], [0.55, 0.7], [0.85, 1]],
+    plazas: [[0.15, 0.3], [0.42, 0.58], [0.85, 1]],
     steps: [
       { kind: 'say', lines: [{ who: 'volt', text: 'They\'re hiding on the dark side, where the sun never shines. Turrets on, headlights on!' }] },
       { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: [sk(1, 'left', true), kr(2, 'roofR'), sk(3.5, 'above')] },

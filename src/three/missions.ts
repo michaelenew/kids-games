@@ -1256,7 +1256,7 @@ export const MISSIONS: Mission[] = [
   // ---- The Moon Siege: the whole alien fleet comes back. The base grows (L-shaped floors and fences) ----------
   {
     id: 'siege-wave',
-    dmg: 2.6, hp: 1.7, fire: 0.8, extra: 1,
+    dmg: 4.5, hp: 2.6, fire: 0.75, extra: 1.5,
     env: 'moon',
     area: 'siege',
     pick: true,
@@ -1280,7 +1280,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'siege-power',
-    dmg: 2.6, hp: 1.75, fire: 0.8, extra: 1,
+    dmg: 2.6, hp: 2.3, fire: 0.75, extra: 1.5,
     env: 'moon',
     area: 'siege',
     pick: true,
@@ -1299,7 +1299,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'siege-sun',
-    dmg: 2.4, hp: 1.8, fire: 0.8, extra: 1,
+    dmg: 2.6, hp: 2.3, fire: 0.75, extra: 1.25,
     env: 'moon',
     area: 'siege',
     pick: true,
@@ -1319,7 +1319,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'siege-wall',
-    dmg: 2.4, hp: 1.85, fire: 0.78, extra: 1.1,
+    dmg: 2.3, hp: 2.4, fire: 0.72, extra: 1.4,
     env: 'moon',
     area: 'siege',
     pick: true,
@@ -1338,7 +1338,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'siege-final',
-    dmg: 4.5, hp: 2, fire: 0.75, extra: 1,
+    dmg: 4.5, hp: 2.6, fire: 0.72, extra: 1.4,
     env: 'moon',
     area: 'siege',
     pick: true,
@@ -1348,7 +1348,7 @@ export const MISSIONS: Mission[] = [
     seed: 431,
     path: DEFEND_PATH,
     boss: [0, -8, -95],
-    bossHp: 12,
+    bossHp: 14,
     steps: [
       { kind: 'say', lines: [{ who: 'volt', text: 'The mothership dropped its giant walker right in front of the shield. This is it: save the base!' }] },
       { kind: 'wave', banner: 'ITS BODYGUARDS!', spawns: [kr(0, 'ahead', true), kr(0.6, 'ahead'), kr(1.2, 'ahead'), sk(1.8, 'above', true), kr(2.4, 'roofL', true), kr(3, 'roofR', true)] },

@@ -541,7 +541,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     }
     // Lakes off to the sides, and a river winding along.
     const L = noise(x * 0.9 + 100, z * 0.9 - 40) + 0.12 * noise(x * 3.1, z * 2.7) - (haze ? 0.4 : 0.28);
-    const lake = smooth(L, 0, 0.1) * smooth(d, 17, 30) * (1 - plaza);
+    const lake = smooth(L, -0.04, 0.16) * smooth(d, 17, 30) * (1 - plaza);
     const rd = Math.abs(x - riverX(z));
     const river = (1 - smooth(rd, 3.5, 9)) * smooth(d, 18, 30) * (core ? 0 : 1);
     // The aliens' lake of fuel behind the walker.
@@ -638,7 +638,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   }
 
   // ---- Ground ----
-  const floorGeo = new THREE.PlaneGeometry(1800, 1800, 150, 150);
+  const floorGeo = new THREE.PlaneGeometry(1800, 1800, 210, 210);
   floorGeo.rotateX(-Math.PI / 2);
   {
     const pos = floorGeo.attributes.position;
@@ -679,7 +679,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       ripples: { value: null },
       time: { value: 0 },
-      deep: { value: new THREE.Color(0x0d0603) },
+      deep: { value: new THREE.Color(0x24130a) },
       skyLo: { value: new THREE.Color(0xb06a30) },
       skyHi: { value: new THREE.Color(0x5a3214) },
       sunDir: { value: new THREE.Vector3(0.5, 0.55, -0.75).normalize() },
@@ -715,7 +715,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
         float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         // The orange sky in it: bright near the horizon, darker overhead.
         vec3 skyC = mix(skyLo, skyHi, smoothstep(0.0, 0.45, R.y));
-        vec3 c = mix(deep, skyC, min(0.8, fres));
+        vec3 c = mix(deep, skyC, clamp(fres, 0.12, 0.8));
         // The Sun's smudge glinting, and fine bright ripples.
         c += vec3(1.0, 0.8, 0.55) * pow(max(dot(R, sunDir), 0.0), 60.0) * 0.5;
         gl_FragColor = vec4(c, 1.0);
@@ -959,7 +959,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       if (haze) {
         scene.fog.color.copy(fogColor);
         scene.fog.near = 16;
-        scene.fog.far = 230;
+        scene.fog.far = 260;
       } else if (lakes) {
         scene.fog.near = 60;
         scene.fog.far = 460;

@@ -582,7 +582,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
 
   const snowSize = () => (rnd() < 0.05 ? 7 + rnd() * 10 : 0.5 + rnd() ** 2.6 * 5);
   for (let v = 0; v < 4; v++) {
-    const spots = v === 3 ? place(Math.round(12 * density), 60, 260, () => 14 + rnd() * 26) : place(Math.round(60 * density), 4, 170, snowSize);
+    const spots = v === 3 ? place(Math.round(12 * density), 70, 260, () => 10 + rnd() * 16) : place(Math.round(60 * density), 4, 170, snowSize);
     const im = new THREE.InstancedMesh(snowGeo(v), snowMat, spots.length);
     im.castShadow = false;
     im.receiveShadow = false;
@@ -713,7 +713,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const body = new THREE.Group();
     sys.add(body);
     const mat = disposable(new THREE.MeshStandardMaterial({
-      map: haumeaTexture(), emissiveMap: haumeaTexture(), emissive: 0xffffff, emissiveIntensity: 0.07, roughness: 0.7, metalness: 0.05, fog: false,
+      map: haumeaTexture(), color: 0x8a90a0, emissiveMap: haumeaTexture(), emissive: 0xffffff, emissiveIntensity: 0.07, roughness: 0.7, metalness: 0.05, fog: false,
     }));
     const egg = new THREE.Mesh(cg('haumeaEgg', () => new THREE.SphereGeometry(1, 72, 40)), mat);
     egg.scale.set(A, A * 0.52, A * 0.78);
@@ -1028,18 +1028,18 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     // The swirl inside.
     let swirl: THREE.ShaderMaterial | null = null;
     if (big) {
-      swirl = swirlMat(0.9);
+      swirl = swirlMat(0.55);
       const disc = new THREE.Mesh(cg('gateDisc', () => new THREE.PlaneGeometry(2, 2)), swirl);
       disc.scale.setScalar(R * 0.86);
       disc.renderOrder = 2;
       g.add(disc);
     }
-    const halo = glowSprite(GREEN, R * (big ? 3.2 : 2.4), big ? 0.35 : 0.18);
+    const halo = glowSprite(GREEN, R * (big ? 2.6 : 2.0), big ? 0.1 : 0.05);
     g.add(halo);
     updaters.push((dt, t) => {
       for (const r of rings) r.o.rotation.z += r.w * dt;
       if (swirl) swirl.uniforms.time.value = t;
-      halo.scale.setScalar(R * (big ? 3.2 : 2.4) * (1 + Math.sin(t * 1.5 + u * 20) * 0.06));
+      halo.scale.setScalar(R * (big ? 2.6 : 2.0) * (1 + Math.sin(t * 1.5 + u * 20) * 0.06));
     });
     keepOut.push({ p: f.p, r: R * 1.5 });
   }

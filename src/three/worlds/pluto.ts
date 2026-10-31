@@ -677,6 +677,24 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   }
 
   // ---- The ground ----
+  const cream = new THREE.Color(0xc8ab88);
+  const tan = new THREE.Color(0xb08058);
+  const rust = new THREE.Color(0x93502f);
+  const cthulhu = new THREE.Color(0x5c2a1c);
+  const frostC = new THREE.Color(0xcfd3dc);
+  const gcol = new THREE.Color();
+  /** The ground's colour (outside the heart's ice): tholins in cream, tan and rust drifts, frost up high, the dark red region. */
+  const groundColor = (x: number, z: number, h: number, sd: number, k: number) => {
+    const n1 = noise(x * 2.3 + 40, z * 2.1 - 17);
+    const n2 = noise(x * 5.1 - 7, z * 4.7 + 3);
+    const c = gcol.copy(cream).lerp(tan, THREE.MathUtils.smoothstep(n1, -0.3, 0.4));
+    c.lerp(rust, THREE.MathUtils.smoothstep(n2 + n1 * 0.5, 0.35, 0.9) * 0.8);
+    c.lerp(frostC, THREE.MathUtils.smoothstep(h, 18, 34) * 0.7);
+    c.lerp(cthulhu, darkAt(x, z) * 0.9);
+    // A slightly darker, scuffed band round the heart's edge.
+    const rim = Math.exp(-((sd - 0.03) ** 2) / 0.0006) * (1 - k);
+    return c.multiplyScalar(1 - rim * 0.18);
+  };
   const SIZE = 2200;
   const SEG = 200;
   const floorGeo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
@@ -685,13 +703,6 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const pos = floorGeo.attributes.position;
     const uv = floorGeo.attributes.uv;
     const col = new Float32Array(pos.count * 3);
-    const ice = new Float32Array(pos.count * 2);
-    const cream = new THREE.Color(0xc8ab88);
-    const tan = new THREE.Color(0xb08058);
-    const rust = new THREE.Color(0x93502f);
-    const cthulhu = new THREE.Color(0x5c2a1c);
-    const frostC = new THREE.Color(0xcfd3dc);
-    const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i) + mid.x;
       const z = pos.getZ(i) + mid.z;
@@ -700,21 +711,10 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       const h = heightAt(x, z, d, ht.k);
       pos.setY(i, h);
       uv.setXY(i, x / 26, z / 26);
-      // Tholins: cream, tan and rust in drifts; frost on the high ground; the Cthulhu region dark red.
-      const n1 = noise(x * 2.3 + 40, z * 2.1 - 17);
-      const n2 = noise(x * 5.1 - 7, z * 4.7 + 3);
-      c.copy(cream).lerp(tan, THREE.MathUtils.smoothstep(n1, -0.3, 0.4));
-      c.lerp(rust, THREE.MathUtils.smoothstep(n2 + n1 * 0.5, 0.35, 0.9) * 0.8);
-      c.lerp(frostC, THREE.MathUtils.smoothstep(h, 18, 34) * 0.7);
-      c.lerp(cthulhu, darkAt(x, z) * 0.9);
-      // A slightly darker, scuffed band round the heart's edge.
-      const rim = Math.exp(-((ht.sd - 0.03) ** 2) / 0.0006) * (1 - ht.k);
-      c.multiplyScalar(1 - rim * 0.18);
+      const c = groundColor(x, z, h, ht.sd, ht.k);
       col.set([c.r, c.g, c.b], i * 3);
-      ice.set([ht.k, ht.k * ht.left], i * 2);
     }
     floorGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    floorGeo.setAttribute('ice', new THREE.BufferAttribute(ice, 2));
     floorGeo.computeVertexNormals();
   }
   const floorMat = disposable(new THREE.MeshStandardMaterial({ map: grainTexture(), color: night ? 0x6a74a0 : 0xffffff, vertexColors: true, roughness: 0.92, metalness: 0 }));
@@ -722,16 +722,40 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   floorMat.onBeforeCompile = (sh) => {
     sh.uniforms.cellMap = { value: cellTexture() };
     sh.uniforms.iceTint = { value: iceTint };
+    sh.uniforms.heart = { value: new THREE.Vector4(cfg.heart.x, cfg.heart.z, cfg.heart.S, cfg.heart.rot) };
+    sh.uniforms.floorAt = { value: new THREE.Vector2(mid.x, mid.z) };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 ice;\nvarying vec2 vIce;\nvarying vec2 vXZ;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvIce = ice;\nvXZ = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      .replace('#include <common>', '#include <common>\nuniform vec2 floorAt;\nvarying vec2 vXZ;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvXZ = transformed.xz + floorAt;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D cellMap;\nuniform vec3 iceTint;\nvarying vec2 vIce;\nvarying vec2 vXZ;\nfloat iceK;')
+      .replace('#include <common>', `#include <common>
+        uniform sampler2D cellMap;
+        uniform vec3 iceTint;
+        uniform vec4 heart;
+        varying vec2 vXZ;
+        float iceK;
+        float sdHeart(vec2 p) {
+          p.x = abs(p.x);
+          if (p.y + p.x > 1.0) return length(p - vec2(0.25, 0.75)) - 0.353553;
+          vec2 a = p - vec2(0.0, 1.0);
+          vec2 b = p - 0.5 * max(p.x + p.y, 0.0);
+          return sqrt(min(dot(a, a), dot(b, b))) * sign(p.x - p.y);
+        }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        iceK = smoothstep(0.25, 0.75, vIce.x);
         {
+          // The heart, worked out right here so its edge stays crisp (matches heartAt()).
+          float x = vXZ.x;
+          float z = vXZ.y;
+          float dx = x - heart.x;
+          float dz = heart.y - z;
+          float c = cos(heart.w);
+          float s = sin(heart.w);
+          vec2 hp = vec2(dx * c - dz * s, dx * s + dz * c) / heart.z;
+          float wob = 0.018 * sin(x * 0.05 + z * 0.03) + 0.012 * sin(x * 0.13 - z * 0.11) + 0.006 * sin(x * 0.4 + z * 0.33);
+          float sd = sdHeart(hp) + wob;
+          iceK = 1.0 - smoothstep(-0.008, 0.004, sd);
+          float cells = smoothstep(-0.12, 0.08, -hp.x) * (1.0 - smoothstep(-0.03, -0.01, sd));
           vec4 cell = texture2D(cellMap, vXZ / 110.0);
-          float cells = clamp(vIce.y * 1.2, 0.0, 1.0);
           vec3 smooth_ice = mix(vec3(0.36, 0.42, 0.55), vec3(0.54, 0.56, 0.6), cell.g * 0.6 + 0.4);
           vec3 iceCol = mix(vec3(0.52, 0.52, 0.53), smooth_ice * (0.62 + 0.38 * cell.r), cells);
           // A faint bluish shine toward each cell's middle.
@@ -899,7 +923,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   }
   // Craters, mostly in the dark region (the heart is too young to have any).
   {
-    const crMat = disposable(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.95 }));
+    const crMat = disposable(new THREE.MeshStandardMaterial({ map: grainTexture(), color: night ? 0x6a74a0 : 0xffffff, vertexColors: true, roughness: 0.95 }));
     const im = new THREE.InstancedMesh(craterGeo(), crMat, 40);
     let n = 0;
     let tries = 0;
@@ -912,8 +936,8 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       q.identity();
       m4.compose(at.set(s0.x, heightAt(s0.x, s0.z, s0.d) - 0.25, s0.z), q, sc.set(r, r * 0.55, r));
       im.setMatrixAt(n, m4);
-      const base = dk > 0.5 ? 0x6a3224 : 0xa88464;
-      im.setColorAt(n, col.setHex(base).multiplyScalar(dim));
+      const ht = heartAt(s0.x, s0.z);
+      im.setColorAt(n, col.copy(groundColor(s0.x, s0.z, heightAt(s0.x, s0.z, s0.d), ht.sd, ht.k)));
       n++;
     }
     im.count = n;

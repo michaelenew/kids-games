@@ -143,7 +143,10 @@ export function writtenSubtractPanel(scene: Phaser.Scene, o: WrittenOptions): vo
       then();
     }, { fill: 0x2a9d8f, edge: 0x9ff0e3, size: 26 }));
   };
+  /** Mistakes on this problem (a walk-through with none still counts as right first time). */
+  let mistakes = 0;
   const wrong = (msg: string) => {
+    mistakes++;
     sfx.buzz();
     shown.setColor('#ef476f');
     toast(scene, cx, top + h - 18, msg, '#ff9f9f', 21).setDepth(960);
@@ -169,7 +172,7 @@ export function writtenSubtractPanel(scene: Phaser.Scene, o: WrittenOptions): vo
     const ask = () => {
       clearPad();
       if (i >= cols.length) {
-        finish(false);
+        finish(mistakes === 0);
         return;
       }
       const c = cols[i];

@@ -5,8 +5,9 @@ import { BRICK, REGIONS, type Region, armorMark, lookFromSave, regionName, wallT
 import { music, sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
 import {
-  BUILD_COST, actionDone, botName, bumpGuide, guideCount, mathDone, persist, recordSkill, rig, save, setActiveBot,
+  BUILD_COST, actionDone, botName, bumpGuide, guideCount, mathDone, paperDone, paperStep, persist, recordSkill, rig, save, setActiveBot,
 } from '../state';
+import { groupsPaper } from '../ui/paper';
 import { launchMission } from './launch';
 import { howTo, needsIntro } from '../ui/howto';
 import { numpad } from '../ui/numpad';
@@ -205,7 +206,26 @@ export class WallForge extends Phaser.Scene {
     this.drawWall();
 
     const cards = this.cardsFor(j);
-    const go = () => (this.guided(j) ? this.guidedRun() : this.soloRun());
+    const go = () => {
+      // Paper mode (see skills/paper.ts): past the walk-throughs, the rows-times question goes on a page.
+      const step = paperStep('multiply');
+      if (step >= 2 && !j.extra) {
+        this.setTask(`HOW MANY ${this.W.many.toUpperCase()}?`, `${this.question(j)} = ?`);
+        groupsPaper(this, {
+          kind: 'multiply', groups: j.full, each: j.cols, step, title: `${this.W.panel.toUpperCase()}: ROWS OF ${this.W.many.toUpperCase()}`,
+          question: needsIntro('times') ? `${j.full} rows of ${j.cols} = ?` : `${j.full} × ${j.cols} = ?`,
+          area: { x: CX, y: 470, w: RIGHT - LEFT, h: 430 },
+          onDone: (r) => {
+            if (!r.solo) j.misses = Math.max(j.misses, 1);
+            paperDone('multiply', r.solo, r.showMe);
+            this.check(this.answer, true, true);
+          },
+        });
+        return;
+      }
+      if (this.guided(j)) this.guidedRun();
+      else this.soloRun();
+    };
     if (cards.length) {
       // The card sits over the keypad, so the wall it talks about stays in view.
       this.busy = true;
@@ -417,7 +437,8 @@ export class WallForge extends Phaser.Scene {
     this.onAnswer = (v) => this.check(v, true);
   }
 
-  private check(v: number, solo: boolean) {
+  /** `paper`: answered on the paper page (paper mode already counted it). */
+  private check(v: number, solo: boolean, paper = false) {
     const j = this.job;
     if (v !== this.answer) {
       j.misses++;
@@ -450,6 +471,7 @@ export class WallForge extends Phaser.Scene {
     this.busy = true;
     sfx.success();
     recordSkill('multiply', solo && j.misses === 0);
+    if (!paper) paperDone('multiply', j.misses === 0);
     if (this.mode === 'build') {
       bumpGuide('wall');
       bumpGuide(`wall-${j.cols}`);

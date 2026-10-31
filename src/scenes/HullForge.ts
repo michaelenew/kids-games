@@ -4,7 +4,8 @@ import { onUpgradeBuilt, upgradeRequired } from '../assist';
 import { BRICK, REGIONS, type Region, armorMark, hullTarget, lookFromSave, regionName } from '../armor';
 import { music, sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
-import { BUILD_COST, actionDone, bumpGuide, guideCount, persist, recordSkill, rig, save, setActiveBot } from '../state';
+import { BUILD_COST, actionDone, bumpGuide, guideCount, paperDone, paperStep, persist, recordSkill, rig, save, setActiveBot } from '../state';
+import { groupsPaper } from '../ui/paper';
 import { launchMission } from './launch';
 import { howTo, needsIntro } from '../ui/howto';
 import { numpad } from '../ui/numpad';
@@ -171,7 +172,25 @@ export class HullForge extends Phaser.Scene {
     this.drawWork();
 
     const cards = this.cardsFor(j);
-    const go = () => (this.guided(j) ? this.guidedRun() : this.soloRun());
+    const go = () => {
+      // Paper mode (see skills/paper.ts): past the walk-throughs, the sharing question goes on a page.
+      const step = paperStep('divide');
+      if (step >= 2) {
+        groupsPaper(this, {
+          kind: 'divide', groups: j.rows, each: j.cols, step, title: 'HULL TILES: SHARE THEM OUT',
+          question: `${this.shareText(j)} = ? in each row`,
+          area: { x: CX, y: 470, w: RIGHT - LEFT, h: 430 },
+          onDone: (r) => {
+            if (!r.solo) j.misses = Math.max(j.misses, 1);
+            paperDone('divide', r.solo, r.showMe);
+            this.check(j.cols, true, true);
+          },
+        });
+        return;
+      }
+      if (this.guided(j)) this.guidedRun();
+      else this.soloRun();
+    };
     this.setTask('THE BLUEPRINT', `${j.rows * j.cols} tiles, shared equally into ${j.rows} rows`);
     if (cards.length) {
       // The card sits over the keypad, so the pile it talks about stays in view.
@@ -317,7 +336,8 @@ export class HullForge extends Phaser.Scene {
     this.onAnswer = (v) => this.check(v, true);
   }
 
-  private check(v: number, solo: boolean) {
+  /** `paper`: answered on the paper page (paper mode already counted it). */
+  private check(v: number, solo: boolean, paper = false) {
     const j = this.job;
     if (v !== j.cols) {
       j.misses++;
@@ -344,6 +364,7 @@ export class HullForge extends Phaser.Scene {
     this.busy = true;
     sfx.success();
     recordSkill('divide', solo && j.misses === 0);
+    if (!paper) paperDone('divide', j.misses === 0);
     bumpGuide('share');
     bumpGuide(`share-${j.rows}`);
     // Deal out whatever is left, quickly, so he sees the rows come out even.

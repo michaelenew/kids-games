@@ -4,10 +4,11 @@ import { LEVELS } from '../levels';
 import {
   BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName,
   botsUnlocked, endPreview, gearInfo, alertQueue, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
-  startPreview, takeFreshAlert,
+  paperStep, startPreview, takeFreshAlert,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
 import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
+import { PAPER_KINDS, PAPER_NAMES } from '../skills/paper';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
@@ -377,6 +378,10 @@ export class GarageScene extends Phaser.Scene {
       ? `Next mission (${nextMission.title.replace(/^Invasion \d+: /, '')}): ${needsUpgrade(nextMission.id) ? 'HARD until an upgrade is built' : `extra help ${currentTier(nextMission.id)}/3`}`
       : 'All missions beaten!';
     items.push(text(this, W / 2, 574, help, 18, '#8d99ae').setDepth(52));
+    // Paper mode: how far each written kind of problem has moved toward a blank page.
+    const STEP = ['', 'boxes', 'tap where it goes', 'blank scratch page'];
+    const paperLine = PAPER_KINDS.map((k) => `${PAPER_NAMES[k].split(' ')[0]}: ${STEP[paperStep(k, s)]}`).join('   ·   ');
+    items.push(text(this, W / 2, 600, `Paper mode  ${paperLine}`, 16, '#e0aaff').setDepth(52));
     const gap = Math.min(31, 410 / (Object.keys(SKILL_LABELS).length - 1));
     Object.entries(SKILL_LABELS).forEach(([key, label], i) => {
       const st = s.skills[key];

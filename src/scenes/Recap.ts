@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { sfx } from '../audio';
 import { hitBars, makeGraphQuestion, pickAddPair, type Bar } from '../skills/recap';
 import { addColumns } from '../skills/steps';
-import { bumpGuide, guideCount, mathDone, persist, recordSkill, save } from '../state';
+import { bumpGuide, guideCount, mathDone, paperDone, paperStep, persist, recordSkill, save } from '../state';
+import { columnPaper } from '../ui/paper';
 import { getStage } from '../three/stage';
 import { numpad } from '../ui/numpad';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
@@ -111,6 +112,21 @@ export class RecapScene extends Phaser.Scene {
     this.add.text(W / 2, 100, `Two of the hits you took: ${a} and ${b}. How much damage is that altogether?`, {
       fontFamily: 'Arial', fontSize: '24px', color: '#ffffff', align: 'center', wordWrap: { width: 1100 },
     }).setOrigin(0.5);
+    // Paper mode: past the boxes, it's the sum printed on a page (see skills/paper.ts).
+    const step = paperStep('add');
+    if (step >= 2) {
+      columnPaper(this, {
+        kind: 'add', a, b, step, area: { x: W / 2, y: 420, w: 1000, h: 440 }, title: 'ADD THE TWO HITS',
+        onDone: (r) => {
+          recordSkill('addition', r.solo);
+          bumpGuide('add');
+          paperDone('add', r.solo, r.showMe);
+          this.reward(W / 2, 420);
+          this.time.delayedCall(1200, () => this.finish());
+        },
+      });
+      return;
+    }
     panel(this, 460, 360, 380, 400);
 
     // The written sum: digits, carry boxes, answer boxes.
@@ -159,6 +175,7 @@ export class RecapScene extends Phaser.Scene {
     const done = () => {
       highlight(null);
       recordSkill('addition', misses === 0);
+      paperDone('add', misses === 0);
       bumpGuide('add');
       pad.destroy();
       say.setText(`${a} + ${b} = ${sum}. Great adding!`);

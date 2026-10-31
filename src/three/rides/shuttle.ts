@@ -536,6 +536,23 @@ function hull(root: THREE.Object3D, m: Mats, anim: Anim) {
     const l = dynamic(mesh(root, boxGeo(0.25, 0.08, 0.3), m.pink, sx * 0.55, -0.66, 11.6, { shadow: false }));
     anim.blink.push({ m: l, phase: 2 + sx });
   }
+  // Stealth strakes: flat faceted blades out from the chines, the engine pods set into them.
+  for (const sx of [-1, 1]) {
+    const strake = cg(`shStrake${sx}`, () => {
+      const sh = new THREE.Shape();
+      sh.moveTo(sx * 3.3, 6.0);
+      sh.lineTo(sx * 4.7, -2.6);
+      sh.lineTo(sx * 4.5, -9.0);
+      sh.lineTo(sx * 2.8, -9.4);
+      sh.lineTo(sx * 3.3, 6.0);
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.14, bevelEnabled: false });
+      geo.rotateX(Math.PI / 2);
+      return geo;
+    });
+    mesh(root, strake, m.facet, 0, -0.68, 0);
+    bar(root, m.edge, new THREE.Vector3(sx * 3.3, -0.7, 6.0), new THREE.Vector3(sx * 4.72, -0.7, -2.6), 0.05);
+    bar(root, m.edge, new THREE.Vector3(sx * 4.72, -0.7, -2.6), new THREE.Vector3(sx * 4.52, -0.7, -9.0), 0.05);
+  }
   // The engines: a wide slot engine in the tail, and a pod on each side.
   mesh(root, boxGeo(3.2, 0.7, 0.4), m.trim, 0, -0.95, -9.55);
   mesh(root, boxGeo(2.8, 0.42, 0.05), m.nozzle, 0, -0.95, -9.78, { shadow: false });
@@ -605,16 +622,16 @@ function skids(root: THREE.Object3D, m: Mats, anim: Anim, sides = [-1, 1]) {
     const x = s * 2.15;
     // The runner: faceted, curling up at the front.
     const runner = cg('shRunner', () => loft([
-      [-0.22, -6.8, 0.0], [-0.26, -6.2, 0], [-0.26, 5.0, 0], [-0.2, 6.4, 0.45], [-0.12, 7.0, 1.0],
+      [-0.3, -6.8, 0.0], [-0.36, -6.2, 0], [-0.36, 5.0, 0], [-0.28, 6.4, 0.45], [-0.16, 7.0, 1.0],
     ].map(([hw, z, lift]) => [
-      new THREE.Vector3(-hw, 0.14 + lift, z), new THREE.Vector3(hw, 0.14 + lift, z), new THREE.Vector3(hw * 1.15, lift - 0.06, z),
-      new THREE.Vector3(0, lift - 0.16, z), new THREE.Vector3(-hw * 1.15, lift - 0.06, z),
+      new THREE.Vector3(-hw, 0.24 + lift, z), new THREE.Vector3(hw, 0.24 + lift, z), new THREE.Vector3(hw * 1.2, lift - 0.06, z),
+      new THREE.Vector3(0, lift - 0.2, z), new THREE.Vector3(-hw * 1.2, lift - 0.06, z),
     ])));
     mesh(root, runner, m.trim, x, Y, 0);
     // Ice blades along the bottom and at the curled tip.
-    const blade = mesh(root, boxGeo(0.12, 0.08, 1), m.ice, x, Y - 0.17, -0.6, { shadow: false });
+    const blade = mesh(root, boxGeo(0.16, 0.12, 1), m.ice, x, Y - 0.22, -0.6, { shadow: false });
     blade.scale.z = 11;
-    mesh(root, cg('shIceTip', () => new THREE.OctahedronGeometry(0.32, 0).scale(0.8, 1, 1.6)), m.ice, x, Y + 1.05, 7.2, { rx: -0.6 });
+    mesh(root, cg('shIceTip', () => new THREE.OctahedronGeometry(0.42, 0).scale(0.8, 1, 1.6)), m.ice, x, Y + 1.05, 7.1, { rx: -0.6 });
     mesh(root, cg('shIceTail', () => new THREE.OctahedronGeometry(0.26, 0).scale(0.8, 0.8, 1.6)), m.ice, x, Y + 0.05, -7.0);
     // Struts up into the hull.
     for (const z of [-4.5, 0.5, 4.5]) {
@@ -664,15 +681,15 @@ function scanner(root: THREE.Object3D, m: Mats, anim: Anim, x = 0, y = 1.05, z =
   anim.pulse.push({ o: eye, base: 1.2, speed: 4, phase: 0 });
   // The beam: a flat fan, tipped down onto the ground ahead.
   const beamMat = new THREE.MeshBasicMaterial({
-    map: beamTexture(), color: new THREE.Color(0x4dffc8).multiplyScalar(0.55), transparent: true, opacity: 0.55,
+    map: beamTexture(), color: new THREE.Color(0x4dffc8).multiplyScalar(0.3), transparent: true, opacity: 0.5,
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
   });
   beamMat.userData.disposable = true;
   const fan = cg('shBeam', () => {
-    // A thin wedge 34 long, widening to 7, along +Z, its UV running from the dome (u = 0) out.
-    const L = 34;
+    // A thin wedge 28 long, widening to 4.8, along +Z, its UV running from the dome (u = 0) out.
+    const L = 28;
     const geo = new THREE.BufferGeometry();
-    const p = [0, 0, 0, -3.5, 0, L, 3.5, 0, L];
+    const p = [0, 0, 0, -2.4, 0, L, 2.4, 0, L];
     geo.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0.5, 1, 0, 1, 1], 2));
     return geo;
@@ -795,7 +812,9 @@ export function partModel(part: number): THREE.Group {
     mesh(inner, rboxGeo(1.0, 1.0, 10.5, 0.2), m.facet, WING_ROOT - 0.3, WING_Y, -2.5);
     mesh(inner, boxGeo(0.08, 0.08, 10), m.edge, WING_ROOT - 0.3, WING_Y + 0.52, -2.5, { shadow: false });
   } else if (p === 2) {
-    skids(inner, m, anim, [1]);
+    skids(inner, m, anim);
+    // A slice of the hull's belly they bolt on to.
+    mesh(inner, cg('shBelly', () => loft(HULL.slice(1, 4).map((sec) => ring({ ...sec, top: -1.2, chy: -1.4 })))), m.hull, 0, 0, 0);
   } else if (p === 3) {
     scanner(inner, m, anim, 0, 0, 0, 0.12);
     turret(inner, m, 2.4, -0.2, 0.6, 0.72);

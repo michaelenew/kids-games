@@ -132,7 +132,7 @@ function sandTexture() {
       g.fillRect(rnd() * 256, rnd() * 256, 1 + rnd() * 2, 1);
     }
     // Ripples: wavy darker lines.
-    g.strokeStyle = 'rgba(80,60,40,0.12)';
+    g.strokeStyle = 'rgba(80,60,40,0.05)';
     g.lineWidth = 2;
     for (let y = 0; y < 256; y += 9) {
       g.beginPath();
@@ -644,8 +644,8 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const pos = floorGeo.attributes.position;
     const uv = floorGeo.attributes.uv;
     const col = new Float32Array(pos.count * 3);
-    const dark = new THREE.Color(0x8a5630);
-    const gravel = new THREE.Color(0xe8cfae);
+    const dark = new THREE.Color(0x6a3c1e);
+    const gravel = new THREE.Color(0xe0bc92);
     const wetC = new THREE.Color(0x4a2c16);
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
@@ -656,7 +656,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       pos.setY(i, h);
       uv.setXY(i, x / 9, z / 9);
       // Dark sand on the dunes, pale icy gravel on the flats between, darker where it's wet.
-      const duneK = smooth(h, 0.4, 3.5) * 0.85 + 0.15 * (0.5 + 0.5 * noise(x * 2.3 + 40, z * 2.1 - 17));
+      const duneK = smooth(h, 0.4, 3.5) * 0.85 + 0.35 * smooth(noise(x * 2.3 + 40, z * 2.1 - 17), -0.1, 0.7) + 0.15 * smooth(noise(x * 7 + 9, z * 6.3), 0.2, 0.9);
       c.copy(gravel).lerp(dark, Math.min(1, duneK));
       // The path: trampled, a bit paler.
       if (!lakes) c.lerp(gravel, (1 - smooth(nr.d, 3, 8)) * 0.35);
@@ -718,7 +718,6 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
         vec3 c = mix(deep, skyC, min(0.8, fres));
         // The Sun's smudge glinting, and fine bright ripples.
         c += vec3(1.0, 0.8, 0.55) * pow(max(dot(R, sunDir), 0.0), 60.0) * 0.5;
-        c += vec3(1.0, 0.75, 0.45) * smoothstep(0.985, 1.0, N.y * 0.5 + 0.5 + (n1.z - 0.95)) * 0.0;
         gl_FragColor = vec4(c, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

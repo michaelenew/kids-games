@@ -170,6 +170,8 @@ export interface CityOptions {
   base?: number;
   /** The Moon: a defense mission. The base is built around the start of the road, where he stands guard. */
   defend?: boolean;
+  /** Space: how many parts of the starship he has built (0 to 5). */
+  ship?: number;
 }
 
 export function buildCity(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {

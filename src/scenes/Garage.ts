@@ -9,6 +9,7 @@ import {
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
 import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
 import { PAPER_KINDS, PAPER_NAMES } from '../skills/paper';
+import { SHIP_PARTS, nextShipPart, partsNeeded, shipParts } from '../skills/compare';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
@@ -43,6 +44,7 @@ const SKILL_LABELS: Record<string, string> = {
   fractions: 'PHANTOM cloak cells: equal parts, naming and placing fractions',
   area: 'Moon base: area (floor tiles: counting, then rows × columns)',
   perimeter: 'Moon base: perimeter (fences: adding the sides)',
+  compare: 'Starship dock: comparing numbers with <, > and =',
 };
 
 
@@ -137,6 +139,13 @@ export class GarageScene extends Phaser.Scene {
           () => this.scene.start('BaseBuilder', { then: missionId }));
         return;
       }
+      // The starship needs its next part before it can fly the next mission.
+      if (key === 'Invasion' && missionById(missionId).env === 'space' && shipParts(s) < partsNeeded(missionId)) {
+        const part = SHIP_PARTS[shipParts(s)].name.toLowerCase();
+        dialog(this, [{ who: 'sprocket', text: `The ship isn't ready yet! Let's install the ${part} first.` }],
+          () => this.scene.start('StarshipDock', { then: missionId }));
+        return;
+      }
       if (key === 'Invasion' && isPick(missionId)) {
         this.scene.start('Pick', { missionId });
         return;
@@ -209,7 +218,13 @@ export class GarageScene extends Phaser.Scene {
 
     // The Moon base: a piece is ready to build (one after each Moon mission won).
     const piece = nextPiece(s);
-    if (piece !== undefined && !fixFor) {
+    const part = nextShipPart(s);
+    if (part !== undefined && !fixFor) {
+      const sb = button(this, 300, 175, 420, 70, `🚀 BUILD THE ${SHIP_PARTS[part].name.toUpperCase()}!`, () => this.scene.start('StarshipDock', {}), {
+        fill: 0x1f4f6a, edge: 0x9ff0ff, size: 24,
+      });
+      this.tweens.add({ targets: sb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+    } else if (piece !== undefined && !fixFor) {
       const bb = button(this, 300, 175, 420, 70, `🌕 BUILD THE ${BASE_PIECES[piece].name.toUpperCase()}!`, () => this.scene.start('BaseBuilder', {}), {
         fill: 0x3a5a8c, edge: 0xcfe8ff, size: 24,
       });
@@ -410,6 +425,7 @@ const AREAS: { env: string; label: string; color: string; fill: number; edge: nu
   { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
   { env: 'moon', label: 'MOON BASE', color: '#cfe8ff', fill: 0x3a4a66, edge: 0xcfe8ff },
   { env: 'siege', label: 'MOON SIEGE', color: '#9ff0ff', fill: 0x24506a, edge: 0x9ff0ff },
+  { env: 'space', label: 'SPACE CHASE', color: '#c9b8ff', fill: 0x2a2266, edge: 0xc9b8ff },
 ];
 
 const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';

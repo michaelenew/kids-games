@@ -9,6 +9,7 @@ import {
 import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { nextPiece } from '../skills/area';
+import { nextShipPart } from '../skills/compare';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
@@ -121,6 +122,7 @@ export class InvasionScene extends Phaser.Scene {
       swapDodge: dodgeOf(ender),
       allyLook: this.mission.steps.some((st) => st.kind === 'reinforce') ? lookFromSave(s, allyFor(this.bot, this.mission.id, s)) : undefined,
       baseLevel: s.base ?? 0,
+      shipLevel: s.ship ?? 0,
     }, {
       hit: (raw, from) => this.onHit(raw, from),
       kill: (k) => this.onKill(k),
@@ -504,8 +506,9 @@ export class InvasionScene extends Phaser.Scene {
     const forge = forgeScene(this.bot);
     if (!built) return { key: forge, data: { mode: 'build', mark: 1 }, label: this.bot === 'titan' ? 'Build walls!' : 'Build armor!' };
     if (repairsNeeded(d.armor ?? {}).length) return { key: forge, data: { mode: 'repair' }, label: 'Repair bay' };
-    // On the Moon, a win means the next piece of the base can go up.
+    // On the Moon, a win means the next piece of the base can go up; in space (and after the Siege), the next ship part.
     if (this.mission.env === 'moon' && nextPiece(s) !== undefined) return { key: 'BaseBuilder', label: 'Build the base!' };
+    if ((this.mission.env === 'space' || this.mission.id === 'siege-final') && nextShipPart(s) !== undefined) return { key: 'StarshipDock', label: 'Build the ship!' };
     return { key: 'Garage', label: 'Back to Garage' };
   }
 
@@ -656,8 +659,16 @@ export class InvasionScene extends Phaser.Scene {
         dialog(this, [
           { who: 'volt', text: 'Their giant walker is DOWN, and the whole fleet is flying away! The base held!' },
           { who: 'volt', text: 'A power plant, a solar farm, a wall and a force field... you built a real Moon fortress.' },
-          { who: 'sprocket', text: 'And now that the Moon is safe... the whole solar system is out there. Who wants to build a spaceship?' },
+          { who: 'volt', text: 'But they\'re running... all the way to MARS. We\'ll never catch them in a dropship.' },
+          { who: 'sprocket', text: 'Then we take the whole base with us! Engines, guns, shields... let\'s turn it into a STARSHIP!' },
         ], after);
+      } else if (this.mission.id === 'space-station' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The battle station is gone! Mars is right below us.' },
+          { who: 'sprocket', text: 'And RHINO has been waiting for this. Time to build it a Mars rover!' },
+        ], after);
+      } else if (next.key === 'StarshipDock') {
+        dialog(this, [{ who: 'sprocket', text: 'Great flying! Let\'s bolt the next part onto the ship.' }], after);
       } else if (next.key === 'BaseBuilder') {
         dialog(this, [{ who: 'sprocket', text: 'They\'ll attack again soon. Let\'s build the next piece of the base!' }], after);
       } else if (next.key === 'CellForge' && (next.data as { mode: string }).mode === 'repair') {

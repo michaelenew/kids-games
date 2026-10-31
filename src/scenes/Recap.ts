@@ -78,7 +78,7 @@ export class RecapScene extends Phaser.Scene {
       else this.pictureGraph();
       return;
     }
-    if (this.env === 'canyon' || this.env === 'arctic' || this.env === 'tour' || this.env === 'ocean' || this.env === 'volcano' || this.env === 'moon' || this.env === 'siege') {
+    if (this.env === 'canyon' || this.env === 'arctic' || this.env === 'tour' || this.env === 'ocean' || this.env === 'volcano' || this.env === 'moon' || this.env === 'siege' || this.env === 'space') {
       // The canyon is about multiplying and the Arctic is all review, so the report is review: each kind in turn.
       const k = (s.guide?.recap ?? 1) % 4;
       if (k === 1 && pair) this.addition(pair[0], pair[1]);

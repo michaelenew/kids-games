@@ -1,4 +1,5 @@
 import { type CaseMode, type LetterStat, type MathProgress, newMath, newPace, type Pace } from './learn';
+import { leaveSyncGroup, noteSaved, onRemoteSave, saveKey } from '../sync/game';
 import { canonicalHerd, HERD_VERSION } from './herd';
 import type { UnicornLook } from './three/unicorn';
 
@@ -36,7 +37,8 @@ export interface Save {
   voiceCheck: Record<string, string>;
 }
 
-const KEY = 'unicorn-rancher-v1';
+// The save lives under 'unicorn-rancher-v1'. A device can keep more saves,
+// and one can sync with other devices: see src/sync.
 /** 2: letters come in both cases by default. */
 const VERSION = 2;
 
@@ -60,23 +62,28 @@ function fresh(): Save {
 
 let current: Save | null = null;
 
+function fromStored(stored: Partial<Save> | null): Save {
+  const s: Save = stored ? { ...fresh(), version: 1, herdVersion: 0, ...stored } : fresh();
+  // Saves from before both cases were the default switch over once.
+  if (s.version < 2) {
+    s.caseMode = 'both';
+    s.version = 2;
+  }
+  // Older saves named unicorns at random; give them the fixed-order
+  // names and colors so every device agrees.
+  if (s.herdVersion < HERD_VERSION) {
+    s.unicorns = canonicalHerd(s.unicorns);
+    s.herdVersion = HERD_VERSION;
+  }
+  return s;
+}
+
 export function save(): Save {
   if (!current) {
     current = fresh();
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) current = { ...current, version: 1, herdVersion: 0, ...JSON.parse(raw) };
-      // Saves from before both cases were the default switch over once.
-      if (current!.version < 2) {
-        current!.caseMode = 'both';
-        current!.version = 2;
-      }
-      // Older saves named unicorns at random; give them the fixed-order
-      // names and colors so every device agrees.
-      if (current!.herdVersion < HERD_VERSION) {
-        current!.unicorns = canonicalHerd(current!.unicorns);
-        current!.herdVersion = HERD_VERSION;
-      }
+      const raw = localStorage.getItem(saveKey('unicorn'));
+      if (raw) current = fromStored(JSON.parse(raw));
     } catch {
       // Private browsing or a broken save: start fresh.
     }
@@ -86,13 +93,25 @@ export function save(): Save {
 
 export function persist(): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(save()));
+    localStorage.setItem(saveKey('unicorn'), JSON.stringify(save()));
+    noteSaved('unicorn');
   } catch {
     // No storage: progress just won't be kept.
   }
 }
 
+// Another device played on this save (it's in a sync group): take its
+// progress in place, so screens holding the save see it.
+onRemoteSave('unicorn', (data) => {
+  if (!current) return;
+  const next = fromStored(data as Partial<Save>);
+  for (const k of Object.keys(current)) delete (current as unknown as Record<string, unknown>)[k];
+  Object.assign(current, next);
+});
+
+/** Start over. A synced save stops syncing first, so other devices keep it. */
 export function resetSave(): void {
+  leaveSyncGroup('unicorn');
   current = fresh();
   persist();
 }

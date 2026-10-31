@@ -5,6 +5,18 @@ Two games on one site, at **https://michaelenew.github.io/kids-games/**. The wel
 - **Mecha Forge** (`/kids-games/mecha-forge/`): a 3D robot action game for a kid going into 3rd grade. Everything below this list is about it.
 - **Unicorn Rancher** (`/kids-games/unicorn-rancher/`): a 3D unicorn game for a kid going into kindergarten, played by saying letter names out loud, with counting and adding. Speech recognition runs entirely on the device. See [UNICORN_RANCHER.md](UNICORN_RANCHER.md).
 
+## Saves and sync (grown-ups)
+
+Each game saves in the browser on the device. **Saves & sync** (the button on the welcome screen, or in each game's grown-up settings) lists the saves a device has for each game and which one is played, and can keep a save the same across devices (code: `src/sync/`).
+
+- **Several saves per game.** The save a device always had stays where it was. Joining a sync group adds the synced save next to it and plays that one; nothing already on the device is replaced, and switching back is one tap.
+- **Sync groups.** "Start syncing this save" uploads that save; that device's copy is the group's starting point. "Add another device" shows a QR code; on the other device, "Scan a code" (inside the page, so it works for games added to an iPad's home screen) or paste the code. Any device in a group can add the next one; there's no main device. A save belongs to at most one group.
+- **Encrypted, in a public place.** Saves are locked with AES-GCM (the browser's built-in encryption) before upload to jsonblob.com, a free storage site with no accounts. The key travels only in the QR code or copied code, never online. Anyone with a code can open that save, so share codes only with your own devices.
+- **When it syncs.** A few seconds after each save, when the game opens, and when you come back to it (reloading if another device played on). Offline play catches up later.
+- **Two devices at once.** The online copy keeps an edit count and its recent write IDs. A device that saved since its last sync combines its changes with the newer copy instead of replacing it: what only one side changed is kept, missions beaten and story beats seen from both are kept, and on a true clash (both changed the scrap count, say) the device uploading wins. After uploading it reads back once to catch a device that uploaded at the same moment.
+- **Start over** on a synced save first stops it syncing, so the other devices keep the progress.
+- Not built yet: removing a device from a group (that would need a new key handed to the others; for now "Stop syncing" on that device, or start a new group).
+
 # Mecha Forge
 
 A 3D robot action game for a kid going into 3rd grade. You fight an alien invasion in an arcade shooter, blast rust-bots in side-scrolling patrols, collect scrap, transform into a car, forge and repair armor plates, and, if you want to, build upgrades in the **Engineering Zone**. Each upgrade is a short hands-on math job, and each one visibly changes the robot. The math never blocks play; it makes the harder levels easier.

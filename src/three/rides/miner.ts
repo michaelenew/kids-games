@@ -269,8 +269,8 @@ function makeMats() {
     steel: d(new THREE.MeshStandardMaterial({ color: 0x8a929e, metalness: 0.7, roughness: 0.38 })),
     grey: d(new THREE.MeshStandardMaterial({ color: 0x5c636e, metalness: 0.6, roughness: 0.5 })),
     dark: d(new THREE.MeshStandardMaterial({ color: 0x2a2e35, metalness: 0.7, roughness: 0.45 })),
-    deck: d(new THREE.MeshStandardMaterial({ map: deckTexture(false), color: 0xffffff, metalness: 0.4, roughness: 0.6 })),
-    deckHold: d(new THREE.MeshStandardMaterial({ map: deckTexture(true), color: 0xffffff, metalness: 0.4, roughness: 0.6 })),
+    deck: d(new THREE.MeshStandardMaterial({ map: deckTexture(false), color: 0xffffff, metalness: 0.25, roughness: 0.65 })),
+    deckHold: d(new THREE.MeshStandardMaterial({ map: deckTexture(true), color: 0xffffff, metalness: 0.25, roughness: 0.65 })),
     rock: d(new THREE.MeshStandardMaterial({ color: 0x7a6a5c, roughness: 0.95, metalness: 0.05, flatShading: true })),
     rockDark: d(new THREE.MeshStandardMaterial({ color: 0x56493f, roughness: 0.95, metalness: 0.05, flatShading: true })),
     gold: d(new THREE.MeshStandardMaterial({ color: 0xffc940, emissive: 0xff9a10, emissiveIntensity: 0.9, metalness: 0.8, roughness: 0.2, flatShading: true })),
@@ -695,7 +695,7 @@ function claw(parent: THREE.Object3D, m: Mats, anim: Anim, s: number, at: THREE.
   mesh(shoulder, cylGeo(0.85, 0.85, 0.3, 16), m.yellow, 0, 0.15, 0);
   mesh(shoulder, rboxGeo(1.2, 1.1, 1.3, 0.2), m.orange, 0, 0.8, 0);
   // The boom: up and out to the elbow.
-  const boomTip = v3(s * 4.2, 2.6, 1.0);
+  const boomTip = v3(s * 4.0, 2.1, 1.2);
   const boomBase = v3(0, 0.9, 0);
   strut(shoulder, m.orange, boomBase, boomTip, 0.7, 0.8);
   strut(shoulder, m.dark, boomBase.clone().add(v3(0, -0.45, 0.25)), boomTip.clone().add(v3(-s * 0.3, -0.45, 0.2)), 0.18);
@@ -742,7 +742,7 @@ function claw(parent: THREE.Object3D, m: Mats, anim: Anim, s: number, at: THREE.
 
 /** Part 2: two grabber claws off the sides, ahead of him. */
 function claws(root: THREE.Object3D, m: Mats, anim: Anim, sides = [-1, 1]) {
-  for (const s of sides) claw(root, m, anim, s, v3(s * (HALF + 0.9), -0.2, 6.6));
+  for (const s of sides) claw(root, m, anim, s, v3(s * (HALF + 0.9), -0.2, 8.2));
 }
 
 /** A laser drill head along +Z: a housing, a spinning fluted bit, a red-hot tip and a laser out front. */

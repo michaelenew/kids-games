@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { canvasTex } from '../city';
 import type { Dropship } from '../dropship';
-import { cylGeo, glow, glowSprite, glowTexture, mesh, rboxGeo, sphereGeo, torusGeo } from '../kit';
+import { cylGeo, glow, glowSprite, mesh, rboxGeo, sphereGeo, torusGeo } from '../kit';
 import type { Turret } from '../moon';
 import { camo } from '../tank';
 
@@ -49,9 +49,11 @@ function ct(key: string, make: () => THREE.Texture) {
 
 const GROUND = -2.2;
 const DECK_HALF = 3.3;
-const DECK_BACK = -7.2;
+const DECK_BACK = -6.6;
 const DECK_FRONT = 6.8;
 const CAB_FRONT = 10.4;
+/** The cab's cabin sits this high; its roof is about 1.1 above that. */
+const CAB_Y = 0.3;
 /** Big wheels: radius, width, where they sit. */
 const WHEEL_R = 1.0;
 const WHEEL_W = 0.85;
@@ -66,7 +68,6 @@ const BASIC_X = 3.75;
 
 const T = 64;
 const TILE = 2;
-const DECK_COLS = Math.round((DECK_HALF * 2) / TILE * 2) / 2;
 
 /**
  * The deck: white-grey bolted panels with grout, an orange walkway and arrows
@@ -74,37 +75,42 @@ const DECK_COLS = Math.round((DECK_HALF * 2) / TILE * 2) / 2;
  * Canvas top is the back of the rover.
  */
 function deckTexture() {
-  const cols = 7;
-  const rows = 14;
-  return ct('roverDeck', () => canvasTex(cols * T, rows * T, (g) => {
-    const W = cols * T;
-    const H = rows * T;
+  const W = Math.round(((DECK_HALF * 2) / TILE) * T);
+  const H = Math.round(((DECK_FRONT - DECK_BACK) / TILE) * T);
+  const cols = 4;
+  const rows = Math.round(H / T);
+  const TW = W / cols;
+  const TH = H / rows;
+  return ct('roverDeck', () => canvasTex(W, H, (g) => {
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
+        const x = c * TW;
+        const y = r * TH;
         const v = 200 + Math.floor(Math.random() * 20);
         g.fillStyle = `rgb(${v},${v + 2},${v + 4})`;
-        g.fillRect(c * T, r * T, T, T);
+        g.fillRect(x, y, TW, TH);
         g.fillStyle = 'rgba(255,255,255,0.5)';
-        g.fillRect(c * T + 3, r * T + 3, T - 6, 3);
+        g.fillRect(x + 3, y + 3, TW - 6, 3);
         g.fillStyle = 'rgba(60,70,80,0.3)';
-        g.fillRect(c * T + 3, r * T + T - 6, T - 6, 3);
+        g.fillRect(x + 3, y + TH - 6, TW - 6, 3);
         // Grip dimples.
         g.fillStyle = 'rgba(90,96,104,0.25)';
-        for (let k = 0; k < 6; k++) for (let j = 0; j < 6; j++) g.fillRect(c * T + 10 + k * 8, r * T + 10 + j * 8, 3, 3);
+        for (let k = 0; k < 5; k++) for (let j = 0; j < 6; j++) g.fillRect(x + 8 + k * 8, y + 10 + j * 8, 3, 3);
         g.fillStyle = 'rgba(70,76,86,0.7)';
-        for (const [bx, by] of [[6, 6], [T - 9, 6], [6, T - 9], [T - 9, T - 9]]) g.fillRect(c * T + bx, r * T + by, 3, 3);
+        for (const [bx, by] of [[5, 5], [TW - 8, 5], [5, TH - 8], [TW - 8, TH - 8]]) g.fillRect(x + bx, y + by, 3, 3);
       }
     }
     g.fillStyle = '#4a5058';
-    for (let c = 0; c <= cols; c++) g.fillRect(c * T - 2, 0, 4, H);
-    for (let r = 0; r <= rows; r++) g.fillRect(0, r * T - 2, W, 4);
+    for (let c = 0; c <= cols; c++) g.fillRect(c * TW - 2, 0, 4, H);
+    for (let r = 0; r <= rows; r++) g.fillRect(0, r * TH - 2, W, 4);
     const cx = W / 2;
-    const cy = ((0 - DECK_BACK) / TILE) * T * (14 / 14);
+    const cy = ((0 - DECK_BACK) / TILE) * T;
+    void cols;
     g.save();
     g.globalAlpha = 0.9;
     // RHINO-green guide lines to the cab, with orange arrows between.
     g.fillStyle = '#5a9a2e';
-    for (const s of [-1, 1]) g.fillRect(cx + s * T * 1.4 - 7, cy + T * 1.3, 14, H - cy - T * 1.3);
+    for (const s of [-1, 1]) g.fillRect(cx + s * T * 1.05 - 7, cy + T * 1.1, 14, H - cy - T * 1.1);
     g.fillStyle = '#ff8a2a';
     for (let y = cy + T * 2.0; y < H - T * 0.4; y += T * 0.9) {
       g.beginPath();
@@ -119,13 +125,13 @@ function deckTexture() {
     }
     // His spot.
     g.strokeStyle = '#ff8a2a';
-    g.lineWidth = T * 0.3;
+    g.lineWidth = T * 0.24;
     g.beginPath();
-    g.arc(cx, cy, T * 1.2, 0, Math.PI * 2);
+    g.arc(cx, cy, T * 0.9, 0, Math.PI * 2);
     g.stroke();
     g.fillStyle = '#5a9a2e';
     g.beginPath();
-    g.arc(cx, cy, T * 0.45, 0, Math.PI * 2);
+    g.arc(cx, cy, T * 0.35, 0, Math.PI * 2);
     g.fill();
     g.restore();
     // Hazard stripes round the edge.
@@ -148,7 +154,6 @@ function deckTexture() {
     g.restore();
   }));
 }
-void DECK_COLS;
 
 /** White ribbed panels for the lab and the cab's sides. */
 function panelTexture() {
@@ -222,6 +227,7 @@ function makeMats() {
   camoTex.wrapS = camoTex.wrapT = THREE.RepeatWrapping;
   return {
     panel: d(new THREE.MeshStandardMaterial({ color: 0xd4d8de, metalness: 0.25, roughness: 0.5 })),
+    dish: d(new THREE.MeshStandardMaterial({ color: 0xe4e8ee, metalness: 0.3, roughness: 0.4, side: THREE.DoubleSide })),
     shell: d(new THREE.MeshStandardMaterial({ map: panelTexture(), color: 0xd0d4da, metalness: 0.2, roughness: 0.55 })),
     grey: d(new THREE.MeshStandardMaterial({ color: 0x8a929e, metalness: 0.55, roughness: 0.42 })),
     dark: d(new THREE.MeshStandardMaterial({ color: 0x2c3036, metalness: 0.7, roughness: 0.42 })),
@@ -234,7 +240,7 @@ function makeMats() {
     glass: d(new THREE.MeshPhysicalMaterial({
       color: 0xd8f4ff, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.28, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide,
     })),
-    solar: d(new THREE.MeshStandardMaterial({ map: solarTexture(), color: 0xffffff, metalness: 0.3, roughness: 0.35, emissive: 0x0a2a6a, emissiveIntensity: 0.6, side: THREE.DoubleSide })),
+    solar: d(new THREE.MeshStandardMaterial({ map: solarTexture(), color: 0xffffff, metalness: 0.2, roughness: 0.55, emissive: 0x0a2a6a, emissiveIntensity: 0.6, side: THREE.DoubleSide })),
     head: glow(0xfff2c8, 2.6),
     amber: glow(0xffb03a, 2.4),
     red: glow(0xff4a3a, 2.6),
@@ -315,8 +321,13 @@ function beam(parent: THREE.Object3D, mat: THREE.Material, a: THREE.Vector3, b: 
   const len = a.distanceTo(b);
   const m = mesh(parent, boxGeo(w, h, 1), mat, (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
   m.scale.z = len;
-  m.lookAt(parent.localToWorld(b.clone()));
-  // lookAt works in world space; the rover is built at the origin, so local = world here.
+  const dir = b.clone().sub(a).normalize();
+  // Keep the beam's "up" as close to world up as it can be (so flat beams stay flat).
+  const right = new THREE.Vector3(0, 1, 0).cross(dir);
+  if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+  right.normalize();
+  const upv = dir.clone().cross(right);
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, upv, dir));
   return m;
 }
 
@@ -418,7 +429,7 @@ function bigWheels(root: THREE.Object3D, m: Mats, anim: Anim, sides = [-1, 1]) {
     }
     // Fenders over the wheels: white with an orange edge.
     for (const z of [zr, zm, zf]) {
-      mesh(root, rboxGeo(WHEEL_W + 0.3, 0.14, 2.1, 0.05), m.panel, s * WHEEL_X, hubY + WHEEL_R + 0.28, z);
+      mesh(root, rboxGeo(WHEEL_W + 0.24, 0.1, 1.9, 0.04), m.grey, s * WHEEL_X, hubY + WHEEL_R + 0.24, z);
       mesh(root, boxGeo(WHEEL_W + 0.34, 0.16, 0.12), m.orange, s * WHEEL_X, hubY + WHEEL_R + 0.26, z + 1.05, { shadow: false });
       mesh(root, boxGeo(0.12, 0.5, 0.3), m.grey, s * (WHEEL_X - WHEEL_W / 2 - 0.18), hubY + WHEEL_R + 0.1, z);
     }
@@ -474,8 +485,7 @@ function hull(root: THREE.Object3D, m: Mats, anim: Anim) {
     }
     mesh(root, cylGeo(0.12, 0.12, 0.6, 8), m.orange, s * 1.6, -0.75, DECK_BACK - 0.25, { rx: Math.PI / 2 });
     // Red tail lights.
-    const tl = mesh(root, boxGeo(0.7, 0.2, 0.08), m.red, s * 2.3, -0.45, DECK_BACK - 0.03, { shadow: false });
-    void tl;
+    mesh(root, boxGeo(0.7, 0.2, 0.08), m.red, s * 2.3, -0.45, DECK_BACK - 0.03, { shadow: false });
   }
   // Rails along both sides and across the back.
   rail(root, m, new THREE.Vector3(DECK_HALF - 0.15, 0, DECK_BACK + 0.4), new THREE.Vector3(DECK_HALF - 0.15, 0, DECK_FRONT - 0.6));
@@ -505,20 +515,20 @@ function cab(root: THREE.Object3D, m: Mats, anim: Anim) {
     geo.translate(2.4, 0, 0);
     return geo;
   });
-  mesh(root, wedge, m.green, 0, 0.42, z0 + 0.1);
+  mesh(root, wedge, m.green, 0, CAB_Y, z0 + 0.1);
   // Windshield along the slope, side windows, a roof plate.
-  const sa = new THREE.Vector3(0, 0.42 + 0.95, z0 + 0.1 + 1.9);
-  const sb = new THREE.Vector3(0, 0.42, z0 + 0.1 + 3.25);
-  const ang = Math.atan2(sb.z - sa.z, -(sb.y - sa.y));
+  const sa = new THREE.Vector3(0, CAB_Y + 0.95, z0 + 0.1 + 1.9);
+  const sb = new THREE.Vector3(0, CAB_Y, z0 + 0.1 + 3.25);
+  const ang = Math.atan2(sb.z - sa.z, sb.y - sa.y);
   const ws = mesh(root, rboxGeo(4.3, 1.25, 0.06, 0.02), m.window, 0, (sa.y + sb.y) / 2 + 0.07, (sa.z + sb.z) / 2 + 0.05);
   ws.rotation.x = ang;
   mesh(root, boxGeo(4.45, 0.08, 0.1), m.orange, 0, sa.y + 0.1, sa.z + 0.02, { shadow: false });
   for (const s of [-1, 1]) {
-    mesh(root, rboxGeo(0.06, 0.55, 1.6, 0.02), m.window, s * 2.55, 0.95, z0 + 1.2);
+    mesh(root, rboxGeo(0.06, 0.55, 1.6, 0.02), m.window, s * 2.55, CAB_Y + 0.5, z0 + 1.2);
     // A green glowing strip along the cab's flanks, like RHINO's lights.
     mesh(root, boxGeo(0.05, 0.08, z1 - z0 - 0.6), m.lime, s * 3.02, 0.1, zc, { shadow: false });
   }
-  mesh(root, rboxGeo(3.6, 0.1, 1.5, 0.04), m.olive, 0, 1.43, z0 + 1.0);
+  mesh(root, rboxGeo(3.6, 0.1, 1.5, 0.04), m.olive, 0, CAB_Y + 1.1, z0 + 1.0);
   // Front: dark grille, white bumper with an orange stripe, headlights.
   mesh(root, rboxGeo(3.4, 0.7, 0.12, 0.04), m.dark, 0, -0.35, z1 + 0.02);
   for (let k = 0; k < 5; k++) mesh(root, boxGeo(3.2, 0.06, 0.06), m.grey, 0, -0.6 + k * 0.13, z1 + 0.1, { shadow: false });
@@ -534,10 +544,10 @@ function cab(root: THREE.Object3D, m: Mats, anim: Anim) {
     root.add(beamGlow);
     anim.pulse.push({ o: beamGlow, base: 2.4, speed: 7, phase: s });
     // Roof spotlights and amber beacons.
-    mesh(root, rboxGeo(0.5, 0.26, 0.3, 0.06), m.dark, s * 1.4, 1.52, z0 + 1.65);
-    mesh(root, boxGeo(0.4, 0.16, 0.04), m.head, s * 1.4, 1.52, z0 + 1.81, { shadow: false });
-    mesh(root, cylGeo(0.15, 0.17, 0.1, 10), m.dark, s * 2.2, 1.43, z0 + 0.5);
-    const bc = dynamic(mesh(root, sphereGeo(0.15, 10), m.amber, s * 2.2, 1.58, z0 + 0.5, { shadow: false }));
+    mesh(root, rboxGeo(0.5, 0.26, 0.3, 0.06), m.dark, s * 1.4, CAB_Y + 1.2, z0 + 1.65);
+    mesh(root, boxGeo(0.4, 0.16, 0.04), m.head, s * 1.4, CAB_Y + 1.2, z0 + 1.81, { shadow: false });
+    mesh(root, cylGeo(0.15, 0.17, 0.1, 10), m.dark, s * 2.2, CAB_Y + 1.1, z0 + 0.5);
+    const bc = dynamic(mesh(root, sphereGeo(0.15, 10), m.amber, s * 2.2, CAB_Y + 1.25, z0 + 0.5, { shadow: false }));
     anim.blink.push({ m: bc, phase: s > 0 ? 0 : Math.PI, rate: 5 });
   }
   // RHINO's horn on the nose: a stubby orange cone.
@@ -618,7 +628,7 @@ function sampleLab(root: THREE.Object3D, m: Mats, anim: Anim, z = DECK_BACK - 1.
   for (const s of [-1, 1]) {
     mesh(g, rboxGeo(1.0, 0.9, 0.08, 0.03), m.grey, s * 1.4, 0.42, s * 1.22);
     mesh(g, boxGeo(0.7, 0.4, 0.05), m.screen, -s * 0.8, 0.5, s * 1.23, { shadow: false });
-    for (let k = 0; k < 3; k++) mesh(g, boxGeo(0.3, 0.05, 0.06), m.lime, s * 2.0 - s * k * 0.0, 0.25 + k * 0.12, s * 1.24, { shadow: false });
+    for (let k = 0; k < 3; k++) mesh(g, boxGeo(0.3, 0.05, 0.06), m.lime, s * 2.0, 0.25 + k * 0.12, s * 1.24, { shadow: false });
   }
   // The glass case with the sample tubes, glowing.
   mesh(g, rboxGeo(3.6, 0.2, 1.4, 0.06), m.grey, 0, 1.3, 0);
@@ -677,7 +687,7 @@ function radar(root: THREE.Object3D, m: Mats, anim: Anim, x = 2.4, z = -3.4) {
   dish.position.y = 0.6;
   pivot.add(dish);
   mesh(pivot, cylGeo(0.1, 0.14, 0.7, 8), m.grey, 0, 0.3, 0);
-  mesh(dish, cg('roverDish', () => new THREE.SphereGeometry(1.5, 22, 8, 0, Math.PI * 2, 0, 0.8)), m.panel, 0, -1.05, 0, { rx: Math.PI });
+  mesh(dish, cg('roverDish', () => new THREE.SphereGeometry(1.5, 22, 8, 0, Math.PI * 2, 0, 0.8)), m.dish, 0, 1.05, 0, { rx: Math.PI });
   mesh(dish, cg('roverDishRim', () => new THREE.TorusGeometry(1.08, 0.06, 6, 28).rotateX(Math.PI / 2)), m.orange, 0, -0.03, 0, { shadow: false });
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2;
@@ -716,9 +726,9 @@ function panel(parent: THREE.Object3D, m: Mats, w: number, d: number) {
 function solarRoof(root: THREE.Object3D, m: Mats, sides = [-1, 1], cabRoof = true) {
   if (cabRoof) {
     const p = panel(root, m, 5.2, 1.8);
-    p.position.set(0, 1.62, DECK_FRONT + 1.2);
+    p.position.set(0, CAB_Y + 1.25, DECK_FRONT + 1.2);
     p.rotation.x = 0.06;
-    for (const s of [-1, 1]) mesh(root, boxGeo(0.12, 0.2, 0.12), m.grey, s * 2.3, 1.5, DECK_FRONT + 1.2);
+    for (const s of [-1, 1]) mesh(root, boxGeo(0.12, 0.2, 0.12), m.grey, s * 2.3, CAB_Y + 1.15, DECK_FRONT + 1.2);
   }
   for (const s of sides) {
     const wing = new THREE.Group();
@@ -927,4 +937,3 @@ export function partModel(part: number): THREE.Group {
   }
   return g;
 }
-void glowTexture;

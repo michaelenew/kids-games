@@ -708,7 +708,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   }
 
   // ---- The ground ----
-  const cream = new THREE.Color(0xc8ab88);
+  const cream = new THREE.Color(0xbfa07c);
   const tan = new THREE.Color(0xb08058);
   const rust = new THREE.Color(0x93502f);
   const cthulhu = new THREE.Color(0x5c2a1c);
@@ -790,15 +790,15 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
           iceK = 1.0 - smoothstep(-0.008, 0.004, sd);
           float cells = smoothstep(-0.12, 0.08, -hp.x) * (1.0 - smoothstep(-0.03, -0.01, sd));
           vec4 cell = texture2D(cellMap, vXZ / 110.0);
-          vec3 smooth_ice = mix(vec3(0.36, 0.42, 0.55), vec3(0.54, 0.56, 0.6), cell.g * 0.6 + 0.4);
-          vec3 iceCol = mix(vec3(0.5, 0.5, 0.52), smooth_ice * (0.58 + 0.42 * cell.r), cells);
+          vec3 smooth_ice = mix(vec3(0.3, 0.35, 0.47), vec3(0.44, 0.46, 0.5), cell.g * 0.6 + 0.4);
+          vec3 iceCol = mix(vec3(0.4, 0.41, 0.43), smooth_ice * (0.55 + 0.45 * cell.r), cells);
           // A faint bluish shine toward each cell's middle.
           iceCol += vec3(0.01, 0.03, 0.06) * (1.0 - cell.b) * cells;
           diffuseColor.rgb = mix(diffuseColor.rgb, iceCol * iceTint, iceK);
         }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.75, iceK);')
       // Less of the studio reflections (they'd wash the ice out to white at a low angle).
-      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\nradiance *= mix(0.45, 0.12, iceK);\niblIrradiance *= 0.85;');
+      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\nradiance *= mix(0.45, 0.12, iceK);\niblIrradiance *= mix(0.85, 0.6, iceK);');
   };
   floorMat.customProgramCacheKey = () => 'plutoFloor';
   const floor = new THREE.Mesh(floorGeo, floorMat);

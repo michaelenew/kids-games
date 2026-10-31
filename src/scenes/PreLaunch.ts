@@ -62,10 +62,10 @@ export class PreLaunchScene extends Phaser.Scene {
 
     const kinds = reviewKinds(s);
     const kind = kinds[nextCheckTurn(s) % kinds.length];
-    const typed = kind === 'gauge' || kind === 'clock' || kind === 'cells';
+    const typed = kind === 'gauge' || kind === 'clock' || kind === 'cells' || kind === 'times' || kind === 'compare';
     const check = typed ? practiceCheck(Math.random, bot === 'bolt' ? 'bolt' : 'later', guideCount('prelaunch'), botName(bot, s), kind) : null;
     const ITEMS: Record<Review, string> = {
-      gauge: '', clock: '', cells: '', fuel: 'Fuel', crates: 'Supply crates', share: 'Cargo sleds', cell: bot === 'stealth' ? 'Cloak cell' : 'Spare power cell',
+      gauge: '', clock: '', cells: '', times: '', compare: '', fuel: 'Fuel', crates: 'Supply crates', share: 'Cargo sleds', cell: bot === 'stealth' ? 'Cloak cell' : 'Spare power cell',
     };
     const item = check?.item ?? ITEMS[kind];
     const lines = ['✓ Radio', '✓ Engines warm', `☐ ${item}`];
@@ -73,7 +73,7 @@ export class PreLaunchScene extends Phaser.Scene {
     this.checkText = this.add.text(RIGHT_X + 50, 80, lines[2], { fontFamily: 'Arial', fontSize: '22px', fontStyle: 'bold', color: '#ffd166' });
 
     const SKILL: Record<Review, string> = {
-      gauge: 'check-gauge', clock: 'check-clock', cells: 'check-cells', fuel: 'countup', crates: 'multiply', share: 'divide', cell: 'fractions',
+      gauge: 'check-gauge', clock: 'check-clock', cells: 'check-cells', times: 'multiply', compare: 'compare', fuel: 'countup', crates: 'multiply', share: 'divide', cell: 'fractions',
     };
     const done = (firstTry: boolean) => {
       recordSkill(SKILL[kind], firstTry);
@@ -306,7 +306,10 @@ export class PreLaunchScene extends Phaser.Scene {
   private drawCheck(c: PracticeCheck) {
     const g = this.add.graphics();
     this.layer.add(g);
-    if (c.kind === 'cells') {
+    if (c.kind === 'times' || c.kind === 'compare') {
+      // Just the problem, big, like on a test sheet.
+      this.layer.add(text(this, RIGHT_X - (c.choices ? 0 : 140), 380, c.ask, c.kind === 'compare' ? 54 : 64, '#ffd166'));
+    } else if (c.kind === 'cells') {
       // Two battery cells with their charge on them, and the question big.
       const x0 = RIGHT_X - 300;
       [c.a!, c.b!].forEach((v, i) => {

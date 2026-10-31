@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { RobotLook } from '../art';
 import { Jet } from './jet';
+import { Astro } from './astro';
 import { Phantom } from './phantom';
 import { Sub } from './sub';
 import { Tank } from './tank';
@@ -54,5 +55,6 @@ export function makeMech(look: RobotLook): Mech {
   if (look.kind === 'tank') return new Tank(look);
   if (look.kind === 'sub') return new Sub(look);
   if (look.kind === 'stealth') return new Phantom(look);
+  if (look.kind === 'astro') return new Astro(look);
   return new Robot(look);
 }

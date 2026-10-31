@@ -19,7 +19,7 @@ export interface ChainProblem {
 export interface QuickFact {
   a: number;
   b: number;
-  op: '+' | '-';
+  op: '+' | '-' | '×';
   answer: number;
 }
 
@@ -61,8 +61,13 @@ export function makeChainProblem(rng: Rng): ChainProblem {
   }
 }
 
-/** Add or subtract within 20, like the packet's timed drill pages. */
-export function makeQuickFact(rng: Rng): QuickFact {
+/** Add or subtract within 20, like the packet's timed drill pages (with `times`, some ×2, ×5 and ×10 facts too). */
+export function makeQuickFact(rng: Rng, times = false): QuickFact {
+  if (times && rng() < 0.35) {
+    const a = [2, 5, 10][randInt(rng, 0, 2)];
+    const b = randInt(rng, 2, 9);
+    return rng() < 0.5 ? { a, b, op: '×', answer: a * b } : { a: b, b: a, op: '×', answer: a * b };
+  }
   if (rng() < 0.5) {
     const a = randInt(rng, 2, 10);
     const b = randInt(rng, 2, 10);

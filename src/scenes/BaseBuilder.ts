@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
 import { music, sfx } from '../audio';
-import { type AreaJob, BASE_PIECES, areaOf, basePieces, nextPiece, perimeterOf, pieceJobs } from '../skills/area';
+import { type AreaJob, BASE_PIECES, areaOf, basePieces, nextPiece, perimeterOf, pieceJobs, sidesOf, splitL } from '../skills/area';
 import { bumpGuide, guideCount, persist, recordSkill, save } from '../state';
 import { basePieceModel } from '../three/moon';
 import { Showcase } from '../three/showcase';
@@ -58,8 +58,11 @@ export class BaseBuilder extends Phaser.Scene {
   private onAnswer: (v: number) => void = () => {};
   private busy = false;
   private pips: Phaser.GameObjects.Arc[] = [];
-  private cells: Phaser.GameObjects.Rectangle[][] = [];
+  /** The blueprint's squares (null where an L-shape's corner is cut out). */
+  private cells: (Phaser.GameObjects.Rectangle | null)[][] = [];
   private cell = 40;
+  /** Less-help jobs: the squares (and every side length) have been shown, after a miss. */
+  private revealed = false;
   private origin = { x: 0, y: 0 };
 
   constructor() {
@@ -102,6 +105,10 @@ export class BaseBuilder extends Phaser.Scene {
       1: { key: 'base-hangar', lines: ['A hangar! Its floor is rows of tiles. You already know a fast way to count rows...', 'Multiply! Rows × tiles in each row.'] },
       2: { key: 'base-fence', lines: ['A laser fence goes all the way AROUND the base, along the edge.', 'Add up all four sides to know how long the fence is. That\'s called PERIMETER!'] },
       3: { key: 'base-dome', lines: ['The command dome needs floor tiles AND a fence. Read each blueprint carefully:', 'tiles INSIDE is area. Fence AROUND is perimeter!'] },
+      4: { key: 'base-power', lines: ['A power plant for the whole base! Its floors are BIG.', 'You know how by now: rows × tiles in a row. This time you\'re on your own!'] },
+      5: { key: 'base-solar', lines: ['The solar farm\'s blueprints are quick sketches: just the outline and how long the sides are.', 'No squares to count. Multiply the two sides!'] },
+      6: { key: 'base-wall', lines: ['The defense wall goes all the way around. The blueprint only shows TWO of the sides.', 'Opposite sides of a rectangle are the same. Work out the others, then add all four!'] },
+      7: { key: 'base-shield', lines: ['The shield generator! Some blueprints want tiles INSIDE, some want the wall AROUND.', 'Sketches only, and all mixed up. Read carefully!'] },
     };
     const it = intro[next];
     if (!s.seen.includes(it.key)) {
@@ -139,18 +146,20 @@ export class BaseBuilder extends Phaser.Scene {
     this.work.removeAll(true);
     this.busy = false;
     this.misses = 0;
+    this.revealed = false;
     this.pad?.clear();
     this.pips.forEach((p, i) => p.setFillStyle(i < this.jobIndex ? 0x06d6a0 : i === this.jobIndex ? 0xffd166 : 0x3d4458));
     const card = this.add.graphics();
     card.fillStyle(0x10203a, 0.96).fillRoundedRect(LEFT, 112, RIGHT - LEFT, 136, 16);
     card.lineStyle(3, 0xbfe6ff, 0.9).strokeRoundedRect(LEFT, 112, RIGHT - LEFT, 136, 16);
     const j = this.job;
-    const what = j.ask === 'area' ? `FLOOR: ${j.cols} by ${j.rows}` : `FENCE AROUND: ${j.cols} by ${j.rows}`;
+    const shape = j.cut ? 'L-SHAPED ' : '';
+    const what = j.ask === 'area' ? `${shape}FLOOR: ${j.cols} by ${j.rows}` : `FENCE AROUND ${j.cut ? 'AN L-SHAPED' : 'THE'} YARD`;
     const title = text(this, CX, 134, `BLUEPRINT: ${what}`, 22, '#cfe8ff');
     this.stepLabel = text(this, CX, 168, '', 20, '#ffd166');
     this.task = text(this, CX, 212, '', 28, '#ffffff', { wordWrap: { width: RIGHT - LEFT - 30 } });
     this.layer.add([card, title, this.stepLabel, this.task]);
-    this.drawGrid(j.kind === 'count' ? false : j.ask === 'area' ? false : true, j.kind !== 'count' && j.kind !== 'rows');
+    this.drawGrid(j.kind === 'count' ? false : j.ask === 'area' ? false : true, j.kind !== 'count' && (j.kind !== 'rows' || !!j.help));
     const go = () => this.run();
     const cards = this.cardsFor(j);
     if (cards.length) {
@@ -200,6 +209,28 @@ export class BaseBuilder extends Phaser.Scene {
         ],
       });
     }
+    if (j.cut && j.ask === 'area' && needsIntro('area-l')) {
+      out.push({
+        concept: 'area-l',
+        title: 'L-SHAPED FLOORS',
+        steps: [
+          'An L-shape is two rectangles stuck together.',
+          'Find the area of each rectangle: rows × tiles in a row.',
+          'Add the two areas. That\'s the whole floor!',
+        ],
+      });
+    }
+    if (j.cut && j.ask === 'perimeter' && needsIntro('perimeter-l')) {
+      out.push({
+        concept: 'perimeter-l',
+        title: 'FENCE AROUND AN L',
+        steps: [
+          'An L-shape has SIX sides, not four.',
+          'Go all the way around and read every side.',
+          'Add all six. That\'s the perimeter!',
+        ],
+      });
+    }
     if (j.kind === 'mixed' && needsIntro('area-perimeter')) {
       out.push({
         concept: 'area-perimeter',
@@ -237,56 +268,101 @@ export class BaseBuilder extends Phaser.Scene {
     this.work.add(back);
     this.cells = [];
     for (let r = 0; r < rows; r++) {
-      const row: Phaser.GameObjects.Rectangle[] = [];
+      const row: (Phaser.GameObjects.Rectangle | null)[] = [];
       for (let c = 0; c < cols; c++) {
+        if (this.isCut(r, c)) {
+          row.push(null);
+          continue;
+        }
         const x = this.origin.x + c * this.cell + this.cell / 2;
         const y = this.origin.y + r * this.cell + this.cell / 2;
         const t = this.add.rectangle(x, y, this.cell - 3, this.cell - 3, tiled ? TILE : 0x1a2233).setStrokeStyle(2, tiled ? TILE_EDGE : 0x3d4a63);
+        // Outline only: the squares are there but hidden until he needs them.
+        if (this.outlineOnly) t.setAlpha(0);
         this.work.add(t);
         row.push(t);
       }
       this.cells.push(row);
     }
+    if (this.outlineOnly) {
+      // Just the floor's edge, filled in, so he works from the side lengths.
+      const g = this.add.graphics();
+      g.fillStyle(tiled ? TILE : 0x1a2233, 1).fillRect(this.origin.x, this.origin.y, w, h);
+      g.lineStyle(4, 0x9ad1ff, 1).strokeRect(this.origin.x, this.origin.y, w, h);
+      this.work.add(g);
+    }
     if (sides) this.drawSides();
   }
 
-  /** Side lengths (in tiles) along each edge. */
-  private drawSides(highlight = -1) {
-    const { cols, rows } = this.job;
+  /** A less-help job showing only its outline (until a miss brings the squares back). */
+  private get outlineOnly() {
+    return this.job.help === 'outline' && !this.revealed;
+  }
+
+  /** After a miss on a less-help job: show the squares and every side length. */
+  private reveal() {
+    this.revealed = true;
+    this.work.removeAll(true);
+    this.drawGrid(this.job.ask === 'perimeter', true);
+  }
+
+  /** Is this square in the corner cut out of an L-shape (the top right)? */
+  private isCut(r: number, c: number) {
+    const cut = this.job.cut;
+    return !!cut && r < cut.rows && c >= this.job.cols - cut.cols;
+  }
+
+  /**
+   * The corners of the floor's outline on screen, clockwise from the top
+   * left: four for a rectangle, six for an L. Side i runs from corner i to i+1.
+   */
+  private corners(): { x: number; y: number }[] {
+    const { cols, rows, cut } = this.job;
     const { x, y } = this.origin;
-    const w = cols * this.cell;
-    const h = rows * this.cell;
-    const spots = [
-      { x: x + w / 2, y: y - 20, n: cols },
-      { x: x + w + 22, y: y + h / 2, n: rows },
-      { x: x + w / 2, y: y + h + 20, n: cols },
-      { x: x - 22, y: y + h / 2, n: rows },
-    ];
-    spots.forEach((sp, i) => {
-      this.work.add(text(this, sp.x, sp.y, String(sp.n), 24, i === highlight ? '#ffd166' : '#9ad1ff').setStroke('#000000', 4));
+    const c = this.cell;
+    const pts: [number, number][] = cut
+      ? [[0, 0], [cols - cut.cols, 0], [cols - cut.cols, cut.rows], [cols, cut.rows], [cols, rows], [0, rows]]
+      : [[0, 0], [cols, 0], [cols, rows], [0, rows]];
+    return pts.map(([a, b]) => ({ x: x + a * c, y: y + b * c }));
+  }
+
+  /** Side lengths (in tiles) beside each side, just outside the floor. */
+  private drawSides(highlight = -1) {
+    const pts = this.corners();
+    // A fence outline (less help) only labels the top and the left: opposite sides match.
+    const hide = this.outlineOnly && this.job.ask === 'perimeter' && !this.job.cut ? [1, 2] : [];
+    sidesOf(this.job).forEach((n, i) => {
+      if (hide.includes(i)) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        this.work.add(text(this, (a.x + b.x) / 2 + ((b.y - a.y) / len) * 22, (a.y + b.y) / 2 + (-(b.x - a.x) / len) * 22, '?', 24, '#ff9f9f').setStroke('#000000', 4));
+        return;
+      }
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      // Clockwise on screen, so (dy, -dx) points outward.
+      const ox = ((b.y - a.y) / len) * 22;
+      const oy = (-(b.x - a.x) / len) * 22;
+      this.work.add(text(this, (a.x + b.x) / 2 + ox, (a.y + b.y) / 2 + oy, String(n), 24, i === highlight ? '#ffd166' : '#9ad1ff').setStroke('#000000', 4));
     });
   }
 
-  /** A glowing fence along one side of the rectangle (0 top, 1 right, 2 bottom, 3 left), or all four. */
+  /** A glowing fence along one side (see corners), or all the way around. */
   private drawFence(side: number | 'all') {
-    const { cols, rows } = this.job;
-    const { x, y } = this.origin;
-    const w = cols * this.cell;
-    const h = rows * this.cell;
+    const pts = this.corners();
+    const lengths = sidesOf(this.job);
     const g = this.add.graphics();
     g.lineStyle(7, FENCE, 1);
-    const seg = [
-      [x, y, x + w, y],
-      [x + w, y, x + w, y + h],
-      [x + w, y + h, x, y + h],
-      [x, y + h, x, y],
-    ];
-    for (const [i, s] of seg.entries()) {
+    for (let i = 0; i < pts.length; i++) {
       if (side !== 'all' && side !== i) continue;
-      g.lineBetween(s[0], s[1], s[2], s[3]);
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      g.lineBetween(a.x, a.y, b.x, b.y);
       // Fence posts at the corners of every tile along the side.
-      const n = i % 2 === 0 ? cols : rows;
-      for (let k = 0; k <= n; k++) g.fillStyle(0xffffff, 1).fillCircle(s[0] + ((s[2] - s[0]) * k) / n, s[1] + ((s[3] - s[1]) * k) / n, 5);
+      const n = lengths[i];
+      for (let k = 0; k <= n; k++) g.fillStyle(0xffffff, 1).fillCircle(a.x + ((b.x - a.x) * k) / n, a.y + ((b.y - a.y) * k) / n, 5);
     }
     // Drawn on top of the tiles.
     this.work.add(g);
@@ -294,25 +370,72 @@ export class BaseBuilder extends Phaser.Scene {
     return g;
   }
 
-  private layTile(r: number, c: number, label?: string) {
+  private layTile(r: number, c: number, label?: string, color = TILE) {
     const t = this.cells[r][c];
-    t.setFillStyle(TILE).setStrokeStyle(2, TILE_EDGE).setScale(0.6);
+    if (!t) return;
+    t.setFillStyle(color).setStrokeStyle(2, TILE_EDGE).setScale(0.6);
     this.tweens.add({ targets: t, scale: 1, duration: 180, ease: 'Back.easeOut' });
     if (label) this.work.add(text(this, t.x, t.y, label, Math.min(22, this.cell * 0.45), '#1a2233'));
   }
 
   // ---- The jobs -----------------------------------------------------------------------
 
+  /** Which walk-through counter a job uses: rectangles and L-shapes count separately (an L is new). */
+  private guideKey(j = this.job) {
+    const k = j.ask === 'area' ? (j.kind === 'count' ? 'count' : 'rows') : 'fence';
+    return `base-${k}${j.cut ? '-l' : ''}`;
+  }
+
   private guided(): boolean {
-    const j = this.job;
-    return this.misses >= 2 || guideCount(`base-${j.kind === 'mixed' ? (j.ask === 'area' ? 'rows' : 'fence') : j.kind}`) < 2;
+    // Less help (the Moon Siege): straight to answering, unless he has missed twice.
+    if (this.job.help) return this.misses >= 2;
+    return this.misses >= 2 || guideCount(this.guideKey()) < 2;
   }
 
   private run() {
     const j = this.job;
     if (j.kind === 'count') this.countRun();
-    else if (j.ask === 'area') (this.guided() ? this.rowsGuided() : this.solo());
+    else if (j.ask === 'area') (this.guided() ? (j.cut ? this.lGuided() : this.rowsGuided()) : this.solo());
     else (this.guided() ? this.fenceGuided() : this.solo());
+  }
+
+  /**
+   * Walked through, an L-shaped floor: split it into the tall left part and
+   * the short right part (each a different color), find each one's area,
+   * then add them.
+   */
+  private lGuided() {
+    const j = this.job;
+    const { left, right } = splitL(j as Required<AreaJob>);
+    const A = 0x9ad1ff;
+    const B = 0xffd166;
+    // Tint the two parts so the split shows.
+    this.cells.forEach((row) => row.forEach((t, c) => t?.setFillStyle(c < left.cols ? 0x23406a : 0x5a4a1f)));
+    const sign = (p: { cols: number; rows: number }) => (needsIntro('times') ? `${p.rows} rows of ${p.cols}` : `${p.rows} × ${p.cols}`);
+    this.setTask('SPLIT IT IN TWO', `The BLUE part is ${left.cols} wide and ${left.rows} tall. ${sign(left)} = ?`);
+    let stage = 0;
+    this.onAnswer = (v) => {
+      if (stage === 0) {
+        if (v !== areaOf(left)) return this.miss(`The blue part: ${left.rows} rows of ${left.cols}. Multiply!`);
+        sfx.success();
+        this.pad?.clear();
+        stage = 1;
+        for (let r = 0; r < j.rows; r++) for (let c = 0; c < left.cols; c++) this.layTile(r, c, undefined, A);
+        this.setTask(`BLUE: ${areaOf(left)} ✓`, `The YELLOW part is ${right.cols} wide and ${right.rows} tall. ${sign(right)} = ?`);
+        return;
+      }
+      if (stage === 1) {
+        if (v !== areaOf(right)) return this.miss(`The yellow part: ${right.rows} rows of ${right.cols}. Multiply!`);
+        sfx.success();
+        this.pad?.clear();
+        stage = 2;
+        for (let r = j.rows - right.rows; r < j.rows; r++) for (let c = left.cols; c < j.cols; c++) this.layTile(r, c, undefined, B);
+        this.setTask('NOW ADD THEM', `${areaOf(left)} + ${areaOf(right)} = ? tiles in the whole floor`);
+        return;
+      }
+      if (v !== areaOf(j)) return this.miss(`Add the blue part and the yellow part: ${areaOf(left)} + ${areaOf(right)}`);
+      this.right(false);
+    };
   }
 
   /** Landing pad: tap every square to lay its tile (numbered as they go down), then say how many. */
@@ -322,7 +445,7 @@ export class BaseBuilder extends Phaser.Scene {
     this.setTask('LAY THE TILES', 'Tap every square to lay a floor tile!');
     this.onAnswer = () => {};
     this.cells.forEach((row, r) => row.forEach((t, c) => {
-      t.setInteractive({ useHandCursor: true }).once('pointerup', () => {
+      t?.setInteractive({ useHandCursor: true }).once('pointerup', () => {
         if (this.busy) return;
         laid++;
         this.layTile(r, c, String(laid));
@@ -373,11 +496,11 @@ export class BaseBuilder extends Phaser.Scene {
     };
   }
 
-  /** Walked through: a marker goes along each side and he reads its length, then adds all four. */
+  /** Walked through: a marker goes along each side and he reads its length, then adds them all (four, or six for an L). */
   private fenceGuided() {
-    const { cols, rows } = this.job;
-    const lengths = [cols, rows, cols, rows];
-    const names = ['the top', 'the right side', 'the bottom', 'the left side'];
+    const lengths = sidesOf(this.job);
+    const n = lengths.length;
+    const names = n === 4 ? ['the top', 'the right side', 'the bottom', 'the left side'] : lengths.map(() => 'the glowing side');
     let side = 0;
     const ask = () => {
       this.work.removeAll(true);
@@ -386,16 +509,16 @@ export class BaseBuilder extends Phaser.Scene {
       for (let k = 0; k < side; k++) this.drawFence(k);
       this.drawFence(side).setAlpha(0.4);
       const so = side === 0 ? '' : ` So far: ${lengths.slice(0, side).join(' + ')}`;
-      this.setTask(`SIDE ${side + 1} OF 4`, `How long is ${names[side]}?${so}`);
+      this.setTask(`SIDE ${side + 1} OF ${n}`, `How long is ${names[side]}?${so}`);
     };
     ask();
     this.onAnswer = (v) => {
-      if (side < 4) {
+      if (side < n) {
         if (v !== lengths[side]) return this.miss('Read the number beside that side!');
         sfx.success();
         this.pad?.clear();
         side++;
-        if (side < 4) {
+        if (side < n) {
           ask();
           return;
         }
@@ -405,7 +528,7 @@ export class BaseBuilder extends Phaser.Scene {
         this.setTask('ALL THE WAY AROUND', `${lengths.join(' + ')} = ? That\'s the PERIMETER.`);
         return;
       }
-      if (v !== perimeterOf(this.job)) return this.miss('Add the four sides, one at a time!');
+      if (v !== perimeterOf(this.job)) return this.miss(`Add the ${n === 4 ? 'four' : 'six'} sides, one at a time!`);
       this.right(false);
     };
   }
@@ -414,10 +537,19 @@ export class BaseBuilder extends Phaser.Scene {
   private solo() {
     const j = this.job;
     const area = j.ask === 'area';
-    this.setTask(area ? 'TILES INSIDE' : 'FENCE AROUND', area ? 'How many floor tiles does it take? (Area)' : 'How long is the fence all the way around? (Perimeter)');
+    const outline = this.outlineOnly;
+    this.setTask(area ? 'TILES INSIDE' : 'FENCE AROUND', area
+      ? (outline ? `Just the sides: ${j.cols} by ${j.rows}. How many tiles? (Area)` : 'How many floor tiles does it take? (Area)')
+      : (outline ? 'Opposite sides match! Fence all the way around? (Perimeter)' : 'How long is the fence all the way around? (Perimeter)'));
     this.onAnswer = (v) => {
       if (v === (area ? areaOf(j) : perimeterOf(j))) {
         this.right(true);
+        return;
+      }
+      // Less help: the first miss brings the squares and every side length back.
+      if (this.outlineOnly) {
+        this.reveal();
+        this.miss(area ? 'Here are the squares. Rows × tiles in a row!' : 'Here are all four sides. Add them up!');
         return;
       }
       if (this.misses + 1 >= 2) {
@@ -427,14 +559,17 @@ export class BaseBuilder extends Phaser.Scene {
         this.busy = true;
         this.time.delayedCall(900, () => {
           this.busy = false;
+          this.revealed = true;
           this.work.removeAll(true);
           this.drawGrid(!area, !area);
-          if (area) this.rowsGuided();
+          if (area) (j.cut ? this.lGuided() : this.rowsGuided());
           else this.fenceGuided();
         });
         return;
       }
-      this.miss(area ? `Tiles INSIDE: ${j.rows} rows of ${j.cols}. Multiply!` : 'Fence AROUND: add all four sides!');
+      this.miss(area
+        ? (j.cut ? 'Tiles INSIDE: split the L into two rectangles, and add their areas!' : `Tiles INSIDE: ${j.rows} rows of ${j.cols}. Multiply!`)
+        : `Fence AROUND: add all ${j.cut ? 'six' : 'four'} sides!`);
     };
   }
 
@@ -454,13 +589,16 @@ export class BaseBuilder extends Phaser.Scene {
     this.onAnswer = () => {};
     sfx.success();
     recordSkill(j.ask === 'area' ? 'area' : 'perimeter', solo && this.misses === 0);
-    bumpGuide(`base-${j.kind === 'mixed' ? (j.ask === 'area' ? 'rows' : 'fence') : j.kind}`);
+    bumpGuide(this.guideKey());
     const area = j.ask === 'area';
     // Finish the picture: every tile down, or the whole fence lit.
-    for (let r = 0; r < j.rows; r++) for (let c = 0; c < j.cols; c++) this.cells[r][c].setFillStyle(TILE).setStrokeStyle(2, TILE_EDGE);
+    if (!j.cut || !area) for (let r = 0; r < j.rows; r++) for (let c = 0; c < j.cols; c++) this.cells[r][c]?.setFillStyle(TILE).setStrokeStyle(2, TILE_EDGE);
     if (!area) this.drawFence('all');
+    const parts = j.cut ? splitL(j as Required<AreaJob>) : null;
     this.setTask(
-      area ? `${j.rows} rows of ${j.cols} = ${areaOf(j)} ✓` : `${j.cols} + ${j.rows} + ${j.cols} + ${j.rows} = ${perimeterOf(j)} ✓`,
+      area
+        ? (parts ? `${areaOf(parts.left)} + ${areaOf(parts.right)} = ${areaOf(j)} ✓` : `${j.rows} rows of ${j.cols} = ${areaOf(j)} ✓`)
+        : `${sidesOf(j).join(' + ')} = ${perimeterOf(j)} ✓`,
       area ? `Area: ${areaOf(j)} tiles!` : `Perimeter: ${perimeterOf(j)}!`,
       '#06d6a0',
     );
@@ -515,7 +653,11 @@ export class BaseBuilder extends Phaser.Scene {
 
   private checklist(y: number) {
     const s = save();
-    const line = BASE_PIECES.map((p, i) => `${i < basePieces(s) ? '✓' : '☐'} ${p.name}`).join('     ');
-    text(this, CX, y, line, 22, '#ffffff');
+    // Four to a line (round 1, then the Moon Siege's pieces once he gets there).
+    const shown = basePieces(s) >= 4 || s.levelsDone.includes('moon-core') ? BASE_PIECES.length : 4;
+    for (let k = 0; k < shown; k += 4) {
+      const line = BASE_PIECES.slice(k, k + 4).map((p, i) => `${i + k < basePieces(s) ? '✓' : '☐'} ${p.name}`).join('     ');
+      text(this, CX, y + (k / 4) * 32, line, 20, '#ffffff');
+    }
   }
 }

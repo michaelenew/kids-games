@@ -1,9 +1,9 @@
 import { leaveSyncGroup, noteSaved, onRemoteSave, saveKey } from './sync/game';
-
+import { type PaperKind, type PaperProgress, type PaperStep, afterProblem as afterPaperProblem, stepOf as stepOfPaper } from './skills/paper';
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
 /** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot), RHINO (the tank) and TRIDENT (the submarine). */
-export type BotId = 'bolt' | 'jet' | 'titan' | 'tank' | 'sub' | 'stealth';
+export type BotId = 'bolt' | 'jet' | 'titan' | 'tank' | 'sub' | 'stealth' | 'astro';
 
 /** One robot's upgrades and armor plates. */
 export interface BotData {
@@ -57,6 +57,12 @@ export interface SaveData {
   titan?: BotData;
   /** Which robot he picked for each pick-your-robot mission. */
   picks?: Record<string, BotId>;
+  /** Paper mode: how far each kind of problem has moved from boxes toward a blank page (see skills/paper.ts). */
+  paper?: Partial<Record<PaperKind, PaperProgress>>;
+  /** The solar system's vehicles: how many parts of each he has built in its bay (see skills/bays.ts). */
+  rides?: Partial<Record<import('./three/rides').RideKind, number>>;
+  /** The starship: how many of its parts he has built at the Starship Dock (see skills/compare.ts). */
+  ship?: number;
   /** The Moon base: how many of its pieces he has built (see skills/area.ts). */
   base?: number;
   /** Which robot he picked as backup for each mission with reinforcements. */
@@ -366,10 +372,24 @@ export const BOTS: Record<BotId, BotSpec> = {
       boots: { title: 'Cloak Emitter', skill: 'Adding & subtracting', perks: ['No cloak', 'Cloak: shots pass through some of the time', 'Strong cloak: more shots pass through', 'Ghost cloak: lots of shots pass through'] },
     },
   },
+  // ASTRO, the space robot, joins on Titan. An astronaut robot that turns into a starfighter. Its benches are review.
+  astro: {
+    name: 'ASTRO', color: 0xf2f4f8, nameColor: '#ffe28a', joinsAt: 'titan-land',
+    damage: [3, 4, 6, 8], cooldown: [0.2, 0.17, 0.14, 0.09], dodge: [0, 0.12, 0.22, 0.32], vehicle: 'STARFIGHTER',
+    tab: { icon: '⭐', fill: 0x3a4a7a, edge: 0xffe28a, card: 0xffd166 },
+    gear: {
+      armor: { title: 'Space Armor', skill: 'Place value', perks: ['No armor plates', 'Space armor plates', 'Steel-framed plates', 'Gold-trimmed plates + spikes'] },
+      blaster: {
+        title: 'Star Blaster', skill: 'Measuring',
+        perks: ['Laser pistol, damage 3', 'Star blaster, damage 4', 'Twin blasters + star missiles, damage 6', 'Nova cannon, damage 8'],
+      },
+      boots: { title: 'Jet Pack', skill: 'Adding & subtracting', perks: ['No jet pack', 'Jet pack: dashes past some shots', 'Twin jets: dashes past more', 'Rocket pack: dashes past lots of shots'] },
+    },
+  }
 };
 
 /** Robots in the order they join. */
-export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank', 'sub', 'stealth'];
+export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank', 'sub', 'stealth', 'astro'];
 
 /** STRIKER's paint. */
 export const JET_COLOR = BOTS.jet.color;
@@ -476,6 +496,7 @@ const GADGET_NAMES: Record<BotId, Record<GadgetId, string>> = {
   tank: { mega: 'Mega Railgun', shield: 'Energy Armor', drones: 'Drone Wingmen', hyper: 'Hyper Boosters' },
   sub: { mega: 'Mega Torpedo', shield: 'Bubble Shield', drones: 'Robo Dolphins', hyper: 'Turbo Props' },
   stealth: { mega: 'Mega Pulse Cannon', shield: 'Ghost Shield', drones: 'Shadow Drones', hyper: 'Warp Boosters' },
+  astro: { mega: 'Mega Star Cannon', shield: 'Star Shield', drones: 'Satellite Drones', hyper: 'Warp Drive' },
 };
 
 /** A gadget as a robot calls it. BOLT, TITAN and RHINO dash aside where the jet does rainbow rolls. */
@@ -492,7 +513,7 @@ export function superLabUnlocked(bot: BotId = 'jet', s: SaveData = save()): bool
   if (fullyUpgraded(bot, s)) return true;
   if (bot === 'jet') return s.levelsDone.includes('amz-landing');
   // TRIDENT and PHANTOM join after the Counterattack: their labs open when they do.
-  if (bot === 'sub' || bot === 'stealth') return true;
+  if (bot === 'sub' || bot === 'stealth' || bot === 'astro') return true;
   return s.levelsDone.includes('arc-core');
 }
 
@@ -559,7 +580,7 @@ export function clearAlert(mission: string, s: SaveData = save()): void {
 }
 
 /** What a pre-launch check can review. */
-export type Review = 'gauge' | 'fuel' | 'crates' | 'clock' | 'share' | 'cell' | 'cells';
+export type Review = 'gauge' | 'fuel' | 'crates' | 'clock' | 'share' | 'cell' | 'cells' | 'times' | 'compare';
 
 /** The concepts he has met so far, in the order they take turns. */
 export function reviewKinds(s: SaveData = save()): Review[] {
@@ -571,6 +592,9 @@ export function reviewKinds(s: SaveData = save()): Review[] {
     share: (s.guide?.share ?? 0) >= 2,
     cell: (s.guide?.['cell-light'] ?? 0) >= 2,
     cells: true,
+    // From the starship on: quick multiplication facts, and comparing (<, >, =).
+    times: s.levelsDone.includes('space-launch'),
+    compare: (s.guide?.['compare-tens'] ?? 0) >= 2,
   };
   return (Object.keys(met) as Review[]).filter((k) => met[k]);
 }
@@ -674,3 +698,16 @@ export function bumpGuide(kind: string, s: SaveData = save()): void {
   persist();
 }
 
+
+// ---- Paper mode ------------------------------------------------------------------
+
+/** The step a kind of problem is at now (see skills/paper.ts). */
+export function paperStep(kind: PaperKind, s: SaveData = save()): PaperStep {
+  return stepOfPaper(s.paper?.[kind], kind, s.levelsDone);
+}
+
+/** One problem of this kind finished: move its step along. */
+export function paperDone(kind: PaperKind, solo: boolean, showMe = false, s: SaveData = save()): void {
+  s.paper = { ...(s.paper ?? {}), [kind]: afterPaperProblem(s.paper?.[kind], kind, s.levelsDone, solo, showMe) };
+  persist();
+}

@@ -67,9 +67,18 @@ export const STEALTH_REGION_NAMES: Record<Region, string> = {
   legR: 'Right leg cloak cell',
 };
 
+/** ASTRO's plates: a spacesuit's armor. */
+export const ASTRO_REGION_NAMES: Record<Region, string> = {
+  chest: 'Chest suit plate',
+  armL: 'Left arm suit plate',
+  armR: 'Right arm suit plate',
+  legL: 'Left leg suit plate',
+  legR: 'Right leg suit plate',
+};
+
 export function regionName(r: Region, bot: BotId): string {
   const names = {
-    bolt: REGION_NAMES, jet: JET_REGION_NAMES, titan: TITAN_REGION_NAMES, tank: TANK_REGION_NAMES, sub: SUB_REGION_NAMES, stealth: STEALTH_REGION_NAMES,
+    bolt: REGION_NAMES, jet: JET_REGION_NAMES, titan: TITAN_REGION_NAMES, tank: TANK_REGION_NAMES, sub: SUB_REGION_NAMES, stealth: STEALTH_REGION_NAMES, astro: ASTRO_REGION_NAMES,
   };
   return names[bot][r];
 }

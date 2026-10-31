@@ -5,12 +5,13 @@ import { REGIONS, type Region, armorMark, lookFromSave, plateTarget, regionName,
 import { music, sfx } from '../audio';
 import { type PlaceCounts, type SpecFormat, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
 import {
-  BUILD_COST, actionDone, activeBot, botColor, amazonUnlocked, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, persist, recordSkill, rig, save,
+  BUILD_COST, actionDone, activeBot, botColor, amazonUnlocked, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, paperDone, paperStep, persist, recordSkill, rig, save,
 } from '../state';
 import { Jet } from '../three/jet';
 import { launchMission } from './launch';
 import { RAMP, borrowKind, rampProblem } from '../skills/steps';
 import { writtenSubtractPanel } from '../ui/written';
+import { columnPaper } from '../ui/paper';
 import { countUpPanel } from '../ui/countup';
 import { placeValueCards } from '../skills/concepts';
 import { howTo, needsIntro } from '../ui/howto';
@@ -328,16 +329,25 @@ export class ArmorForge extends Phaser.Scene {
     // typing the ones digit and get told he's wrong.
     const guided = true;
     this.busy = true;
-    const go = () => writtenSubtractPanel(this, {
-      top: plate.max, bottom: plate.hp, guided, area, title: 'MISSING POINTS: TAKE AWAY',
-      onDone: (solo) => {
-        bumpGuide('written');
-        bumpGuide(`written-${kind}`);
-        recordSkill('written', solo);
-        this.busy = false;
-        toast(this, (LEFT + RIGHT) / 2, 318, `Now build ${formatNumber(plate.max - plate.hp)} with the pieces!`, '#06d6a0', 28);
-      },
-    });
+    const done = (solo: boolean, showMe = false) => {
+      bumpGuide('written');
+      bumpGuide(`written-${kind}`);
+      recordSkill('written', solo);
+      paperDone('subtract', solo, showMe);
+      this.busy = false;
+      toast(this, (LEFT + RIGHT) / 2, 318, `Now build ${formatNumber(plate.max - plate.hp)} with the pieces!`, '#06d6a0', 28);
+    };
+    // Paper mode: past the boxes, it's the problem on a page (see skills/paper.ts).
+    const step = paperStep('subtract');
+    const go = () => (step >= 2
+      ? columnPaper(this, {
+        kind: 'subtract', a: plate.max, b: plate.hp, step, area, title: 'MISSING POINTS: TAKE AWAY',
+        onDone: (r) => done(r.solo, r.showMe),
+      })
+      : writtenSubtractPanel(this, {
+        top: plate.max, bottom: plate.hp, guided, area, title: 'MISSING POINTS: TAKE AWAY',
+        onDone: (solo) => done(solo),
+      }));
     howTo(this, [{
       concept: 'written-sub', title: 'TAKING AWAY IN COLUMNS',
       steps: [

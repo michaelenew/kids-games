@@ -234,3 +234,34 @@ describe('keeping devices in step', () => {
     expect(herd[0].hearts).toBe(5);
   });
 });
+
+describe('upgrades', () => {
+  it('a unicorn keeps its upgrade, once', async () => {
+    const { addUpgrade, hasUpgrade } = await import('../src/unicorn/upgrades');
+    const u = { name: 'Sparkle', look: { body: 0, mane: 0, horn: 0 }, hearts: 0 };
+    expect(hasUpgrade(u, 'invisible')).toBe(false);
+    addUpgrade(u, 'invisible');
+    addUpgrade(u, 'invisible');
+    expect(u).toMatchObject({ upgrades: ['invisible'] });
+  });
+
+  it('upgraded unicorns lead the team', async () => {
+    const { byPower } = await import('../src/unicorn/upgrades');
+    const herd = [
+      { name: 'A', look: { body: 0, mane: 0, horn: 0 }, hearts: 9 },
+      { name: 'B', look: { body: 0, mane: 0, horn: 0 }, hearts: 1, upgrades: ['invisible'] },
+    ];
+    expect([...herd].sort(byPower)[0].name).toBe('B');
+  });
+
+  it('setting the ranch keeps upgrades on the same unicorns', async () => {
+    const { restoreRanch } = await import('../src/unicorn/restore');
+    const { resetSave, save } = await import('../src/unicorn/state');
+    resetSave();
+    restoreRanch(save(), { unicorns: 3, ribbons: 0, hearts: 0 });
+    save().unicorns[1].upgrades = ['invisible'];
+    restoreRanch(save(), { unicorns: 5, ribbons: 0, hearts: 0 });
+    expect(save().unicorns[1].upgrades).toEqual(['invisible']);
+    expect(save().unicorns[4].upgrades).toBeUndefined();
+  });
+});

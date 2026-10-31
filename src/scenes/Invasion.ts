@@ -9,6 +9,8 @@ import {
 import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { nextPiece } from '../skills/area';
+import { nextShipPart } from '../skills/compare';
+import { BAYS, bayFor, readyBay } from '../skills/bays';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
@@ -55,6 +57,8 @@ export class InvasionScene extends Phaser.Scene {
   private hint!: Phaser.GameObjects.Text;
   private everFired = false;
   private bossFrac: number | null = null;
+  /** Base defense: the base's health (0 to 1), or null on other missions. */
+  private baseFrac: number | null = null;
   private shownHp = 0;
   private bannerParts: Phaser.GameObjects.GameObject[] = [];
   /** Every hit he took, for the recap graph and sums. */
@@ -82,6 +86,7 @@ export class InvasionScene extends Phaser.Scene {
     this.score = 0;
     this.scrap = 0;
     this.bossFrac = null;
+    this.baseFrac = this.mission.defend ? 1 : null;
     this.everFired = false;
     this.regionFlash = {};
     this.bannerParts = [];
@@ -118,6 +123,8 @@ export class InvasionScene extends Phaser.Scene {
       swapDodge: dodgeOf(ender),
       allyLook: this.mission.steps.some((st) => st.kind === 'reinforce') ? lookFromSave(s, allyFor(this.bot, this.mission.id, s)) : undefined,
       baseLevel: s.base ?? 0,
+      // The vehicle he rides: the starship, or whichever one this set's bay built.
+      shipLevel: this.mission.ride && this.mission.ride !== 'starship' ? (s.rides?.[this.mission.ride] ?? 0) : (s.ship ?? 0),
     }, {
       hit: (raw, from) => this.onHit(raw, from),
       kill: (k) => this.onKill(k),
@@ -140,6 +147,11 @@ export class InvasionScene extends Phaser.Scene {
         this.tweens.add({ targets: t, alpha: 0, delay: 800, duration: 400, onComplete: () => t.destroy() });
       },
       bossBar: (f) => (this.bossFrac = f),
+      baseHit: (f) => {
+        this.baseFrac = f;
+        this.regionFlash.frame = 0.4;
+        if (f <= 0) this.fail(true);
+      },
       complete: () => this.win(),
       allyJoined: () => {
         const ally = allyFor(this.bot, this.mission.id);
@@ -165,6 +177,8 @@ export class InvasionScene extends Phaser.Scene {
     this.vignette = this.add.graphics().setDepth(5);
     this.reticles = this.add.graphics().setDepth(10);
     this.hud = this.add.graphics().setDepth(20);
+    // Base defense: a label on the base's health bar.
+    if (this.mission.defend) text(this, W / 2, 27, 'BASE', 16, '#ffffff').setStroke('#000000', 4).setDepth(30);
     this.hpText = this.add.text(150, 28, '', { fontFamily: 'Arial Black, Arial', fontSize: '22px', color: '#ffffff' })
       .setStroke('#000000', 5).setDepth(21);
     this.add.text(150, 4, 'ARMOR', { fontFamily: 'Arial Black, Arial', fontSize: '16px', color: '#9ad1ff' }).setStroke('#000000', 4).setDepth(21);
@@ -418,6 +432,13 @@ export class InvasionScene extends Phaser.Scene {
     }
 
     // Boss health.
+    if (this.baseFrac !== null) {
+      // The base's health, top middle.
+      const bf = this.baseFrac;
+      g.fillStyle(0x000000, 0.6).fillRoundedRect(W / 2 - 200, 14, 400, 26, 10);
+      g.fillStyle(bf > 0.5 ? 0x4cf0ff : bf > 0.25 ? 0xffd166 : 0xef476f, 1).fillRoundedRect(W / 2 - 196, 18, 392 * bf, 18, 8);
+      g.lineStyle(2, 0xffffff, 0.9).strokeRoundedRect(W / 2 - 200, 14, 400, 26, 10);
+    }
     if (this.bossFrac !== null) {
       g.fillStyle(0x000000, 0.6).fillRoundedRect(W / 2 - 300, H - 52, 600, 28, 10);
       g.fillStyle(0xff4fd8, 1).fillRoundedRect(W / 2 - 296, H - 48, 592 * this.bossFrac, 20, 8);
@@ -487,8 +508,14 @@ export class InvasionScene extends Phaser.Scene {
     const forge = forgeScene(this.bot);
     if (!built) return { key: forge, data: { mode: 'build', mark: 1 }, label: this.bot === 'titan' ? 'Build walls!' : 'Build armor!' };
     if (repairsNeeded(d.armor ?? {}).length) return { key: forge, data: { mode: 'repair' }, label: 'Repair bay' };
-    // On the Moon, a win means the next piece of the base can go up.
+    // On the Moon, a win means the next piece of the base can go up; in space (and after the Siege), the next ship part.
     if (this.mission.env === 'moon' && nextPiece(s) !== undefined) return { key: 'BaseBuilder', label: 'Build the base!' };
+    if ((this.mission.env === 'space' || this.mission.id === 'siege-final') && nextShipPart(s) !== undefined) return { key: 'StarshipDock', label: 'Build the ship!' };
+    // In the solar system, a win means the next part of this set's vehicle (or the next set's first part).
+    const rb = readyBay(s);
+    if (rb && (bayFor(this.mission.id) || BAYS.some((b) => b.after === this.mission.id))) {
+      return { key: 'VehicleBay', data: { bay: rb.bay.id }, label: `Build the ${rb.bay.vehicle}!` };
+    }
     return { key: 'Garage', label: 'Back to Garage' };
   }
 
@@ -632,8 +659,61 @@ export class InvasionScene extends Phaser.Scene {
       } else if (this.mission.id === 'moon-core' && firstWin) {
         dialog(this, [
           { who: 'volt', text: 'The Lunar Walker is down! Their last outpost is finished!' },
-          { who: 'volt', text: 'And we have a whole Moon base of our own. Next stop: the rest of the solar system!' },
+          { who: 'volt', text: 'Wait... my radar is full of dots. Something BIG is coming around the Moon.' },
+          { who: 'sprocket', text: 'Then let\'s make the base bigger, fast. Next up: a power plant!' },
         ], after);
+      } else if (this.mission.id === 'siege-final' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'Their giant walker is DOWN, and the whole fleet is flying away! The base held!' },
+          { who: 'volt', text: 'A power plant, a solar farm, a wall and a force field... you built a real Moon fortress.' },
+          { who: 'volt', text: 'But they\'re running... all the way to MARS. We\'ll never catch them in a dropship.' },
+          { who: 'sprocket', text: 'Then we take the whole base with us! Engines, guns, shields... let\'s turn it into a STARSHIP!' },
+        ], after);
+      } else if (this.mission.id === 'space-station' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The battle station is gone! Mars is right below us.' },
+          { who: 'sprocket', text: 'And RHINO has been waiting for this. Time to build it a Mars rover!' },
+        ], after);
+      } else if (this.mission.id === 'mars-olympus' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Mars walker is down! But the rest flew off into the ASTEROID BELT.' },
+          { who: 'sprocket', text: 'Rocks everywhere out there. TITAN\'s going to need a mining ship. Let\'s build one!' },
+        ], after);
+      } else if (this.mission.id === 'belt-hive' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The hive rock is smashed! The last few dove toward Jupiter... to its moon EUROPA.' },
+          { who: 'sprocket', text: 'Europa has a whole ocean under its ice. That sounds like a job for TRIDENT, and an ice submarine!' },
+        ], after);
+      } else if (this.mission.id === 'europa-depths' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Ice Kraken is done! Next stop: Saturn, and its biggest moon, called... TITAN.' },
+          { who: 'sprocket', text: 'TITAN on Titan! It\'ll need a hovercraft for the lakes. And I\'ve got a surprise: a brand-new robot.' },
+        ], after);
+      } else if (this.mission.id === 'titan-land' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'ASTRO! Our space robot is here! It\'s an astronaut AND a starfighter.' },
+          { who: 'sprocket', text: 'Its armor is bare, though. Let\'s forge ASTRO some space armor, just like the others!' },
+        ], after);
+      } else if (this.mission.id === 'titan-core' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Methane Walker is down! They\'re running to the coldest, darkest place yet: PLUTO.' },
+          { who: 'sprocket', text: 'Then we sneak up on them. PHANTOM needs a stealth shuttle!' },
+        ], after);
+      } else if (this.mission.id === 'pluto-base' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'Their hideout is gone! And look: their map. Their HOME is out in the Kuiper Belt.' },
+          { who: 'sprocket', text: 'This is it. And who should lead the way? The very first robot you ever built: BOLT. With a rocket fighter!' },
+        ], after);
+      } else if (this.mission.id === 'kuiper-home' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'THE MOTHERSHIP IS DOWN! The aliens are flying away, all the way out of the solar system!' },
+          { who: 'volt', text: 'From the city to the Kuiper Belt... BOLT, STRIKER, TITAN, RHINO, TRIDENT, PHANTOM and ASTRO saved everyone.' },
+          { who: 'sprocket', text: 'And YOU built every single thing they used. The best engineer in the whole solar system!' },
+        ], after);
+      } else if (next.key === 'VehicleBay') {
+        dialog(this, [{ who: 'sprocket', text: 'Great job! Let\'s build the next part.' }], after);
+      } else if (next.key === 'StarshipDock') {
+        dialog(this, [{ who: 'sprocket', text: 'Great flying! Let\'s bolt the next part onto the ship.' }], after);
       } else if (next.key === 'BaseBuilder') {
         dialog(this, [{ who: 'sprocket', text: 'They\'ll attack again soon. Let\'s build the next piece of the base!' }], after);
       } else if (next.key === 'CellForge' && (next.data as { mode: string }).mode === 'repair') {
@@ -655,7 +735,7 @@ export class InvasionScene extends Phaser.Scene {
     });
   }
 
-  private fail() {
+  private fail(baseFell = false) {
     if (this.over) return;
     this.over = true;
     this.game3d.pointer.down = false;
@@ -675,9 +755,11 @@ export class InvasionScene extends Phaser.Scene {
       return;
     }
     panel(this, W / 2, H / 2, 760, 400).setDepth(60);
-    text(this, W / 2, H / 2 - 140, 'EMERGENCY RETREAT!', 50, '#ef476f').setStroke('#000000', 6).setDepth(61);
-    text(this, W / 2, H / 2 - 50, 'Your armor ran out. Patch up and try again!\nThicker plates from the forge help a lot.', 28, '#ffffff')
-      .setDepth(61);
+    text(this, W / 2, H / 2 - 140, baseFell ? 'THE BASE FELL!' : 'EMERGENCY RETREAT!', 50, '#ef476f').setStroke('#000000', 6).setDepth(61);
+    const why = baseFell
+      ? 'The walkers broke through! Stop them before they\nreach the base. Super gadgets help a lot.'
+      : 'Your armor ran out. Patch up and try again!\nThicker plates from the forge help a lot.';
+    text(this, W / 2, H / 2 - 50, why, 28, '#ffffff').setDepth(61);
     this.gadgetNote(H / 2 + 30);
     const next = this.nextScene();
     button(this, W / 2 - 180, H / 2 + 100, 300, 84, next.key === 'Garage' ? 'Try again' : next.label, () => {

@@ -4,10 +4,13 @@ import { LEVELS } from '../levels';
 import {
   BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName,
   botsUnlocked, endPreview, gearInfo, alertQueue, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
-  startPreview, takeFreshAlert,
+  paperStep, startPreview, takeFreshAlert,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
-import { BASE_PIECES, basePieces, piecesNeeded } from '../skills/area';
+import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
+import { PAPER_KINDS, PAPER_NAMES } from '../skills/paper';
+import { SHIP_PARTS, nextShipPart, partsNeeded, shipParts } from '../skills/compare';
+import { bayFor, bayParts, bayPartsNeeded, readyBay } from '../skills/bays';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
@@ -43,6 +46,15 @@ const SKILL_LABELS: Record<string, string> = {
   fractions: 'PHANTOM cloak cells: equal parts, naming and placing fractions',
   area: 'Moon base: area (floor tiles: counting, then rows × columns)',
   perimeter: 'Moon base: perimeter (fences: adding the sides)',
+  compare: 'Starship dock: comparing numbers with <, > and =',
+  add3: 'Rover bay: adding three 2-digit numbers',
+  measure8: 'Rover bay: measuring to the nearest 1/8 inch',
+  wordproblems: 'Mining bay: two-step word problems',
+  picgraphs: 'Sub bay: picture graphs (each picture = 3 or 5), twice as many',
+  fracdiff: 'Sub bay: differences between lengths in eighths',
+  evenodd: 'Hover bay: even and odd',
+  times01: 'Hover bay: times 0 and times 1',
+  calendar: 'Shuttle bay: the calendar (days, weeks, dates)',
 };
 
 
@@ -137,6 +149,21 @@ export class GarageScene extends Phaser.Scene {
           () => this.scene.start('BaseBuilder', { then: missionId }));
         return;
       }
+      // A solar-system mission needs its vehicle's next part built first.
+      const bay = bayFor(missionId);
+      if (key === 'Invasion' && bay && bayParts(bay, s) < bayPartsNeeded(missionId)) {
+        const part = bay.parts[bayParts(bay, s)].name.toLowerCase();
+        dialog(this, [{ who: 'sprocket', text: `The ${bay.vehicle} isn't ready yet! Let's build its ${part} first.` }],
+          () => this.scene.start('VehicleBay', { bay: bay.id, then: missionId }));
+        return;
+      }
+      // The starship needs its next part before it can fly the next mission.
+      if (key === 'Invasion' && missionById(missionId).env === 'space' && shipParts(s) < partsNeeded(missionId)) {
+        const part = SHIP_PARTS[shipParts(s)].name.toLowerCase();
+        dialog(this, [{ who: 'sprocket', text: `The ship isn't ready yet! Let's install the ${part} first.` }],
+          () => this.scene.start('StarshipDock', { then: missionId }));
+        return;
+      }
       if (key === 'Invasion' && isPick(missionId)) {
         this.scene.start('Pick', { missionId });
         return;
@@ -205,6 +232,27 @@ export class GarageScene extends Phaser.Scene {
         fill: 0xc1121f, edge: 0xffb3b3, size: 28,
       });
       this.tweens.add({ targets: rb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+    }
+
+    // The Moon base: a piece is ready to build (one after each Moon mission won).
+    const piece = nextPiece(s);
+    const part = nextShipPart(s);
+    const bayReady = readyBay(s);
+    if (bayReady && !fixFor) {
+      const vb = button(this, 300, 175, 440, 70, `🔧 BUILD THE ${bayReady.bay.parts[bayReady.part].name.toUpperCase()}!`, () => this.scene.start('VehicleBay', { bay: bayReady.bay.id }), {
+        fill: 0x3a4a7a, edge: 0xffe28a, size: 24,
+      });
+      this.tweens.add({ targets: vb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+    } else if (part !== undefined && !fixFor) {
+      const sb = button(this, 300, 175, 420, 70, `🚀 BUILD THE ${SHIP_PARTS[part].name.toUpperCase()}!`, () => this.scene.start('StarshipDock', {}), {
+        fill: 0x1f4f6a, edge: 0x9ff0ff, size: 24,
+      });
+      this.tweens.add({ targets: sb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+    } else if (piece !== undefined && !fixFor) {
+      const bb = button(this, 300, 175, 420, 70, `🌕 BUILD THE ${BASE_PIECES[piece].name.toUpperCase()}!`, () => this.scene.start('BaseBuilder', {}), {
+        fill: 0x3a5a8c, edge: 0xcfe8ff, size: 24,
+      });
+      this.tweens.add({ targets: bb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
     }
 
     // Engineering Zone.
@@ -373,6 +421,10 @@ export class GarageScene extends Phaser.Scene {
       ? `Next mission (${nextMission.title.replace(/^Invasion \d+: /, '')}): ${needsUpgrade(nextMission.id) ? 'HARD until an upgrade is built' : `extra help ${currentTier(nextMission.id)}/3`}`
       : 'All missions beaten!';
     items.push(text(this, W / 2, 574, help, 18, '#8d99ae').setDepth(52));
+    // Paper mode: how far each written kind of problem has moved toward a blank page.
+    const STEP = ['', 'boxes', 'tap where it goes', 'blank scratch page'];
+    const paperLine = PAPER_KINDS.map((k) => `${PAPER_NAMES[k].split(' ')[0]}: ${STEP[paperStep(k, s)]}`).join('   ·   ');
+    items.push(text(this, W / 2, 600, `Paper mode  ${paperLine}`, 16, '#e0aaff').setDepth(52));
     const gap = Math.min(31, 410 / (Object.keys(SKILL_LABELS).length - 1));
     Object.entries(SKILL_LABELS).forEach(([key, label], i) => {
       const st = s.skills[key];
@@ -400,9 +452,17 @@ const AREAS: { env: string; label: string; color: string; fill: number; edge: nu
   { env: 'ocean', label: 'THE DEEP', color: '#7ff7ff', fill: 0x0f6f7c, edge: 0x9ff7ff },
   { env: 'volcano', label: 'VOLCANO ISLAND', color: '#ffb36b', fill: 0x8a2a12, edge: 0xffb36b },
   { env: 'moon', label: 'MOON BASE', color: '#cfe8ff', fill: 0x3a4a66, edge: 0xcfe8ff },
+  { env: 'siege', label: 'MOON SIEGE', color: '#9ff0ff', fill: 0x24506a, edge: 0x9ff0ff },
+  { env: 'space', label: 'SPACE CHASE', color: '#c9b8ff', fill: 0x2a2266, edge: 0xc9b8ff },
+  { env: 'mars', label: 'MARS', color: '#ffb38a', fill: 0x8a3a1c, edge: 0xffb38a },
+  { env: 'belt', label: 'ASTEROID BELT', color: '#ffc27a', fill: 0x5a4a2a, edge: 0xffc27a },
+  { env: 'europa', label: 'EUROPA', color: '#9ff7ff', fill: 0x0f5a6a, edge: 0x9ff7ff },
+  { env: 'titan', label: 'TITAN & SATURN', color: '#ffd29a', fill: 0x7a5a2a, edge: 0xffd29a },
+  { env: 'pluto', label: 'PLUTO', color: '#c9d8ff', fill: 0x3a4a7a, edge: 0xc9d8ff },
+  { env: 'kuiper', label: 'KUIPER BELT', color: '#9ad1ff', fill: 0x24305a, edge: 0x9ad1ff },
 ];
 
-const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? m.env ?? 'city';
+const envOf = (m: (typeof MISSIONS)[number]) => m.area ?? (m.env === 'rings' ? 'titan' : m.env) ?? 'city';
 
 /** The area a mission is in, as the mission list names it. */
 function placeOf(m: (typeof MISSIONS)[number]): string {

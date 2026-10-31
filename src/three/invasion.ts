@@ -292,7 +292,7 @@ export class Invasion {
     stage.content.add(this.root);
     if (space) {
       // Deep space: black, with the Sun's hard white light from one side.
-      stage.activate(spaceSky(), new THREE.Fog(SPACE_FOG, 200, 1400));
+      stage.activate(spaceSky(), new THREE.Fog(SPACE_FOG, 130, 720));
       stage.key.color.setHex(0xf4f6ff);
       stage.key.intensity = 2.8;
     } else if (moon) {

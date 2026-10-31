@@ -11,6 +11,7 @@ import { BASE_PIECES, basePieces, piecesNeeded } from '../skills/area';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
+import { openSyncPanel } from '../sync/panel';
 import { onMissionCleared } from '../assist';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
@@ -278,10 +279,14 @@ export class GarageScene extends Phaser.Scene {
       music(s.sound === false ? null : 'calm');
     }, { fill: 0x3d4458 });
     items.push(sound.setDepth(52));
-    items.push(button(this, W / 2, H / 2 + 30, 420, 76, 'Grown-ups: progress', () => {
+    items.push(button(this, W / 2 - 110, H / 2 + 30, 200, 76, 'Progress', () => {
       close();
       this.parentView();
-    }, { fill: 0x3d4458 }).setDepth(52));
+    }, { fill: 0x3d4458, size: 24 }).setDepth(52));
+    items.push(button(this, W / 2 + 110, H / 2 + 30, 200, 76, 'Saves & sync', () => {
+      close();
+      openSyncPanel({ root: new URL('../', location.href).href, game: 'mecha' });
+    }, { fill: 0x3d4458, size: 24 }).setDepth(52));
     if (inPreview()) {
       // Previewing on a copy: tools to skip ahead, and the way back.
       items.push(button(this, W / 2 - 110, H / 2 + 120, 200, 76, '+50 scrap', () => {

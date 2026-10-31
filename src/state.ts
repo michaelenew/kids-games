@@ -1,3 +1,5 @@
+import { leaveSyncGroup, noteSaved, onRemoteSave, saveKey } from './sync/game';
+
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
 /** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot), RHINO (the tank) and TRIDENT (the submarine). */
@@ -80,8 +82,9 @@ export interface SaveData {
   skills: Record<string, SkillStat>;
 }
 
-// v2: armor became five plates; older saves start fresh.
-const KEY = 'mecha-forge-save-v2';
+// The save lives under 'mecha-forge-save-v2' (v2: armor became five plates;
+// older saves start fresh). A device can keep more saves, and one can sync
+// with other devices: see src/sync.
 /**
  * Grown-up preview: a throwaway copy of the save to play ahead on. While the
  * flag is set, everything reads and writes the copy; his real save is never
@@ -121,7 +124,7 @@ export function inPreview(): boolean {
 }
 
 function storeKey(): string {
-  return inPreview() ? PREVIEW_KEY : KEY;
+  return inPreview() ? PREVIEW_KEY : saveKey('mecha');
 }
 
 /** Start playing on a copy of the save. */
@@ -172,13 +175,15 @@ function migrate(s: SaveData): SaveData {
   return s;
 }
 
+function fromStored(parsed: Partial<SaveData> | null): SaveData {
+  if (parsed?.v === 1) return migrate({ ...freshSave(), ...parsed, gear: { ...freshSave().gear, ...parsed.gear } });
+  return freshSave();
+}
+
 function load(): SaveData {
   try {
     const raw = localStorage.getItem(storeKey());
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<SaveData>;
-      if (parsed.v === 1) return migrate({ ...freshSave(), ...parsed, gear: { ...freshSave().gear, ...parsed.gear } });
-    }
+    if (raw) return fromStored(JSON.parse(raw) as Partial<SaveData>);
   } catch {
     // Storage blocked or corrupt: start fresh rather than crash.
   }
@@ -188,12 +193,24 @@ function load(): SaveData {
 export function persist(): void {
   try {
     localStorage.setItem(storeKey(), JSON.stringify(save()));
+    if (!inPreview()) noteSaved('mecha');
   } catch {
     // Private mode or full storage: the game still works, it just won't remember.
   }
 }
 
+// Another device played on this save (it's in a sync group): take its
+// progress in place, so screens holding the save see it.
+onRemoteSave('mecha', (data) => {
+  if (!current || inPreview()) return;
+  const next = fromStored(data as Partial<SaveData>);
+  for (const k of Object.keys(current)) delete (current as unknown as Record<string, unknown>)[k];
+  Object.assign(current, next);
+});
+
+/** Start over. A synced save stops syncing first, so other devices keep it. */
 export function resetSave(): void {
+  if (!inPreview()) leaveSyncGroup('mecha');
   current = freshSave();
   persist();
 }

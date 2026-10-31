@@ -12,7 +12,9 @@
     "fetch-model": "bash scripts/fetch-model.sh"
   },
   "dependencies": {
+    "jsqr": "^1.4.0",
     "phaser": "^3.90.0",
+    "qrcode-generator": "^2.0.4",
     "three": "^0.170.0",
     "vosk-browser": "^0.0.8"
   },

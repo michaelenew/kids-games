@@ -786,8 +786,12 @@ export function partModel(part: number): THREE.Group {
     mesh(inner, cg('pieceBow', () => new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1.9, 1.9, 1.4)), m.tiles, 0, 0, -1.6);
   } else if (p === 1) {
     // The dome on a patch of hull, raised up so the rings ripple round it.
-    mesh(inner, rboxGeo(4, 0.8, 4, 0.3), m.tiles, 0, 2.2, 0);
-    sonar(inner, m, anim, 0, 1.75, 0, 5);
+    // The dome on a patch of hull, turned over so it faces up, rings rippling round it.
+    const flip = new THREE.Group();
+    flip.rotation.x = Math.PI;
+    inner.add(flip);
+    mesh(flip, rboxGeo(4, 0.8, 4, 0.3), m.tiles, 0, 0.45, 0);
+    sonar(flip, m, anim, 0, 0, 0, 3.5);
   } else if (p === 2) {
     // A piece of casing with its heating strips.
     mesh(inner, rboxGeo(1.6, 2.3, 6.2, 0.5), m.tiles, 3.75, -1.17, 0);
@@ -802,7 +806,13 @@ export function partModel(part: number): THREE.Group {
     mesh(inner, rboxGeo(5, 0.3, 5.6, 0.1), m.navy, 0, -0.15, 0);
   }
   mergeStatic(inner);
-  const box = new THREE.Box3().setFromObject(inner);
+  // Size it by its solid parts (not the light cones, glows and sonar rings).
+  inner.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  inner.traverse((o) => {
+    const mm = o as THREE.Mesh;
+    if (mm.isMesh && !(mm.material as THREE.Material).transparent) box.expandByObject(mm, true);
+  });
   const size = box.getSize(new THREE.Vector3());
   const k = 6 / Math.max(size.x, size.z);
   const g = new THREE.Group();

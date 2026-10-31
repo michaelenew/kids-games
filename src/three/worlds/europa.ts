@@ -542,7 +542,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     }
     geo.computeVertexNormals();
     const mat = disposable(new THREE.MeshStandardMaterial({
-      map: iceTexture(false), emissiveMap: iceTexture(true), emissive: 0xbff4ff, emissiveIntensity: 0.9, color: 0x7fb4c8, roughness: 0.35, metalness: 0.1,
+      map: iceTexture(false), emissiveMap: iceTexture(true), emissive: 0xbff4ff, emissiveIntensity: 0.75, color: 0x7fb4c8, roughness: 0.35, metalness: 0.1,
     }));
     root.add(new THREE.Mesh(geo, mat));
 
@@ -1106,7 +1106,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       geo.attributes.position.needsUpdate = true;
     };
   };
-  const snow = specks(deep ? 700 : 520, disposable(new THREE.PointsMaterial({ color: 0xd8eef2, size: 0.12, transparent: true, opacity: 0.7, depthWrite: false })), 0.5);
+  const snow = specks(deep ? 700 : 520, disposable(new THREE.PointsMaterial({ map: glowTexture(), color: 0xd8eef2, size: 0.22, transparent: true, opacity: 0.8, depthWrite: false })), 0.5);
   const plankton = specks(reef ? 420 : 240, disposable(new THREE.PointsMaterial({
     map: glowTexture(), color: new THREE.Color(0x6ff4ff).multiplyScalar(1.5), size: 0.4, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
   })), -0.15);

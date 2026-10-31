@@ -31,7 +31,7 @@ const ACCENT = [0x4cc8ff, 0x4cc8ff, 0x8fe3ff, 0xfff08a];
 const EXHAUST = 0x4cb8ff;
 const DASH_TIME = 0.45;
 
-type J = 'body' | 'torso' | 'head' | 'pack' | 'shL' | 'shR' | 'elL' | 'elR' | 'hipL' | 'hipR' | 'knL' | 'knR' | 'armGun' | 'jet' | 'ship' | 'barrel' | 'mount';
+type J = 'body' | 'pelvis' | 'torso' | 'head' | 'pack' | 'shL' | 'shR' | 'elL' | 'elR' | 'hipL' | 'hipR' | 'knL' | 'knR' | 'armGun' | 'jet' | 'ship' | 'barrel' | 'mount';
 
 const PLATE_SIZE: Record<Region, [number, number]> = {
   chest: [0.62, 0.5], armL: [0.32, 0.42], armR: [0.32, 0.42], legL: [0.3, 0.48], legR: [0.3, 0.48],
@@ -266,9 +266,10 @@ export class Astro implements Mech {
     const RX = Math.PI / 2;
     const body = this.joint('body', this.root, 0, 0, 0);
     // Hips: a padded belt with a buckle.
-    mesh(body, rboxGeo(0.5, 0.2, 0.34, 0.08), R.chest, 0, 0.98, 0);
-    mesh(body, rboxGeo(0.52, 0.06, 0.36, 0.025), T, 0, 1.06, 0);
-    mesh(body, rboxGeo(0.12, 0.08, 0.04, 0.015), M.chrome, 0, 1.06, 0.18);
+    const pelvis = this.joint('pelvis', body, 0, 1.0, 0);
+    mesh(pelvis, rboxGeo(0.5, 0.2, 0.34, 0.08), R.chest, 0, -0.02, 0);
+    mesh(pelvis, rboxGeo(0.52, 0.06, 0.36, 0.025), T, 0, 0.06, 0);
+    mesh(pelvis, rboxGeo(0.12, 0.08, 0.04, 0.015), M.chrome, 0, 0.06, 0.18);
     for (const [side, sx] of [['L', 1], ['R', -1]] as const) {
       const r = sx > 0 ? 'legL' : 'legR';
       const hip = this.joint(`hip${side}`, body, sx * 0.14, 0.92, 0);
@@ -363,7 +364,7 @@ export class Astro implements Mech {
     const ship = this.joint('ship', this.root, 0, 0, 0);
     // Fuselage, belly, and a long pointed nose with a gold tip.
     mesh(ship, rboxGeo(0.62, 0.34, 1.5, 0.13), H, 0, 0.42, -0.12);
-    mesh(ship, rboxGeo(0.46, 0.14, 1.4, 0.05), T, 0, 0.24, -0.1);
+    mesh(ship, rboxGeo(0.46, 0.2, 1.4, 0.06), T, 0, 0.21, -0.1);
     const nose = mesh(ship, coneGeo(0.31, 0.9, 10), H, 0, 0.42, 1.08, { rx: RX });
     nose.scale.set(1, 1, 0.56);
     mesh(ship, coneGeo(0.07, 0.22, 10), M.gold, 0, 0.42, 1.55, { rx: RX });
@@ -376,10 +377,10 @@ export class Astro implements Mech {
       mesh(ship, rboxGeo(0.08, 0.1, 0.02, 0.01), M.dark, sx * 0.35, 0.38, 0.32);
     }
     // The cockpit canopy, a glass bubble with a gold frame (the helmet sits inside).
-    const dome = mesh(ship, domeShape(), this.mats.canopy, 0, 0.56, 0.2, { shadow: false });
-    dome.scale.set(0.9, 1.45, 1.55);
-    const frame = mesh(ship, torusGeo(0.3, 0.025, 32), M.gold, 0, 0.57, 0.2, { rx: RX });
-    frame.scale.set(0.9, 1.55, 1);
+    const dome = mesh(ship, domeShape(), this.mats.canopy, 0, 0.56, 0.12, { shadow: false });
+    dome.scale.set(0.9, 1.38, 1.5);
+    const frame = mesh(ship, torusGeo(0.3, 0.025, 32), M.gold, 0, 0.57, 0.12, { rx: RX });
+    frame.scale.set(0.9, 1.5, 1);
     // A raised spine behind the canopy, with a stripe.
     mesh(ship, rboxGeo(0.4, 0.22, 0.75, 0.09), H, 0, 0.6, -0.5);
     mesh(ship, rboxGeo(0.08, 0.02, 0.7, 0.008), B, 0, 0.715, -0.5, { shadow: false });
@@ -408,18 +409,19 @@ export class Astro implements Mech {
       const f = group(ship, sx * 0.3, 0.38, -1.26);
       mesh(f, coneGeo(0.11, 0.8, 12), this.mats.exhaust, 0, 0, -0.4, { rx: -RX, shadow: false });
       this.shipFlames.push(f);
-      const g = glowSprite(EXHAUST, 0.6, 1.6);
+      const g = glowSprite(EXHAUST, 0.35, 1.2);
       g.position.set(sx * 0.3, 0.38, -1.36);
       ship.add(g);
       this.shipGlows.push(g);
       // Canted tail fins, with an orange stripe.
-      const fin = group(ship, sx * 0.3, 0.52, -0.95);
-      fin.rotation.set(0, 0, -sx * 0.4);
-      mesh(fin, rboxGeo(0.045, 0.36, 0.36, 0.015), H, 0, 0.16, -0.05, { rx: 0.35 });
-      mesh(fin, rboxGeo(0.05, 0.06, 0.3, 0.01), O, 0, 0.26, -0.09, { rx: 0.35, shadow: false });
+      const fin = group(ship, sx * 0.3, 0.5, -0.9);
+      fin.rotation.set(0, 0, -sx * 0.35);
+      mesh(fin, rboxGeo(0.06, 0.42, 0.5, 0.02), H, 0, 0.18, -0.08, { rx: 0.45 });
+      mesh(fin, rboxGeo(0.065, 0.07, 0.42, 0.012), O, 0, 0.3, -0.16, { rx: 0.45, shadow: false });
+      mesh(fin, rboxGeo(0.065, 0.04, 0.3, 0.01), M.gold, 0, 0.4, -0.22, { rx: 0.45 });
     }
     // A soft blue glow underneath as it skims over the ground.
-    const under = glowSprite(EXHAUST, 1.4, 0.7);
+    const under = glowSprite(EXHAUST, 1.4, 0.45);
     under.position.set(0, 0.08, -0.1);
     ship.add(under);
     this.shipGlows.push(under);
@@ -663,12 +665,13 @@ export class Astro implements Mech {
   private repaint() {
     for (const r of REGIONS) {
       const { mark, damage } = this.plateOf(r);
-      const c = new THREE.Color(mark > 0 ? this.look.color : SUIT_GREY);
+      // (White paint is toned down a touch so it doesn't blaze under the bloom.)
+      const c = new THREE.Color(mark > 0 ? this.look.color : SUIT_GREY).multiplyScalar(0.88);
       if (mark > 0) c.lerp(SCORCH, clamp01(damage) * 0.75);
       this.mats.region[r].color.copy(c);
       this.mats.plate[r].color.copy(c);
     }
-    this.mats.hull.color.set(this.look.color);
+    this.mats.hull.color.set(this.look.color).multiplyScalar(0.88);
   }
 
   private visibleParts(): THREE.Object3D[] {
@@ -875,12 +878,13 @@ export class Astro implements Mech {
     // Walking (bouncy moonwalk steps), or folded down into the cockpit.
     const fold = smooth(clamp01((this.shipT - 0.1) / 0.6));
     const limbs = Math.max(0.001, 1 - fold);
-    J.body.position.set(0, Math.abs(Math.sin(p)) * 0.06 * ra - d * 0.76, -d * 0.04);
-    J.body.scale.setScalar(lerp(1, 0.8, d));
+    J.body.position.set(0, Math.abs(Math.sin(p)) * 0.06 * ra - d * 0.66, d * 0.06);
+    J.body.scale.setScalar(lerp(1, 0.7, d));
     J.hipL.rotation.set(-Math.sin(p) * 0.55 * ra - this.air * 0.5 - fold * 1.2, 0, 0);
     J.hipR.rotation.set(Math.sin(p) * 0.55 * ra - this.air * 0.2 - fold * 1.2, 0, 0);
     J.knL.rotation.x = Math.max(0, Math.sin(p)) * 0.8 * ra + this.air * 0.8 + fold * 1.2;
     J.knR.rotation.x = Math.max(0, -Math.sin(p)) * 0.8 * ra + this.air * 0.4 + fold * 1.2;
+    J.pelvis.scale.setScalar(limbs);
     J.hipL.scale.setScalar(limbs);
     J.hipR.scale.setScalar(limbs);
     J.armGun.scale.setScalar(limbs);
@@ -907,7 +911,7 @@ export class Astro implements Mech {
       b.s.scale.setScalar(on ? b.size : b.size * 0.25);
     }
     const pulse = 1 + Math.sin(t * 7) * 0.12;
-    this.shipGlows.forEach((s, i) => s.scale.setScalar((i < this.shipGlows.length - 1 ? 0.6 : 1.5) * pulse));
+    this.shipGlows.forEach((s, i) => s.scale.setScalar((i < this.shipGlows.length - 1 ? 0.35 : 1.5) * pulse));
     for (const m of this.muzzles) {
       if (!m.flash.visible) continue;
       m.flash.userData.life -= dt;

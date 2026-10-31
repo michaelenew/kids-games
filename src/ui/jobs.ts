@@ -43,13 +43,13 @@ function frame(scene: Phaser.Scene, area: Area) {
   };
   const left = area.x - area.w / 2;
   const top = area.y - area.h / 2;
-  const work = { left: left + 10, top: top + 10, w: area.w - 270, h: area.h - 20 };
+  const work = { left: left + 10, top: top + 10, w: area.w - 312, h: area.h - 20 };
   const bg = add(scene.add.graphics());
   bg.fillStyle(0x0b1022, 0.9).fillRoundedRect(work.left, work.top, work.w, work.h, 12);
   let pad: ReturnType<typeof numpad> | null = null;
   const openPad = (onSubmit: (v: number) => void, digits = 3, format?: (t: string) => string) => {
     pad?.destroy();
-    pad = numpad(scene, left + area.w - 128, top + 70, onSubmit, digits, format);
+    pad = numpad(scene, left + area.w - 140, top + 70, onSubmit, digits, format);
   };
   const destroy = () => {
     pad?.destroy();
@@ -267,8 +267,8 @@ function graphScreen(scene: Phaser.Scene, j: GraphJob, o: JobOptions) {
   const rowH = 62;
   const y0 = f.work.top + 70;
   const lx = f.work.left + 20;
-  const ix = f.work.left + 170;
-  f.add(text(scene, f.work.left + f.work.w / 2, f.work.top + 26, 'SONAR COUNT: CREATURES UNDER THE ICE', 18, '#9ad1ff'));
+  const ix = f.work.left + 150;
+  f.add(text(scene, f.work.left + f.work.w / 2, f.work.top + 26, 'SONAR COUNT', 18, '#9ad1ff'));
   const labels: Phaser.GameObjects.Text[] = [];
   const rowZones: Phaser.GameObjects.Zone[] = [];
   j.rows.forEach((r, i) => {
@@ -276,8 +276,8 @@ function graphScreen(scene: Phaser.Scene, j: GraphJob, o: JobOptions) {
     f.add(scene.add.text(lx, y, r.name, { fontFamily: 'Arial', fontSize: '20px', color: INK }).setOrigin(0, 0.5));
     const n = r.value / j.key;
     for (let k = 0; k < n; k++) {
-      const x = ix + k * 50;
-      f.add(scene.add.circle(x, y, 18, r.color).setStrokeStyle(2, 0xffffff, 0.8));
+      const x = ix + k * 40;
+      f.add(scene.add.circle(x, y, 16, r.color).setStrokeStyle(2, 0xffffff, 0.8));
       f.add(scene.add.circle(x + 6, y - 4, 3, 0x0b1022));
       const t = f.add(text(scene, x, y + 26, String((k + 1) * j.key), 14, '#ffd166').setVisible(false));
       labels.push(t);
@@ -346,7 +346,7 @@ function evenOddScreen(scene: Phaser.Scene, j: EvenOddJob, o: JobOptions) {
   const dots: Phaser.GameObjects.Arc[] = [];
   const cx = f.work.left + f.work.w / 2;
   if (small) {
-    for (let i = 0; i < j.n; i++) dots.push(f.add(scene.add.circle(f.work.left + 40 + (i % 10) * 36, f.work.top + 140 + Math.floor(i / 10) * 40, 13, 0x4cf0ff)));
+    for (let i = 0; i < j.n; i++) dots.push(f.add(scene.add.circle(f.work.left + 30 + (i % 10) * 34, f.work.top + 140 + Math.floor(i / 10) * 40, 13, 0x4cf0ff)));
   }
   let helped = o.help === 'guided';
   let misses = 0;
@@ -354,7 +354,7 @@ function evenOddScreen(scene: Phaser.Scene, j: EvenOddJob, o: JobOptions) {
     // Into pairs (two rows), the odd one out left on its own.
     dots.forEach((d, i) => {
       const pair = Math.floor(i / 2);
-      const x = f.work.left + 40 + pair * 40;
+      const x = f.work.left + 30 + pair * 32;
       const y = f.work.top + 230 + (i % 2) * 34;
       scene.tweens.add({ targets: d, x, y, duration: 500, delay: i * 30 });
       if (!even && i === j.n - 1) scene.time.delayedCall(700, () => d.setFillStyle(0xef476f));
@@ -410,7 +410,7 @@ function timesScreen(scene: Phaser.Scene, j: TimesJob, o: JobOptions) {
       f.add(text(scene, cx, f.work.top + 200, 'ZERO groups: nothing at all!', 26, '#9ad1ff'));
     } else {
       for (let k = 0; k < groups; k++) {
-        const x = f.work.left + 50 + (k % 4) * 95;
+        const x = f.work.left + 48 + (k % 4) * 88;
         const y = f.work.top + 170 + Math.floor(k / 4) * 95;
         f.add(scene.add.circle(x, y, 38).setStrokeStyle(3, 0x9ad1ff));
         for (let d = 0; d < Math.min(j.b, 9); d++) f.add(scene.add.circle(x - 18 + (d % 3) * 18, y - 18 + Math.floor(d / 3) * 18, 6, 0xffd166));
@@ -443,6 +443,9 @@ function timesScreen(scene: Phaser.Scene, j: TimesJob, o: JobOptions) {
   }, 3);
 }
 
+/** 1 → 1st, 22 → 22nd, 13 → 13th. */
+const th = (n: number) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+
 // ---- The calendar --------------------------------------------------------------------
 
 function calendarScreen(scene: Phaser.Scene, j: CalendarJob, o: JobOptions) {
@@ -469,11 +472,11 @@ function calendarScreen(scene: Phaser.Scene, j: CalendarJob, o: JobOptions) {
     ring(a.from, 0xffd166);
     ring(a.to, 0x06d6a0);
   }
-  const q = a.type === 'tomorrow' ? `Today is ${dayName(a.date)} the ${a.date}. What day of the week is TOMORROW?`
-    : a.type === 'after' ? `The ship leaves on ${dayName(a.date)} the ${a.date}. The trip takes ${a.days} days. On what date does it land?`
-      : a.type === 'weekday' ? `What day of the week is the ${a.date}?`
+  const q = a.type === 'tomorrow' ? `Today is ${dayName(a.date)} the ${th(a.date)}. What day of the week is TOMORROW?`
+    : a.type === 'after' ? `The ship leaves on ${dayName(a.date)} the ${th(a.date)}. The trip takes ${a.days} days. On what date does it land?`
+      : a.type === 'weekday' ? `What day of the week is the ${th(a.date)}?`
         : a.type === 'weeks' ? `The trip takes ${a.days} days. How many WEEKS is that?`
-          : `How many days from the ${a.from} to the ${a.to}?`;
+          : `How many days from the ${th(a.from)} to the ${th(a.to)}?`;
   let helped = o.help === 'guided';
   let misses = 0;
   const hop = () => {
@@ -516,7 +519,7 @@ function calendarScreen(scene: Phaser.Scene, j: CalendarJob, o: JobOptions) {
     return;
   }
   f.openPad((v) => {
-    if (v === j.answer) right(a.type === 'after' ? `${a.date} + ${a.days} = the ${j.answer}!` : a.type === 'weeks' ? `${a.days} days = ${j.answer} weeks (7 days in each)` : `${a.to} − ${a.from} = ${j.answer} days`);
+    if (v === j.answer) right(a.type === 'after' ? `${a.date} + ${a.days} = the ${th(j.answer)}!` : a.type === 'weeks' ? `${a.days} days = ${j.answer} weeks (7 days in each)` : `${a.to} − ${a.from} = ${j.answer} days`);
     else {
       f.flashWrong();
       miss();

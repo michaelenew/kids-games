@@ -1363,7 +1363,7 @@ export const MISSIONS: Mission[] = [
   // ---- Into space: the Moon base becomes a starship, and the first space chase (Moon to Mars) ----------
   {
     id: 'space-launch',
-    dmg: 1, hp: 1.4, fire: 0.85, extra: 0.8,
+    dmg: 3.6, hp: 2, fire: 0.8, extra: 1.1,
     env: 'space',
     pick: true,
     title: 'Invasion 51: Launch!',
@@ -1387,7 +1387,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'space-swarm',
-    dmg: 1, hp: 1.5, fire: 0.82, extra: 0.9,
+    dmg: 4, hp: 2.2, fire: 0.78, extra: 1.2,
     env: 'space',
     pick: true,
     title: 'Invasion 52: Fighter Swarm',
@@ -1406,7 +1406,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'space-meteor',
-    dmg: 1, hp: 1.6, fire: 0.8, extra: 1,
+    dmg: 4.1, hp: 2.4, fire: 0.76, extra: 1.3,
     env: 'space',
     pick: true,
     title: 'Invasion 53: Meteor Storm',
@@ -1427,7 +1427,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'space-cruiser',
-    dmg: 1.1, hp: 1.7, fire: 0.78, extra: 1.1,
+    dmg: 1.5, hp: 2.4, fire: 0.75, extra: 1.3,
     env: 'space',
     pick: true,
     title: 'Invasion 54: Cruiser Chase',
@@ -1446,7 +1446,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'space-station',
-    dmg: 1.4, hp: 2, fire: 0.75, extra: 1.1,
+    dmg: 5.8, hp: 2.6, fire: 0.74, extra: 1.3,
     env: 'space',
     pick: true,
     title: 'Invasion 55: The Battle Station',
@@ -1455,7 +1455,7 @@ export const MISSIONS: Mission[] = [
     path: SPACE_PATH,
     plazas: [[0.3, 0.45], [0.8, 1]],
     boss: [0, 16, -565],
-    bossHp: 3,
+    bossHp: 6,
     steps: [
       { kind: 'say', lines: [{ who: 'volt', text: 'Mars dead ahead... and a giant battle station in front of it. Take it down!' }] },
       { kind: 'move', to: 2, speed: 18, vehicle: 'ship', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3, 'above', true)] },

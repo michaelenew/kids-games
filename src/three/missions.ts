@@ -294,9 +294,9 @@ const SOLAR: Mission[] = [
   // The Kuiper Belt: BOLT's rocket fighter, all the way to their home.
   rideMission({ id: 'kuiper-chase', title: 'Invasion 81: The Kuiper Belt', blurb: 'Past Pluto, into the Kuiper Belt!', seed: 801, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 2, dmg: 1.2,
     say: 'Past Pluto there\'s a whole belt of ice worlds. Their home is out here!', banners: ['ICE WORLDS!', 'FIGHTER SCREEN!'] }),
-  rideMission({ id: 'haumea-land', title: 'Invasion 82: Haumea', blurb: 'Past the egg-shaped planet!', seed: 809, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 3, dmg: 0.56,
+  rideMission({ id: 'haumea-land', title: 'Invasion 82: Haumea', blurb: 'Past the egg-shaped planet!', seed: 809, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 3, dmg: 0.6,
     say: 'Haumea! It spins so fast it\'s shaped like an egg. And it\'s their lookout post!', banners: ['LOOKOUT POST!', 'EGG PLANET!'] }),
-  rideMission({ id: 'kuiper-fleet', title: 'Invasion 83: The Last Fleet', blurb: 'Their whole fleet. Everyone, help!', seed: 811, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 4, dmg: 0.84, reinforce: true,
+  rideMission({ id: 'kuiper-fleet', title: 'Invasion 83: The Last Fleet', blurb: 'Their whole fleet. Everyone, help!', seed: 811, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 4, dmg: 0.8, reinforce: true,
     say: 'Their whole fleet is here. Everyone, together!', banners: ['THE LAST FLEET!', 'ALL TOGETHER!'] }),
   rideMission({ id: 'kuiper-gate', title: 'Invasion 84: The Star Gate', blurb: 'Through their giant gate!', seed: 821, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 5, dmg: 0.47,
     say: 'A giant gate, and their home is on the other side!', banners: ['GATE GUARDS!', 'THROUGH THE GATE!'] }),

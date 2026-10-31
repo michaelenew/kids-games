@@ -156,7 +156,11 @@ function rippleNormals() {
     const img = g.createImageData(N, N);
     const waves: [number, number, number, number][] = [];
     const rnd = seeded(19);
-    for (let i = 0; i < 9; i++) waves.push([Math.floor(rnd() * 9) - 4, Math.floor(rnd() * 9) - 4 || 1, rnd() * 6, 0.4 + rnd()]);
+    for (let i = 0; i < 28; i++) {
+      const kx = Math.floor(rnd() * 25) - 12;
+      const ky = Math.floor(rnd() * 25) - 12 || 3;
+      waves.push([kx, ky, rnd() * 6, (0.5 + rnd()) * 6 / Math.hypot(kx, ky)]);
+    }
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
         let dx = 0;
@@ -167,7 +171,7 @@ function rippleNormals() {
           dx += c0 * kx;
           dy += c0 * ky;
         }
-        const n = new THREE.Vector3(-dx * 0.08, -dy * 0.08, 1).normalize();
+        const n = new THREE.Vector3(-dx * 0.05, -dy * 0.05, 1).normalize();
         const o = (y * N + x) * 4;
         img.data[o] = (n.x * 0.5 + 0.5) * 255;
         img.data[o + 1] = (n.y * 0.5 + 0.5) * 255;
@@ -709,7 +713,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
         vec3 V = normalize(cameraPosition - vW);
         vec2 uv = vW.xz * 0.11;
         vec3 n1 = texture2D(ripples, uv + vec2(time * 0.02, time * 0.035)).xyz * 2.0 - 1.0;
-        vec3 n2 = texture2D(ripples, uv * 2.7 - vec2(time * 0.03, -time * 0.02)).xyz * 2.0 - 1.0;
+        vec3 n2 = texture2D(ripples, mat2(0.8, 0.6, -0.6, 0.8) * uv * 2.3 - vec2(time * 0.03, -time * 0.02)).xyz * 2.0 - 1.0;
         vec3 N = normalize(vec3((n1.x + n2.x) * 0.09, 1.0, (n1.y + n2.y) * 0.09));
         vec3 R = reflect(-V, N);
         float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
@@ -731,7 +735,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   root.add(liquid);
 
   // ---- Ice pebbles and boulders (instanced) ----
-  const rockMat = disposable(new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: new THREE.Color(0x4a3020), emissiveIntensity: 0.5 }));
+  const rockMat = disposable(new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: new THREE.Color(0x5a3418), emissiveIntensity: 0.7 }));
   const rockCols = [0xc8b49a, 0xb09478, 0xd4c4ae, 0x9c8064, 0xbca88e, 0x8a7058];
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -1334,7 +1338,7 @@ function buildRings(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {
   }
   // Titan: an orange ball low on the right, hazy all round.
   {
-    const at = start.clone().addScaledVector(new THREE.Vector3(0.75, -0.3, -1).normalize(), 5000);
+    const at = start.clone().addScaledVector(new THREE.Vector3(0.85, -0.17, -1).normalize(), 5000);
     const R = 5000 * 0.045;
     const mat = disposable(new THREE.MeshLambertMaterial({ color: 0xe0902e, emissive: 0x6a3a10, fog: false }));
     const titan = new THREE.Mesh(cg('titanBall', () => new THREE.SphereGeometry(1, 32, 20)), mat);
@@ -1418,7 +1422,7 @@ function buildRings(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {
         p.y = RING_Y + gauss() * thick + (rnd() < 0.08 ? rnd() * thick * 2.5 : 0);
         // Thin where the rings are thin (the Cassini division, the gaps).
         if (rnd() > Math.max(0.1, ringDensity(ringF(p.x, p.z)) ** 0.8)) continue;
-        if (pathDist(p) < clear + s * 1.3) continue;
+        if (pathDist(p) < clear + s * 1.6) continue;
         out.push({ p, s });
       }
       return out;

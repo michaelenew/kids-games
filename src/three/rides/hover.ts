@@ -74,14 +74,14 @@ function deckTexture() {
   return ct('deck', () => canvasTex(DECK_W * PX, DECK_D * PX, (g) => {
     const W = DECK_W * PX;
     const H = DECK_D * PX;
-    g.fillStyle = '#4a515c';
+    g.fillStyle = '#56524c';
     g.fillRect(0, 0, W, H);
     // Big steel plates with seams and bolts.
     const P = PX * 2;
     for (let y = 0; y < H; y += P) {
       for (let x = 0; x < W; x += P) {
         const v = Math.floor(Math.random() * 14);
-        g.fillStyle = `rgb(${76 + v},${83 + v},${94 + v})`;
+        g.fillStyle = `rgb(${92 + v},${88 + v},${84 + v})`;
         g.fillRect(x + 2, y + 2, P - 4, P - 4);
         g.fillStyle = 'rgba(30,34,40,0.8)';
         for (const [bx, by] of [[6, 6], [P - 9, 6], [6, P - 9], [P - 9, P - 9]]) g.fillRect(x + bx, y + by, 3, 3);
@@ -197,15 +197,13 @@ function wakeTexture() {
     const t = canvasTex(128, 256, (g) => {
       g.fillStyle = '#000';
       g.fillRect(0, 0, 128, 256);
-      for (let i = 0; i < 700; i++) {
+      for (let i = 0; i < 1400; i++) {
         const y = Math.random() * 256;
         const x = Math.random() * 128;
-        g.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.45})`;
-        for (const dy of [-256, 0, 256]) {
-          g.beginPath();
-          g.ellipse(x, y + dy, 1.5 + Math.random() * 3, 4 + Math.random() * 10, 0, 0, Math.PI * 2);
-          g.fill();
-        }
+        g.fillStyle = `rgba(255,255,255,${0.1 + Math.random() * 0.35})`;
+        const w = 0.6 + Math.random() * 1.2;
+        const h = 6 + Math.random() * 18;
+        for (const dy of [-256, 0, 256]) g.fillRect(x, y + dy, w, h);
       }
     });
     t.wrapS = THREE.ClampToEdgeWrapping;
@@ -299,7 +297,7 @@ function makeMats() {
     beamCore: add(0xfff6e0, 0.75, 0.26, beamTexture()),
     fanDisc: d(new THREE.MeshBasicMaterial({ color: 0xd8dce4, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })),
     ripple: add(0xffe6c0, 0.9, 0.5),
-    wake: d(new THREE.MeshBasicMaterial({ map: wakeTexture(), alphaMap: wakeMask(), color: 0xffe8cc, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })),
+    wake: d(new THREE.MeshBasicMaterial({ map: wakeTexture(), alphaMap: wakeMask(), color: 0xffe8cc, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })),
   };
 }
 type Mats = ReturnType<typeof makeMats>;
@@ -749,7 +747,7 @@ function floodLamp(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, z: nu
 
 /** Part 4: flood lamps on masts at the bow corners, and a turret on each front corner. */
 function lampsAndTurrets(root: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
-  for (const s of [-1, 1]) floodLamp(root, m, anim, s * (HALF - 0.45), DECK_FRONT - 0.7, s);
+  for (const s of [-1, 1]) floodLamp(root, m, anim, s * (HALF - 0.45), DECK_FRONT - 0.7, s, 30, 1.3);
   return [-1, 1].map((s) => {
     mesh(root, cylGeo(1.0, 1.1, 0.2, 16), m.trim, s * 3.85, 0.1, 4.3);
     return turret(root, m, s * 3.85, 0.15, 4.3, 0.72);

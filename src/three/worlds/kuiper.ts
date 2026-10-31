@@ -1086,55 +1086,137 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const mg = new Merger();
     const C = v3(0, 40, -1150);
     const R = 380;
-    // The main body: a vast, stepped saucer, edge-on to him, its rim lined with green.
+    // The mothership itself is too big for the fog: it is drawn unfogged, and kept
+    // within the camera's reach (shrunk towards him while it's far, like a far planet).
+    const nf = <M extends THREE.Material & { fog: boolean }>(mm: M) => {
+      mm.fog = false;
+      return disposable(mm);
+    };
+    const ms = {
+      hull: nf(new THREE.MeshStandardMaterial({ color: 0x5c5480, map: hullTexture(), metalness: 0.7, roughness: 0.45, emissive: 0x0c0a18 })),
+      mid: nf(new THREE.MeshStandardMaterial({ color: 0x3a3456, metalness: 0.75, roughness: 0.42, emissive: 0x08060f })),
+      dark: nf(new THREE.MeshStandardMaterial({ color: 0x1e1a2c, metalness: 0.8, roughness: 0.4 })),
+      green: nf(glow(GREEN, 2.6)),
+      greenDim: nf(glow(0x3dff6a, 1.6)),
+      purple: nf(glow(0xb070ff, 2.2)),
+      core: nf(glow(0x9dffb8, 2.4)),
+    };
+    const ship = new THREE.Group();
+    root.add(ship);
+    const sm = new Merger();
+    const O = v3(0, 0, 0);
+    const spike = cg('spike', () => new THREE.ConeGeometry(1, 1, 6));
+    // The main body: a vast, stepped saucer, its rim lined with green.
     const saucer = cg('mothership', () => {
-      const prof = [[0.01, -70], [90, -64], [200, -48], [300, -30], [360, -14], [R, -4], [R, 6], [350, 16], [300, 22], [250, 34], [180, 44], [120, 60], [60, 72], [0.01, 76]]
+      const prof = [[0.01, -60], [90, -56], [200, -42], [300, -26], [360, -12], [R, -4], [R, 6], [350, 16], [300, 22], [250, 34], [180, 44], [120, 60], [60, 72], [0.01, 76]]
         .map(([r, y]) => new THREE.Vector2(r, y));
       const g = new THREE.LatheGeometry(prof, 72);
       const uv = g.attributes.uv;
       for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 24, uv.getY(i) * 6);
       return g;
     });
-    mg.add(saucer, am.hull, C);
-    mg.add(torG(0.01, 120), am.green, C.clone().add(v3(0, 1, 0)), new THREE.Euler(Math.PI / 2, 0, 0), R + 1);
-    mg.add(torG(0.006, 120), am.greenDim, C.clone().add(v3(0, 17, 0)), new THREE.Euler(Math.PI / 2, 0, 0), 351);
-    mg.add(torG(0.008, 120), am.purple, C.clone().add(v3(0, -15, 0)), new THREE.Euler(Math.PI / 2, 0, 0), 361);
-    // The tower on top: tiers and spires.
-    mg.add(cylG(0.8, 1, 24), am.mid, C.clone().add(v3(0, 110, 0)), null, v3(70, 80, 70));
-    mg.add(cylG(0.7, 1, 24), am.hull, C.clone().add(v3(0, 170, 0)), null, v3(40, 50, 40));
-    mg.add(cg('spike', () => new THREE.ConeGeometry(1, 1, 6)), am.dark, C.clone().add(v3(0, 240, 0)), null, v3(14, 100, 14));
-    for (let k = 0; k < 5; k++) mg.add(torG(0.04, 48), k % 2 ? am.purple : am.green, C.clone().add(v3(0, 80 + k * 22, 0)), new THREE.Euler(Math.PI / 2, 0, 0), 56 - k * 7);
-    for (const s of [-1, 1]) {
-      mg.add(cg('spike', () => new THREE.ConeGeometry(1, 1, 6)), am.dark, C.clone().add(v3(s * 160, 90, 90)), new THREE.Euler(0, 0, -s * 0.15), v3(8, 80, 8));
-      mg.add(cg('spike', () => new THREE.ConeGeometry(1, 1, 6)), am.dark, C.clone().add(v3(s * 250, 60, 40)), new THREE.Euler(0, 0, -s * 0.3), v3(6, 60, 6));
+    sm.add(saucer, ms.hull, O);
+    sm.add(torG(0.012, 120), ms.green, v3(0, 1, 0), new THREE.Euler(Math.PI / 2, 0, 0), R + 1);
+    sm.add(torG(0.008, 120), ms.greenDim, v3(0, 17, 0), new THREE.Euler(Math.PI / 2, 0, 0), 351);
+    sm.add(torG(0.01, 120), ms.purple, v3(0, -13, 0), new THREE.Euler(Math.PI / 2, 0, 0), 361);
+    // The tower on top: tiers, rings and a spire.
+    sm.add(cylG(0.8, 1, 24), ms.mid, v3(0, 110, 0), null, v3(70, 80, 70));
+    sm.add(cylG(0.7, 1, 24), ms.hull, v3(0, 170, 0), null, v3(40, 50, 40));
+    sm.add(spike, ms.dark, v3(0, 250, 0), null, v3(14, 120, 14));
+    for (let k = 0; k < 5; k++) sm.add(torG(0.04, 48), k % 2 ? ms.purple : ms.green, v3(0, 80 + k * 22, 0), new THREE.Euler(Math.PI / 2, 0, 0), 56 - k * 7);
+    for (const sd of [-1, 1]) {
+      sm.add(spike, ms.dark, v3(sd * 160, 90, 60), new THREE.Euler(0, 0, -sd * 0.15), v3(8, 90, 8));
+      sm.add(spike, ms.dark, v3(sd * 250, 60, 20), new THREE.Euler(0, 0, -sd * 0.3), v3(6, 70, 6));
     }
-    // The prow facing him: a huge armoured wedge with the glowing hangar mouth.
-    const prow = C.clone().add(v3(0, 0, R - 20));
-    mg.add(boxG(), am.mid, prow.clone().add(v3(0, 0, 40)), new THREE.Euler(0, 0, 0), v3(240, 70, 120));
-    mg.add(boxG(), am.hull, prow.clone().add(v3(0, 42, 30)), new THREE.Euler(-0.3, 0, 0), v3(260, 20, 110));
-    mg.add(boxG(), am.hull, prow.clone().add(v3(0, -42, 30)), new THREE.Euler(0.3, 0, 0), v3(260, 20, 110));
-    for (const s of [-1, 1]) mg.add(boxG(), am.hull, prow.clone().add(v3(s * 135, 0, 30)), new THREE.Euler(0, s * 0.35, 0), v3(30, 90, 120));
-    const mouth = prow.clone().add(v3(0, -4, 100.5));
-    mg.add(boxG(), am.dark, mouth.clone().add(v3(0, 0, -1)), null, v3(150, 46, 2));
-    mg.add(boxG(), am.green, mouth.clone().add(v3(0, 24, 0.2)), null, v3(156, 2, 1));
-    mg.add(boxG(), am.green, mouth.clone().add(v3(0, -24, 0.2)), null, v3(156, 2, 1));
-    for (const s of [-1, 1]) mg.add(boxG(), am.green, mouth.clone().add(v3(s * 77, 0, 0.2)), null, v3(2, 48, 1));
-    // Windows: rows and rows of little green lights round the rim and on the prow.
+    // Spires hanging underneath, green at the tips.
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * Math.PI * 2 + 0.2;
+      const rr = 120 + (k % 3) * 70;
+      const h = 60 + (k % 2) * 40;
+      const p = v3(Math.sin(a) * rr, -40 - h / 2, Math.cos(a) * rr);
+      sm.add(spike, ms.dark, p, new THREE.Euler(Math.PI, 0, 0), v3(10, h, 10));
+      sm.add(sphG(10), ms.green, p.clone().add(v3(0, -h / 2 - 3, 0)), null, 4);
+    }
+    // Two great claws sweeping forward round the front, lit along their edges.
+    for (const sd of [-1, 1]) {
+      const pts: THREE.Vector3[] = [];
+      for (let k = 0; k <= 8; k++) {
+        const t = k / 8;
+        const a = 0.95 - t * 0.75;
+        pts.push(v3(sd * (R - 40) * Math.sin(a) * (1 - t * 0.25), -6 + Math.sin(t * Math.PI) * 25 - t * 20, R * 0.2 + t * 330));
+      }
+      for (let k = 0; k + 1 < pts.length; k++) {
+        const w = 46 - k * 4.5;
+        sm.beam(ms.hull, pts[k], pts[k + 1], w, w * 0.55);
+        sm.beam(ms.green, pts[k].clone().add(v3(-sd * w * 0.5, 0, 0)), pts[k + 1].clone().add(v3(-sd * (w - 4.5) * 0.5, 0, 0)), 2.2, 2.2);
+        sm.beam(ms.dark, pts[k].clone().add(v3(0, w * 0.3, 0)), pts[k + 1].clone().add(v3(0, (w - 4.5) * 0.3, 0)), w * 0.4, 3);
+      }
+      const tip = pts[pts.length - 1];
+      sm.add(spike, ms.mid, tip.clone().add(v3(-sd * 8, 0, 18)), new THREE.Euler(Math.PI / 2, 0, sd * 0.4), v3(9, 44, 9));
+      sm.add(sphG(12), ms.green, tip.clone().add(v3(0, 8, 0)), null, 5);
+    }
+    // The head facing him: a long six-sided prow, narrowing, its hangar mouth glowing green.
+    const headLen = 190;
+    const head = v3(0, -4, R - 70 + headLen / 2);
+    sm.add(cg('msHead', () => new THREE.CylinderGeometry(58, 100, 1, 6).rotateX(Math.PI / 2)), ms.mid, head, new THREE.Euler(0, 0, Math.PI / 6), v3(1, headLen, 1));
+    sm.add(cg('msHead2', () => new THREE.CylinderGeometry(64, 70, 1, 6).rotateX(Math.PI / 2)), ms.hull, head.clone().add(v3(0, 0, headLen * 0.25)), new THREE.Euler(0, 0, Math.PI / 6), v3(1, 30, 1));
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      sm.beam(ms.green, head.clone().add(v3(Math.cos(a) * 99, Math.sin(a) * 99, -headLen / 2 + 2)), head.clone().add(v3(Math.cos(a) * 58, Math.sin(a) * 58, headLen / 2)), 2.5, 2.5);
+    }
+    const mouth = head.clone().add(v3(0, 0, headLen / 2 + 0.5));
+    sm.add(cg('msMouth', () => new THREE.CircleGeometry(46, 6)), ms.dark, mouth, new THREE.Euler(0, 0, Math.PI / 6), 1);
+    sm.add(torG(0.06, 6), ms.green, mouth.clone().add(v3(0, 0, 0.6)), new THREE.Euler(0, 0, Math.PI / 6), 48);
+    sm.add(cg('msCore', () => new THREE.CircleGeometry(22, 24)), ms.core, mouth.clone().add(v3(0, 0, 0.8)), null, 1);
+    for (let k = 0; k < 3; k++) sm.add(torG(0.05, 32), ms.green, mouth.clone().add(v3(0, 0, -10 - k * 22)), null, 52 + k * 6);
+    // Windows: rows and rows of little lights round the rim, along the head.
     for (let row = 0; row < 3; row++) {
-      const y = -8 + row * 7;
-      const rr = R - 6 - row * 12;
+      const y = -6 + row * 7;
+      const rr = R - 4 - row * 14;
       for (let k = 0; k < 220; k++) {
-        if (rnd() < 0.25) continue;
+        if (rnd() < 0.3) continue;
         const a = (k / 220) * Math.PI * 2;
-        mg.add(boxG(), rnd() < 0.12 ? am.purple : am.greenDim, C.clone().add(v3(Math.sin(a) * rr, y, Math.cos(a) * rr)), new THREE.Euler(0, a, 0), v3(5, 2.2, 1));
+        sm.add(boxG(), rnd() < 0.12 ? ms.purple : ms.greenDim, v3(Math.sin(a) * rr, y, Math.cos(a) * rr), new THREE.Euler(0, a, 0), v3(5, 2.2, 1.5));
       }
     }
-    for (let k = 0; k < 120; k++) {
-      const x = (rnd() - 0.5) * 230;
-      const y = (rnd() - 0.5) * 60;
-      if (Math.abs(x) < 80 && Math.abs(y) < 28) continue;
-      mg.add(boxG(), am.greenDim, prow.clone().add(v3(x, y, 100.6)), null, v3(4, 1.6, 0.5));
+    for (let k = 0; k < 90; k++) {
+      const z = -headLen / 2 + 10 + rnd() * (headLen - 20);
+      const t = (z + headLen / 2) / headLen;
+      const r = 100 - t * 42 + 0.5;
+      const a = (Math.floor(rnd() * 6) + 0.5) / 6 * Math.PI * 2 + Math.PI / 6;
+      const ap = r * Math.cos(Math.PI / 6);
+      sm.add(boxG(), ms.greenDim, head.clone().add(v3(Math.cos(a) * ap, Math.sin(a) * ap, z)), new THREE.Euler(0, 0, a), v3(1, 6, 3));
     }
+    sm.build(ship);
+    const mouthGlow = glowSprite(GREEN, 170, 0.8);
+    mouthGlow.material.fog = false;
+    mouthGlow.position.copy(mouth).add(v3(0, 0, 10));
+    ship.add(mouthGlow);
+    const aura = glowSprite(0x6a40c0, R * 3, 0.12);
+    aura.material.fog = false;
+    aura.renderOrder = -1;
+    ship.add(aura);
+    // Tractor beams of green light under it.
+    const auraMat = nf(new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0x3dff7a).multiplyScalar(0.6), transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+    }));
+    for (const [x, zz] of [[-200, 80], [200, 100], [0, -150]]) {
+      const b = new THREE.Mesh(cg('tractor', () => new THREE.CylinderGeometry(8, 34, 1, 24, 1, true)), auraMat);
+      b.position.set(x, -250, zz);
+      b.scale.set(1, 400, 1);
+      b.renderOrder = 2;
+      ship.add(b);
+    }
+    // Keep it in reach of the camera: true size up close, shrunk towards him while far.
+    const MAX = 800;
+    const rel = new THREE.Vector3();
+    updaters.push(() => {
+      rel.copy(C).sub(camPos);
+      const d = rel.length();
+      const k = d > MAX ? MAX / d : 1;
+      ship.position.copy(camPos).addScaledVector(rel, k);
+      ship.scale.setScalar(k);
+    });
     // Docks: two huge arms reaching out on both sides round the boss's place, trusses and cradles.
     const cradles: THREE.Vector3[] = [];
     const lamps: THREE.Vector3[] = [];
@@ -1190,22 +1272,6 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     }
     mg.build(root);
     keepOut.push({ p: C, r: R + 60 }, { p: C.clone().add(v3(0, 0, R + 40)), r: 180 });
-    // The hangar's glow, the mothership's halo, tractor beams.
-    const mouthGlow = glowSprite(GREEN, 200, 0.9);
-    mouthGlow.position.copy(mouth).add(v3(0, 0, 8));
-    root.add(mouthGlow);
-    const auraMat = disposable(new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x3dff7a).multiplyScalar(0.6), transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
-    }));
-    const beams: THREE.Mesh[] = [];
-    for (const [x, zz] of [[-200, 120], [200, 140], [0, 260]]) {
-      const b = new THREE.Mesh(cg('tractor', () => new THREE.CylinderGeometry(8, 34, 1, 24, 1, true)), auraMat);
-      b.position.copy(C).add(v3(x, -260, zz));
-      b.scale.set(1, 400, 1);
-      b.renderOrder = 2;
-      root.add(b);
-      beams.push(b);
-    }
     const lampSprites = lamps.map((p, i) => {
       const s = glowSprite(i % 5 === 0 ? 0xb070ff : GREEN, 9, 1.5);
       s.position.copy(p);
@@ -1216,15 +1282,15 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     for (let i = 0; i < 4; i++) {
       const c = cruiser(am, root);
       const s = i % 2 ? 1 : -1;
-      c.position.set(s * (260 + i * 30), 80 + i * 25, C.z + 260 - i * 60);
+      c.position.set(s * (220 + i * 25), 110 + i * 20, -690 - i * 45);
       c.rotation.y = s * 0.6;
       c.scale.setScalar(2);
     }
     updaters.push((_dt, t) => {
-      mouthGlow.scale.setScalar(200 * (1 + Math.sin(t * 1.3) * 0.12));
+      mouthGlow.scale.setScalar(170 * (1 + Math.sin(t * 1.3) * 0.12));
       lampSprites.forEach((s, i) => s.scale.setScalar(Math.sin(t * 3 - i * 0.4) > 0 ? 10 : 4));
       auraMat.opacity = 0.14 + Math.sin(t * 0.8) * 0.05;
-      am.green.color.setHex(GREEN).multiplyScalar(2.3 + Math.sin(t * 2) * 0.4);
+      ms.core.color.setHex(0x9dffb8).multiplyScalar(2.2 + Math.sin(t * 2.2) * 0.5);
     });
   }
 

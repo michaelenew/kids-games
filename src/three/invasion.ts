@@ -952,7 +952,10 @@ export class Invasion {
         sfx.screech();
       }
     } else {
-      to = new THREE.Vector3(this.rand(5, 8) * side, this.mission.ride ? -this.rideHeight + 1 : 0, this.rand(7, 14));
+      // On a ground vehicle they race along the ground beside it; in space (no
+      // ground under a high path) they fly level with the deck.
+      const low = this.mission.ride && this.rideHeight < 20 ? -this.rideHeight + 1 : 0;
+      to = new THREE.Vector3(this.rand(5, 8) * side, low, this.rand(7, 14));
       from = new THREE.Vector3(7 * side, 0, -14);
     }
     const e: Enemy = {

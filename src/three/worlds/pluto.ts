@@ -732,13 +732,13 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
         {
           vec4 cell = texture2D(cellMap, vXZ / 110.0);
           float cells = clamp(vIce.y * 1.2, 0.0, 1.0);
-          vec3 smooth_ice = mix(vec3(0.5, 0.58, 0.72), vec3(0.74, 0.76, 0.8), cell.g * 0.6 + 0.4);
-          vec3 iceCol = mix(vec3(0.74, 0.73, 0.71), smooth_ice * (0.62 + 0.38 * cell.r), cells);
+          vec3 smooth_ice = mix(vec3(0.46, 0.54, 0.68), vec3(0.68, 0.7, 0.74), cell.g * 0.6 + 0.4);
+          vec3 iceCol = mix(vec3(0.66, 0.66, 0.65), smooth_ice * (0.6 + 0.4 * cell.r), cells);
           // A faint bluish shine toward each cell's middle.
           iceCol += vec3(0.01, 0.03, 0.06) * (1.0 - cell.b) * cells;
           diffuseColor.rgb = mix(diffuseColor.rgb, iceCol * iceTint, iceK);
         }`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.62, iceK);');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.75, iceK);');
   };
   floorMat.customProgramCacheKey = () => 'plutoFloor';
   const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -836,7 +836,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
 
   // ---- Ice blocks, rocks, blades and craters (instanced) ----
   const rockMat = disposable(new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.75, metalness: 0.02 }));
-  const iceRockMat = disposable(new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.25, metalness: 0.1, emissive: night ? 0x1a2a50 : 0x203048, emissiveIntensity: 0.6 }));
+  const iceRockMat = disposable(new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.25, metalness: 0.1, emissive: night ? 0x1a2a50 : 0x203048, emissiveIntensity: 0.25 }));
   const scatter = (geo: THREE.BufferGeometry, mat: THREE.Material, count: number, dMin: number, dMax: number, size: () => number, colors: number[], where: (x: number, z: number) => boolean, shadow = false) => {
     const im = new THREE.InstancedMesh(geo, mat, count);
     let n = 0;
@@ -863,7 +863,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   const outHeart = (x: number, z: number) => heartAt(x, z).k < 0.2;
   const anywhere = () => true;
   const rockCols = [0xb08a6a, 0x9a6a50, 0xc8a888, 0x8a5a44, 0xd8c0a0];
-  const iceCols = [0xeaf4ff, 0xd8e8ff, 0xf4f8ff, 0xc8dcf8];
+  const iceCols = [0xc8d4e8, 0xb8c8e0, 0xd4dcec, 0xa8bcd8];
   scatter(blockGeo(0), rockMat, 420, 9, 50, () => 0.2 + rnd() ** 2 * 0.6, rockCols, outHeart);
   scatter(blockGeo(1), rockMat, 130, 12, 110, () => 0.8 + rnd() ** 2 * 2.6, rockCols, outHeart, true);
   scatter(blockGeo(2), iceRockMat, 160, 10, 140, () => 0.6 + rnd() ** 2.5 * 4.5, iceCols, anywhere, true);
@@ -907,12 +907,12 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       const s0 = spot(14, 260);
       const dk = darkAt(s0.x, s0.z);
       if (heartAt(s0.x, s0.z).k > 0.05 || (dk < 0.3 && rnd() < 0.7) || nearPit(s0.x, s0.z, PIT_R + 30)) continue;
-      const r = 4 + rnd() ** 2 * 22;
+      const r = 4 + rnd() ** 2 * 14;
       if (s0.d < 12 + r * 1.6) continue;
       q.identity();
       m4.compose(at.set(s0.x, heightAt(s0.x, s0.z, s0.d) - 0.25, s0.z), q, sc.set(r, r * 0.55, r));
       im.setMatrixAt(n, m4);
-      const base = dk > 0.5 ? 0x7a3a2c : 0xc8a888;
+      const base = dk > 0.5 ? 0x6a3224 : 0xa88464;
       im.setColorAt(n, col.setHex(base).multiplyScalar(dim));
       n++;
     }
@@ -1107,7 +1107,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   const sparkPhase: number[] = [];
   {
     let tries = 0;
-    while (sparkPos.length < 700 * 3 && tries++ < 8000) {
+    while (sparkPos.length < 320 * 3 && tries++ < 8000) {
       const s0 = spot(3, 90);
       const ht = heartAt(s0.x, s0.z);
       const icy = ht.k > 0.5 ? 1 : 0.15;
@@ -1120,7 +1120,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   sparkGeo.setAttribute('position', new THREE.Float32BufferAttribute(sparkPos, 3));
   sparkGeo.setAttribute('phase', new THREE.Float32BufferAttribute(sparkPhase, 2));
   const sparkMat = disposable(new THREE.ShaderMaterial({
-    uniforms: { map: { value: sparkleTexture() }, time: { value: 0 }, scale: { value: 520 } },
+    uniforms: { map: { value: sparkleTexture() }, time: { value: 0 }, scale: { value: 380 } },
     vertexShader: `
       attribute vec2 phase;
       uniform float time;
@@ -1138,7 +1138,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       varying float vA;
       void main() {
         vec4 c = texture2D(map, gl_PointCoord);
-        gl_FragColor = vec4(vec3(0.85, 0.93, 1.0) * c.r * vA * 1.8, 1.0);
+        gl_FragColor = vec4(vec3(0.85, 0.93, 1.0) * c.r * vA * 1.3, 1.0);
       }`,
     transparent: true,
     depthWrite: false,

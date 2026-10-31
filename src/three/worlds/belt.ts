@@ -811,8 +811,11 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const c = mid.p.clone().addScaledVector(mid.n, side * 330).add(new THREE.Vector3(0, -40, 0));
     const away = mid.n.clone().multiplyScalar(side);
     const extra: Crater[] = [];
-    for (let i = 0; i < 6; i++) extra.push({ d: new THREE.Vector3(-side * 1, (rnd() - 0.5) * 0.9, (rnd() - 0.5) * 1.3).normalize(), a: 0.07 + rnd() * 0.1, depth: 0.02 + rnd() * 0.015 });
-    const g = addBig(c, 300, away, { detail: 64, craters: 110, amp: 0.07, stretch: new THREE.Vector3(1, 0.8, 1.4), tint: [0.52, 0.45, 0.39], extra, margin: 26 });
+    for (let i = 0; i < 12; i++) {
+      const a = 0.04 + rnd() * 0.12;
+      extra.push({ d: new THREE.Vector3(-side * 1, (rnd() - 0.5) * 0.9, (rnd() - 0.5) * 1.4).normalize(), a, depth: a * 0.22 });
+    }
+    const g = addBig(c, 300, away, { detail: 64, craters: 110, amp: 0.07, stretch: new THREE.Vector3(1, 0.8, 1.4), tint: [0.5, 0.43, 0.37], extra, margin: 26 });
     const toward = mid.n.clone().multiplyScalar(-side);
     rigsOn(g, 16, toward, 0.9, 2.0);
     // Lights of the mining town: green dots scattered over the near face.

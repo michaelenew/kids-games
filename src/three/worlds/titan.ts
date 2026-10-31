@@ -178,7 +178,6 @@ function rippleNormals() {
     g.putImageData(img, 0, 0);
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(200, 200);
     return t;
   });
 }
@@ -676,13 +675,60 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
 
   // ---- The liquid: dark and glossy, mirroring the orange sky, rippling ----
   const ripples = rippleNormals();
-  const liquidMat = disposable(new THREE.MeshStandardMaterial({
-    color: 0x0a0503, metalness: 0, roughness: 0.05, envMap: sky(), envMapIntensity: 0.95,
-    normalMap: ripples, normalScale: new THREE.Vector2(0.06, 0.06),
+  const liquidMat = disposable(new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+      ripples: { value: null },
+      time: { value: 0 },
+      deep: { value: new THREE.Color(0x0d0603) },
+      skyLo: { value: new THREE.Color(0xb06a30) },
+      skyHi: { value: new THREE.Color(0x5a3214) },
+      sunDir: { value: new THREE.Vector3(0.5, 0.55, -0.75).normalize() },
+    }]),
+    vertexShader: `
+      #include <common>
+      #include <fog_pars_vertex>
+      varying vec3 vW;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vW = wp.xyz;
+        vec4 mvPosition = viewMatrix * wp;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      #include <common>
+      #include <fog_pars_fragment>
+      uniform sampler2D ripples;
+      uniform float time;
+      uniform vec3 deep;
+      uniform vec3 skyLo;
+      uniform vec3 skyHi;
+      uniform vec3 sunDir;
+      varying vec3 vW;
+      void main() {
+        vec3 V = normalize(cameraPosition - vW);
+        vec2 uv = vW.xz * 0.11;
+        vec3 n1 = texture2D(ripples, uv + vec2(time * 0.02, time * 0.035)).xyz * 2.0 - 1.0;
+        vec3 n2 = texture2D(ripples, uv * 2.7 - vec2(time * 0.03, -time * 0.02)).xyz * 2.0 - 1.0;
+        vec3 N = normalize(vec3((n1.x + n2.x) * 0.09, 1.0, (n1.y + n2.y) * 0.09));
+        vec3 R = reflect(-V, N);
+        float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+        // The orange sky in it: bright near the horizon, darker overhead.
+        vec3 skyC = mix(skyLo, skyHi, smoothstep(0.0, 0.45, R.y));
+        vec3 c = mix(deep, skyC, min(0.8, fres));
+        // The Sun's smudge glinting, and fine bright ripples.
+        c += vec3(1.0, 0.8, 0.55) * pow(max(dot(R, sunDir), 0.0), 60.0) * 0.5;
+        c += vec3(1.0, 0.75, 0.45) * smoothstep(0.985, 1.0, N.y * 0.5 + 0.5 + (n1.z - 0.95)) * 0.0;
+        gl_FragColor = vec4(c, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+    fog: true,
   }));
+  liquidMat.uniforms.ripples.value = ripples;
   const liquid = new THREE.Mesh(cg('liquid', () => new THREE.PlaneGeometry(1800, 1800).rotateX(-Math.PI / 2)), liquidMat);
   liquid.position.set(mid.x, LIQ, mid.z);
-  liquid.receiveShadow = true;
   root.add(liquid);
 
   // ---- Ice pebbles and boulders (instanced) ----
@@ -951,7 +997,7 @@ function buildSurface(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     smokeSpots: [],
     update(dt: number) {
       time += dt;
-      ripples.offset.set(time * 0.012, time * 0.025);
+      liquidMat.uniforms.time.value = time;
       for (const g of tips) g.s.scale.setScalar(g.base * (1 + Math.sin(time * 2.2 + g.phase) * 0.18));
       for (const s of spinners) s.o.rotation.y += s.speed * dt;
       for (const n of nodders) n.o.rotation.z = Math.sin(time * 0.9 + n.phase) * 0.18;
@@ -1221,7 +1267,7 @@ function buildRings(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {
     mk(30, 3.6, 1.6);
   }
   // The Sun: small and sharp out here, high on the right behind him.
-  const SUN = new THREE.Vector3(0.6, 0.25, 0.75).normalize();
+  const SUN = new THREE.Vector3(0.9, 0.25, 0.3).normalize();
   {
     for (const [color, size, boost] of [[0xfff6e0, 14, 3.2], [0xffe6b0, 46, 0.8], [0xffd59a, 140, 0.2]] as [number, number, number][]) {
       const s = glowSprite(color, 1, boost);
@@ -1323,18 +1369,24 @@ function buildRings(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {
         varying vec3 vL;
         varying float vD;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }
         void main() {
           float f = length(vL.xz - sat) / sr;
           float u = (f - ${RING_IN.toFixed(3)}) / ${(RING_OUT - RING_IN).toFixed(3)};
           if (u < 0.0 || u > 1.0) discard;
           vec4 b = texture2D(rings, vec2(u, 0.5));
-          // Thicker looking further off (we see it edge-on), thin and grainy up close.
-          float k = mix(0.55, 1.0, smoothstep(30.0, 500.0, vD));
-          vec2 cell = floor(vL.xz * 0.9);
-          float grain = 0.75 + 0.5 * hash(cell);
-          float glint = step(0.985, hash(cell + floor(time * 2.0))) * (1.0 - smoothstep(20.0, 160.0, vD));
-          vec3 c = b.rgb * (1.0 + 0.25 * grain) + vec3(glint);
-          gl_FragColor = vec4(c, clamp(b.a * k * grain + glint, 0.0, 1.0));
+          // Thicker looking further off (we see it edge-on), thin and clumpy up close.
+          float k = mix(0.4, 1.0, smoothstep(40.0, 500.0, vD));
+          float clump = vnoise(vL.xz * 0.08) * 0.6 + vnoise(vL.xz * 0.31) * 0.4;
+          float grain = mix(0.45 + 0.9 * clump, 1.0, smoothstep(80.0, 400.0, vD));
+          vec3 c = b.rgb * (0.9 + 0.35 * clump);
+          float glint = 0.0;
+          gl_FragColor = vec4(c, clamp(b.a * k * grain, 0.0, 1.0));
           #include <colorspace_fragment>
         }`,
       transparent: true,
@@ -1399,9 +1451,9 @@ function buildRings(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {
       root.add(im);
     };
     const iceMat = () => disposable(new THREE.MeshStandardMaterial({
-      color: 0xffffff, emissive: 0x1a3a58, emissiveIntensity: 0.3, roughness: 0.35, metalness: 0.1, flatShading: true, envMapIntensity: 0.5,
+      color: 0xb4bcc6, emissive: 0x16304a, emissiveIntensity: 0.25, roughness: 0.4, metalness: 0.1, flatShading: true, envMapIntensity: 0.3,
     }));
-    const dustMat = () => disposable(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0.05, flatShading: true }));
+    const dustMat = () => disposable(new THREE.MeshStandardMaterial({ color: 0xc8c0b8, roughness: 0.9, metalness: 0.05, flatShading: true, envMapIntensity: 0.3 }));
     // Pebbles of ice everywhere in the ring (small, close in), chunks, and a few huge icebergs further out.
     add(pebbleGeo(0, 0, true), iceMat(), spots(1700, () => 0.25 + rnd() ** 2 * 0.9, 9, 200, 5), iceCols, 1.2, true);
     add(pebbleGeo(1, 1, true), iceMat(), spots(420, () => 1 + rnd() ** 2 * 3, 18, 260, 6), iceCols, 0.7, true);

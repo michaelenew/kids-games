@@ -169,7 +169,7 @@ function sparkleTexture() {
 function haumeaTexture() {
   return ct('haumea', () => canvasTex(1024, 512, (g) => {
     const rnd = seeded(809);
-    g.fillStyle = '#e9edf4';
+    g.fillStyle = '#cdd3e0';
     g.fillRect(0, 0, 1024, 512);
     for (let i = 0; i < 70; i++) {
       const y = rnd() * 512;
@@ -701,8 +701,8 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
 
   // ==== Haumea =========================================================================
   function haumea() {
-    const C = v3(-300, -10, -330);
-    const A = 150;
+    const C = v3(-280, -35, -430);
+    const A = 140;
     keepOut.push({ p: C, r: A * 1.1 }, { p: C, r: A * 2.4 * 0.5 });
     const sys = new THREE.Group();
     sys.position.copy(C);
@@ -712,7 +712,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const body = new THREE.Group();
     sys.add(body);
     const mat = disposable(new THREE.MeshStandardMaterial({
-      map: haumeaTexture(), emissiveMap: haumeaTexture(), emissive: 0xffffff, emissiveIntensity: 0.16, roughness: 0.6, metalness: 0.05, fog: false,
+      map: haumeaTexture(), emissiveMap: haumeaTexture(), emissive: 0xffffff, emissiveIntensity: 0.07, roughness: 0.7, metalness: 0.05, fog: false,
     }));
     const egg = new THREE.Mesh(cg('haumeaEgg', () => new THREE.SphereGeometry(1, 72, 40)), mat);
     egg.scale.set(A, A * 0.52, A * 0.78);
@@ -734,7 +734,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       body.add(halo);
     }
     // A faint glow round it.
-    const air = glowSprite(0xc8d0ff, A * 3.4, 0.16);
+    const air = glowSprite(0xa8b4ff, A * 3.2, 0.05);
     air.material.fog = false;
     air.renderOrder = -1;
     sys.add(air);

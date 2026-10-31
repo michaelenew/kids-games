@@ -53,7 +53,8 @@ const DECK_BACK = -6.6;
 const DECK_FRONT = 6.8;
 const CAB_FRONT = 10.4;
 /** The cab's cabin sits this high; its roof is about 1.1 above that. */
-const CAB_Y = 0.3;
+const CAB_Y = 0.1;
+const CAB_H = 0.85;
 /** Big wheels: radius, width, where they sit. */
 const WHEEL_R = 1.0;
 const WHEEL_W = 0.85;
@@ -502,8 +503,8 @@ function cab(root: THREE.Object3D, m: Mats, anim: Anim) {
   const wedge = cg('roverCabin', () => {
     const s = new THREE.Shape();
     s.moveTo(0, 0);
-    s.lineTo(0, 0.95);
-    s.lineTo(1.9, 0.95);
+    s.lineTo(0, CAB_H);
+    s.lineTo(1.9, CAB_H);
     s.lineTo(3.25, 0);
     s.lineTo(0, 0);
     const geo = new THREE.ExtrudeGeometry(s, { depth: 4.8, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2 });
@@ -514,18 +515,18 @@ function cab(root: THREE.Object3D, m: Mats, anim: Anim) {
   });
   mesh(root, wedge, m.green, 0, CAB_Y, z0 + 0.1);
   // Windshield along the slope, side windows, a roof plate.
-  const sa = new THREE.Vector3(0, CAB_Y + 0.95, z0 + 0.1 + 1.9);
+  const sa = new THREE.Vector3(0, CAB_Y + CAB_H, z0 + 0.1 + 1.9);
   const sb = new THREE.Vector3(0, CAB_Y, z0 + 0.1 + 3.25);
   const ang = Math.atan2(sb.z - sa.z, sb.y - sa.y);
-  const ws = mesh(root, rboxGeo(4.3, 1.25, 0.06, 0.02), m.window, 0, (sa.y + sb.y) / 2 + 0.07, (sa.z + sb.z) / 2 + 0.05);
+  const ws = mesh(root, rboxGeo(4.3, 1.2, 0.06, 0.02), m.window, 0, (sa.y + sb.y) / 2 + 0.07, (sa.z + sb.z) / 2 + 0.05);
   ws.rotation.x = ang;
   mesh(root, boxGeo(4.45, 0.08, 0.1), m.orange, 0, sa.y + 0.1, sa.z + 0.02, { shadow: false });
   for (const s of [-1, 1]) {
-    mesh(root, rboxGeo(0.06, 0.55, 1.6, 0.02), m.window, s * 2.55, CAB_Y + 0.5, z0 + 1.2);
+    mesh(root, rboxGeo(0.06, 0.55, 1.6, 0.02), m.window, s * 2.55, CAB_Y + 0.45, z0 + 1.2);
     // A green glowing strip along the cab's flanks, like RHINO's lights.
     mesh(root, boxGeo(0.05, 0.08, z1 - z0 - 0.6), m.lime, s * 3.02, 0.1, zc, { shadow: false });
   }
-  mesh(root, rboxGeo(3.6, 0.1, 1.5, 0.04), m.olive, 0, CAB_Y + 1.1, z0 + 1.0);
+  mesh(root, rboxGeo(3.6, 0.1, 1.5, 0.04), m.olive, 0, CAB_Y + CAB_H + 0.15, z0 + 1.0);
   // Front: dark grille, white bumper with an orange stripe, headlights.
   mesh(root, rboxGeo(3.4, 0.7, 0.12, 0.04), m.dark, 0, -0.35, z1 + 0.02);
   for (let k = 0; k < 5; k++) mesh(root, boxGeo(3.2, 0.06, 0.06), m.grey, 0, -0.6 + k * 0.13, z1 + 0.1, { shadow: false });
@@ -541,10 +542,10 @@ function cab(root: THREE.Object3D, m: Mats, anim: Anim) {
     root.add(beamGlow);
     anim.pulse.push({ o: beamGlow, base: 2.4, speed: 7, phase: s });
     // Roof spotlights and amber beacons.
-    mesh(root, rboxGeo(0.5, 0.26, 0.3, 0.06), m.dark, s * 1.4, CAB_Y + 1.2, z0 + 1.65);
-    mesh(root, boxGeo(0.4, 0.16, 0.04), m.head, s * 1.4, CAB_Y + 1.2, z0 + 1.81, { shadow: false });
-    mesh(root, cylGeo(0.15, 0.17, 0.1, 10), m.dark, s * 2.2, CAB_Y + 1.1, z0 + 0.5);
-    const bc = dynamic(mesh(root, sphereGeo(0.15, 10), m.amber, s * 2.2, CAB_Y + 1.25, z0 + 0.5, { shadow: false }));
+    mesh(root, rboxGeo(0.5, 0.26, 0.3, 0.06), m.dark, s * 1.4, CAB_Y + CAB_H + 0.25, z0 + 1.65);
+    mesh(root, boxGeo(0.4, 0.16, 0.04), m.head, s * 1.4, CAB_Y + CAB_H + 0.25, z0 + 1.81, { shadow: false });
+    mesh(root, cylGeo(0.15, 0.17, 0.1, 10), m.dark, s * 2.2, CAB_Y + CAB_H + 0.15, z0 + 0.5);
+    const bc = dynamic(mesh(root, sphereGeo(0.15, 10), m.amber, s * 2.2, CAB_Y + CAB_H + 0.3, z0 + 0.5, { shadow: false }));
     anim.blink.push({ m: bc, phase: s > 0 ? 0 : Math.PI, rate: 5 });
   }
   // RHINO's horn on the nose: a stubby orange cone.
@@ -723,9 +724,9 @@ function panel(parent: THREE.Object3D, m: Mats, w: number, d: number) {
 function solarRoof(root: THREE.Object3D, m: Mats, sides = [-1, 1], cabRoof = true) {
   if (cabRoof) {
     const p = panel(root, m, 5.2, 1.8);
-    p.position.set(0, CAB_Y + 1.25, DECK_FRONT + 1.2);
+    p.position.set(0, CAB_Y + CAB_H + 0.3, DECK_FRONT + 1.2);
     p.rotation.x = 0.06;
-    for (const s of [-1, 1]) mesh(root, boxGeo(0.12, 0.2, 0.12), m.grey, s * 2.3, CAB_Y + 1.15, DECK_FRONT + 1.2);
+    for (const s of [-1, 1]) mesh(root, boxGeo(0.12, 0.2, 0.12), m.grey, s * 2.3, CAB_Y + CAB_H + 0.2, DECK_FRONT + 1.2);
   }
   for (const s of sides) {
     const wing = new THREE.Group();

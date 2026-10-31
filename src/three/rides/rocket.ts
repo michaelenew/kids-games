@@ -951,7 +951,7 @@ export function partModel(part: number): THREE.Group {
     mesh(inner, boxGeo(1.5, 0.2, 19), m.gold, 4.2, WING_Y + 0.15, -4, { shadow: false });
   } else if (p === 2) {
     shieldGen(inner, m, anim, 0, 0, 0);
-    shieldBubble(inner, anim, v3(0, 2.85, 0), v3(1.9, 1.9, 1.9), 2.6, false);
+    shieldBubble(inner, anim, v3(0, 2.85, 0), v3(1.9, 1.9, 1.9), 1.6, false);
   } else if (p === 3) {
     missilePod(inner, m, 0, 1.6, 0);
     turret(inner, m, 3.6, 0, 0.5, 0.85);
@@ -971,7 +971,7 @@ export function partModel(part: number): THREE.Group {
     box.expandByObject(mm);
   });
   const size = box.getSize(new THREE.Vector3());
-  const k = 6 / Math.max(size.x, size.z, size.y * 0.8);
+  const k = 6 / Math.max(size.x, size.z, size.y);
   const g = new THREE.Group();
   inner.scale.setScalar(k);
   inner.position.set(-((box.min.x + box.max.x) / 2) * k, -box.min.y * k, -((box.min.z + box.max.z) / 2) * k);

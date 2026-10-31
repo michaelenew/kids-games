@@ -173,7 +173,7 @@ function haumeaTexture() {
     g.fillRect(0, 0, 1024, 512);
     for (let i = 0; i < 70; i++) {
       const y = rnd() * 512;
-      g.fillStyle = rnd() < 0.5 ? `rgba(190,198,215,${0.1 + rnd() * 0.15})` : `rgba(255,255,255,${0.2 + rnd() * 0.2})`;
+      g.fillStyle = rnd() < 0.5 ? `rgba(190,198,215,${0.04 + rnd() * 0.06})` : `rgba(255,255,255,${0.06 + rnd() * 0.08})`;
       g.fillRect(0, y, 1024, 2 + rnd() * 14);
     }
     for (let i = 0; i < 140; i++) {
@@ -191,10 +191,10 @@ function haumeaTexture() {
       g.stroke();
     }
     // The big dark red spot.
-    for (let i = 0; i < 26; i++) {
-      g.fillStyle = `rgba(${110 + rnd() * 40},${28 + rnd() * 20},${30 + rnd() * 20},${0.25 + rnd() * 0.25})`;
+    for (let i = 0; i < 36; i++) {
+      g.fillStyle = `rgba(${100 + rnd() * 40},${22 + rnd() * 20},${26 + rnd() * 20},${0.3 + rnd() * 0.3})`;
       g.beginPath();
-      g.ellipse(300 + (rnd() - 0.5) * 70, 270 + (rnd() - 0.5) * 40, 30 + rnd() * 50, 18 + rnd() * 30, rnd() * 3, 0, Math.PI * 2);
+      g.ellipse(300 + (rnd() - 0.5) * 120, 256 + (rnd() - 0.5) * 70, 40 + rnd() * 70, 26 + rnd() * 40, rnd() * 3, 0, Math.PI * 2);
       g.fill();
     }
   }));
@@ -702,13 +702,13 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
 
   // ==== Haumea =========================================================================
   function haumea() {
-    const C = v3(-280, -35, -430);
-    const A = 140;
+    const C = v3(250, 0, -660);
+    const A = 150;
     keepOut.push({ p: C, r: A * 1.1 }, { p: C, r: A * 2.4 * 0.5 });
     const sys = new THREE.Group();
     sys.position.copy(C);
-    // The spin axis leans towards the path (so the ring shows as a wide oval) and up.
-    sys.quaternion.setFromUnitVectors(v3(0, 1, 0), v3(1, 0.85, 0.3).normalize());
+    // The spin axis leans towards the path: the ring shows as a wide oval and the egg swings round.
+    sys.quaternion.setFromUnitVectors(v3(0, 1, 0), v3(-0.5, 1, 0.3).normalize());
     root.add(sys);
     const body = new THREE.Group();
     sys.add(body);
@@ -779,7 +779,14 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       sys.add(mo);
       moons.push({ o: mo, r: r * A, w, ph, tilt });
     }
+    // Keep it in the camera's reach: shrunk towards him while it's far, true size close up.
+    const rel = new THREE.Vector3();
     updaters.push((dt, t) => {
+      rel.copy(C).sub(camPos);
+      const d = rel.length();
+      const k = d > 560 ? 560 / d : 1;
+      sys.position.copy(camPos).addScaledVector(rel, k);
+      sys.scale.setScalar(k);
       body.rotation.y += dt * 0.42;
       for (const mo of moons) {
         const a = t * mo.w + mo.ph;
@@ -1034,12 +1041,9 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       disc.renderOrder = 2;
       g.add(disc);
     }
-    const halo = glowSprite(GREEN, R * (big ? 2.6 : 2.0), big ? 0.1 : 0.05);
-    g.add(halo);
     updaters.push((dt, t) => {
       for (const r of rings) r.o.rotation.z += r.w * dt;
       if (swirl) swirl.uniforms.time.value = t;
-      halo.scale.setScalar(R * (big ? 2.6 : 2.0) * (1 + Math.sin(t * 1.5 + u * 20) * 0.06));
     });
     keepOut.push({ p: f.p, r: R * 1.5 });
   }
@@ -1099,7 +1103,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       green: nf(glow(GREEN, 2.6)),
       greenDim: nf(glow(0x3dff6a, 1.6)),
       purple: nf(glow(0xb070ff, 2.2)),
-      core: nf(glow(0x2aff6a, 0.7)),
+      core: nf(glow(0x1a8a40, 0.45)),
     };
     const ship = new THREE.Group();
     root.add(ship);
@@ -1188,7 +1192,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       sm.add(boxG(), ms.greenDim, head.clone().add(v3(Math.cos(a) * ap, Math.sin(a) * ap, z)), new THREE.Euler(0, 0, a), v3(1, 6, 3));
     }
     sm.build(ship);
-    const mouthGlow = glowSprite(GREEN, 170, 0.22);
+    const mouthGlow = glowSprite(GREEN, 170, 0.12);
     mouthGlow.material.fog = false;
     mouthGlow.position.copy(mouth).add(v3(0, 0, 10));
     ship.add(mouthGlow);
@@ -1290,7 +1294,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       mouthGlow.scale.setScalar(170 * (1 + Math.sin(t * 1.3) * 0.12));
       lampSprites.forEach((s, i) => s.scale.setScalar(Math.sin(t * 3 - i * 0.4) > 0 ? 10 : 4));
       auraMat.opacity = 0.14 + Math.sin(t * 0.8) * 0.05;
-      ms.core.color.setHex(0x2aff6a).multiplyScalar(0.6 + Math.sin(t * 2.2) * 0.25);
+      ms.core.color.setHex(0x1a8a40).multiplyScalar(0.4 + Math.sin(t * 2.2) * 0.15);
     });
   }
 

@@ -136,6 +136,9 @@ interface RideMissionSpec {
   tier: number;
   say: string;
   banners: string[];
+  /** Tuned by the test bot (see README "Difficulty is measured"). */
+  dmg?: number;
+  hp?: number;
   reinforce?: boolean;
   boss?: string;
 }
@@ -170,9 +173,9 @@ function rideMission(o: RideMissionSpec): Mission {
   const end = path[path.length - 1];
   return {
     id: o.id, title: o.title, blurb: o.blurb, seed: o.seed, env: o.env, ride: o.ride, pick: true,
-    dmg: 1, hp: 1.4 + t * 0.15, fire: 0.85 - t * 0.02, extra: 0.8 + t * 0.1,
+    dmg: o.dmg ?? 1, hp: o.hp ?? 1.4 + t * 0.15, fire: 0.85 - t * 0.02, extra: 0.8 + t * 0.1,
     path, plazas: [[0.25, 0.4], [0.55, 0.7], [0.85, 1]],
-    ...(o.boss ? { boss: [end[0], end[1] - 14, end[2] - 65] as [number, number, number], bossHp: 3 } : {}),
+    ...(o.boss ? { boss: [end[0], long ? end[1] - 14 : -8, end[2] - 65] as [number, number, number], bossHp: 3 } : {}),
     steps,
   };
 }
@@ -189,6 +192,8 @@ interface FootMissionSpec {
   say: string;
   banners: string[];
   boss?: string;
+  dmg?: number;
+  hp?: number;
 }
 
 /** A robot's own mission: on foot, with a stretch in vehicle mode, like the volcano's. */
@@ -223,7 +228,7 @@ function footMission(o: FootMissionSpec): Mission {
   return {
     id: o.id, title: o.title, blurb: o.blurb, seed: o.seed, env: o.env, bot: o.bot,
     ...(o.swapFrom ? { swapFrom: o.swapFrom, noControl: true } : {}),
-    dmg: 1, hp: 1.3 + t * 0.15, fire: 0.85 - t * 0.02, extra: 0.7 + t * 0.12,
+    dmg: o.dmg ?? 1, hp: o.hp ?? 1.3 + t * 0.15, fire: 0.85 - t * 0.02, extra: 0.7 + t * 0.12,
     path: pathAt(0), plazas: [[0, 0.12], [0.45, 0.6], [0.85, 1]],
     ...(o.boss ? { boss: [0, -8, -655] as [number, number, number], bossHp: 3 } : {}),
     steps,
@@ -232,15 +237,15 @@ function footMission(o: FootMissionSpec): Mission {
 
 const SOLAR: Mission[] = [
   // Mars: RHINO's rover. Ride on its deck across the red planet.
-  rideMission({ id: 'mars-land', title: 'Invasion 56: Mars Landing', blurb: 'Ride RHINO\'s rover across Mars!', seed: 601, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1,
+  rideMission({ id: 'mars-land', title: 'Invasion 56: Mars Landing', blurb: 'Ride RHINO\'s rover across Mars!', seed: 601, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1, dmg: 1.2,
     say: 'We\'re on Mars! RHINO\'s rover is ready. Pick a robot to ride on top and keep the aliens off!', banners: ['RED DUNES!', 'DUST DEVILS!'] }),
-  rideMission({ id: 'mars-dunes', title: 'Invasion 57: Dune Run', blurb: 'Race over the dunes!', seed: 607, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 2,
+  rideMission({ id: 'mars-dunes', title: 'Invasion 57: Dune Run', blurb: 'Race over the dunes!', seed: 607, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 2, dmg: 0.6,
     say: 'They\'re hiding behind the dunes. Full speed ahead!', banners: ['DUNE RAIDERS!', 'SAND STRIKE!'] }),
-  rideMission({ id: 'mars-canyon', title: 'Invasion 58: The Great Canyon', blurb: 'Down into the biggest canyon in the solar system!', seed: 613, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 3,
+  rideMission({ id: 'mars-canyon', title: 'Invasion 58: The Great Canyon', blurb: 'Down into the biggest canyon in the solar system!', seed: 613, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 3, dmg: 0.28,
     say: 'This canyon is way bigger than the Grand Canyon. And it\'s full of aliens!', banners: ['CANYON FLOOR!', 'CLIFF CRAWLERS!'] }),
-  rideMission({ id: 'mars-storm', title: 'Invasion 59: Dust Storm', blurb: 'A Mars dust storm. Call for backup!', seed: 617, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 4, reinforce: true,
+  rideMission({ id: 'mars-storm', title: 'Invasion 59: Dust Storm', blurb: 'A Mars dust storm. Call for backup!', seed: 617, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 4, dmg: 0.35, reinforce: true,
     say: 'A dust storm! They\'re attacking from inside it.', banners: ['IN THE STORM!', 'STORM BREAKERS!'] }),
-  rideMission({ id: 'mars-olympus', title: 'Invasion 60: Olympus Mons', blurb: 'Their walker on the biggest volcano. Boss!', seed: 619, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 5, boss: 'MARS WALKER!',
+  rideMission({ id: 'mars-olympus', title: 'Invasion 60: Olympus Mons', blurb: 'Their walker on the biggest volcano. Boss!', seed: 619, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 5, dmg: 0.32, boss: 'MARS WALKER!',
     say: 'Olympus Mons, the biggest volcano in the solar system. Their Mars walker is at the top!', banners: ['VOLCANO GUARDS!', 'UP THE SLOPE!'] }),
   // The asteroid belt: TITAN's mining ship, a space chase through the rocks.
   rideMission({ id: 'belt-chase', title: 'Invasion 61: Into the Belt', blurb: 'Chase them into the asteroid belt!', seed: 631, env: 'belt', ride: 'miner', y: 30, mix: 'air', tier: 1,

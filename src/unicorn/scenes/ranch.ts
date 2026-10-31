@@ -3,11 +3,12 @@ import { type Ctx, freshPlace, stats } from '../ctx';
 import { say } from '../speak';
 import { sfx } from '../sfx';
 import { feedUnlocked } from '../learn';
+import { hasUpgrade } from '../upgrades';
 import { type OwnedUnicorn, persist, save } from '../state';
 import { Unicorn } from '../three/unicorn';
 import { barn, cloud, fence, flowers, ground, hills, rainbow, trees } from '../three/world';
 
-export type Activity = 'trail' | 'race' | 'aliens' | 'robots' | 'stars' | 'dance' | 'style' | 'feed';
+export type Activity = 'trail' | 'race' | 'aliens' | 'robots' | 'magic' | 'stars' | 'dance' | 'style' | 'feed';
 
 const PADDOCK = 13;
 
@@ -125,7 +126,16 @@ export function ranch(ctx: Ctx, opts: { arrival?: OwnedUnicorn; backdrop?: boole
         sfx.neigh();
         fx.hearts(ro.u.holder.position.clone().add(new THREE.Vector3(0, 2.6, 0)), 5);
         fx.sparkles(ro.u.hornTip(), { count: 40 });
-        void say(`Hi! I'm ${ro.data.name}!`);
+        if (hasUpgrade(ro.data, 'invisible')) {
+          // Show off: vanish, then pop back.
+          void say(`Hi! I'm ${ro.data.name}! Now you see me...`);
+          setTimeout(() => (ro.u.invisible = true), 900);
+          setTimeout(() => {
+            ro.u.invisible = false;
+            fx.sparkles(ro.u.hornTip(), { count: 40, colors: [0xe7f5ff, 0xd0bfff, 0xffffff] });
+            sfx.twinkle();
+          }, 3200);
+        } else void say(`Hi! I'm ${ro.data.name}!`);
         break;
       }
     }
@@ -157,6 +167,7 @@ export function ranch(ctx: Ctx, opts: { arrival?: OwnedUnicorn; backdrop?: boole
       { icon: '🤖', label: 'Robots', locked: none, onTap: () => (none ? needOne() : pick('robots')) },
       { icon: '⭐', label: 'Stars', locked: none, onTap: () => (none ? needOne() : pick('stars')) },
       { icon: '💃', label: 'Dance', locked: none, onTap: () => (none ? needOne() : pick('dance')) },
+      { icon: '🔮', label: 'Magic', locked: none, onTap: () => (none ? needOne() : pick('magic')) },
       { icon: '🎀', label: 'Style', locked: none, onTap: () => (none ? needOne() : pick('style')) },
       ...(feed ? [{ icon: '🍎', label: 'Feed', glow: feedIsNew, onTap: () => pick('feed') }] : []),
     ]);

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { type Ctx, freshPlace, lessonMoment, letterMoment, nextLetters, praise, seconds, tapIt, tween } from '../ctx';
+import { hideButton } from '../hide';
 import { hornLaser } from '../laser';
+import { byPower, hasUpgrade } from '../upgrades';
 import { say } from '../speak';
 import { sfx } from '../sfx';
 import { type OwnedUnicorn, persist, save } from '../state';
@@ -33,6 +35,8 @@ interface Member {
   /** Carried off the field: waiting in the boss's cage. */
   caged: boolean;
   returning: boolean;
+  /** Has Invisibility: hidden from robots while the Hide button is on. */
+  sneaky: boolean;
 }
 
 interface Bot {
@@ -55,14 +59,15 @@ export async function robots(ctx: Ctx): Promise<void> {
   const w = stage.world;
 
   // Her team: up to five unicorns in a line, facing the gate.
-  const datas = [...sv.unicorns].sort((a, b) => b.hearts - a.hearts).slice(0, 5);
+  // Unicorns with magic powers join the team first.
+  const datas = [...sv.unicorns].sort(byPower).slice(0, 5);
   const xs = [0, -3, 3, -6, 6];
   const team: Member[] = datas.map((data, i) => {
     const u = new Unicorn(data.look);
     const home = new THREE.Vector3(xs[i], 0, i === 0 ? 1 : 0);
     u.holder.position.copy(home);
     w.add(u.holder);
-    return { u, data, home, heldBy: null, caged: false, returning: false };
+    return { u, data, home, heldBy: null, caged: false, returning: false, sneaky: hasUpgrade(data, 'invisible') };
   });
 
   const portrait = innerWidth < innerHeight;
@@ -76,6 +81,29 @@ export async function robots(ctx: Ctx): Promise<void> {
   let paused = false;
   let charge = 0;
   let lastTap = performance.now();
+  // Invisibility: hidden unicorns can't be found, and a grabbed one slips free.
+  let hidden = false;
+  const unseen = (m: Member) => hidden && m.sneaky;
+  const hide = team.some((m) => m.sneaky)
+    ? hideButton(ui, (on) => {
+        hidden = on;
+        for (const m of team.filter((x) => x.sneaky)) {
+          m.u.invisible = on;
+          fx.sparkles(m.u.holder.position.clone().add(new THREE.Vector3(0, 1.5, 0)), { count: 30, colors: [0xe7f5ff, 0xd0bfff, 0xffffff], speed: 2 });
+          if (on && m.heldBy) {
+            // Poof: it slips right out of the robot's claws.
+            const r = m.heldBy;
+            m.heldBy = null;
+            m.returning = true;
+            r.state = 'approach';
+            r.target = null;
+            r.b.reach = 0;
+            void say(`${m.data.name} turned invisible and escaped!`);
+          }
+        }
+      })
+    : null;
+  if (import.meta.env.DEV) Object.assign(window, { hide: () => hide?.press() });
 
   const free = () => team.filter((m) => !m.heldBy && !m.caged && !m.returning);
 
@@ -118,7 +146,7 @@ export async function robots(ctx: Ctx): Promise<void> {
       if (paused || r.state === 'broken') continue;
       const p = r.b.holder.position;
       if (r.state === 'approach') {
-        if (!r.target || r.target.heldBy || r.target.caged || r.target.returning) r.target = pickTarget(r);
+        if (!r.target || r.target.heldBy || r.target.caged || r.target.returning || unseen(r.target)) r.target = pickTarget(r);
         const goal = r.glyph ? new THREE.Vector3(p.x, 0, 9) : r.target ? r.target.u.holder.position.clone().add(new THREE.Vector3(0, 0, 2.4 * r.b.size)) : new THREE.Vector3(0, 0, 6);
         const to = goal.sub(p);
         to.y = 0;
@@ -133,7 +161,12 @@ export async function robots(ctx: Ctx): Promise<void> {
       } else if (r.state === 'grab') {
         r.t += dt;
         r.b.moving = false;
-        if (r.t > 0.7 && r.target && !r.target.heldBy) {
+        if (r.target && unseen(r.target)) {
+          // Its unicorn vanished! Back to looking.
+          r.state = 'approach';
+          r.b.reach = 0;
+          r.target = null;
+        } else if (r.t > 0.7 && r.target && !r.target.heldBy) {
           r.target.heldBy = r;
           r.state = 'carry';
           r.b.reach = 1.25;
@@ -170,8 +203,9 @@ export async function robots(ctx: Ctx): Promise<void> {
 
   function pickTarget(r: Bot): Member | null {
     const taken = new Set(bots.filter((o) => o !== r && o.state !== 'broken').map((o) => o.target));
-    const options = free().filter((m) => !taken.has(m));
-    const list = options.length ? options : free();
+    const visible = free().filter((m) => !unseen(m));
+    const options = visible.filter((m) => !taken.has(m));
+    const list = options.length ? options : visible;
     if (!list.length) return null;
     return list.reduce((a, b) => (a.u.holder.position.distanceTo(r.b.holder.position) < b.u.holder.position.distanceTo(r.b.holder.position) ? a : b));
   }
@@ -305,6 +339,7 @@ export async function robots(ctx: Ctx): Promise<void> {
     });
 
   await say(`Oh no! Evil robots are coming to grab the unicorns! Unicorns, team up! Tap the robots to zap them!`);
+  if (hide) void say('Some of your unicorns can turn invisible! Tap the ghost button to hide them from the robots!');
 
   for (let wave = 0; wave < WAVES.length; wave++) {
     if (wave > 0) await say(['More robots! Unicorn team, get ready!', 'Here comes a big bunch of robots!'][wave - 1]);
@@ -415,6 +450,7 @@ export async function robots(ctx: Ctx): Promise<void> {
     if (import.meta.env.DEV) (window as unknown as { bossTap: () => void }).bossTap = () => onBossTap?.();
   });
   window.removeEventListener('pointerdown', tap);
+  hide?.remove();
   teamBtn.remove();
   style.remove();
 

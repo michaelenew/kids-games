@@ -3,7 +3,9 @@ import { type Ctx, freshPlace, lessonMoment, letterMoment, nextLetters, praise, 
 import { say } from '../speak';
 import { sfx } from '../sfx';
 import { persist, save } from '../state';
+import { hideButton } from '../hide';
 import { hornLaser } from '../laser';
+import { byPower, hasUpgrade } from '../upgrades';
 import { Saucer } from '../three/alien';
 import { glyphSprite, PASTEL, RAINBOW } from '../three/fx';
 import { toon } from '../three/stage';
@@ -73,7 +75,8 @@ export async function aliens(ctx: Ctx): Promise<void> {
   w.add(sky, moon);
 
   // Her unicorn (and later its friends), facing the aliens.
-  const team = [...sv.unicorns].sort((a, b) => b.hearts - a.hearts);
+  // A unicorn with magic powers leads the team, if she has one.
+  const team = [...sv.unicorns].sort(byPower);
   const hero = new Unicorn(team[0].look);
   hero.holder.rotation.y = Math.PI;
   w.add(hero.holder);
@@ -95,6 +98,34 @@ export async function aliens(ctx: Ctx): Promise<void> {
   let shieldFlash = 0;
   let lastTap = performance.now();
   let gooIn = 3;
+  // Invisibility: unicorns with the upgrade can hide (see hide.ts).
+  let hidden = false;
+  const sneaky = team.slice(0, 5).filter((d) => hasUpgrade(d, 'invisible'));
+  const hideUnicorns = (on: boolean) => {
+    hidden = on;
+    for (const u of [hero, ...helpers]) if (u.holder.userData.invisible) u.invisible = on;
+    fx.sparkles(new THREE.Vector3(0, 1.6, 0), { count: 60, colors: [0xe7f5ff, 0xd0bfff, 0xffffff], speed: 3 });
+    if (on) for (const a of list.filter((x) => !x.leaving)) confused(a.s.holder);
+  };
+  hero.holder.userData.invisible = hasUpgrade(team[0], 'invisible');
+  const hide = sneaky.length ? hideButton(ui, hideUnicorns) : null;
+  if (import.meta.env.DEV) Object.assign(window, { hide: () => hide?.press() });
+  /** A "?" over a confused alien. */
+  const confused = (o: THREE.Object3D) => {
+    const q = glyphSprite('?', { size: 1, ring: '#d0bfff' });
+    q.position.set(0, 1.8, 0);
+    o.add(q);
+    setTimeout(() => o.remove(q), 1800);
+  };
+  /** The sneak-attack laser hopping from one alien to the next. */
+  const bounce = (from: THREE.Vector3, to: THREE.Vector3) => {
+    const len = from.distanceTo(to);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, len, 6), new THREE.MeshBasicMaterial({ color: 0xd0bfff, transparent: true, blending: THREE.AdditiveBlending }));
+    beam.position.copy(from).lerp(to, 0.5);
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+    w.add(beam);
+    void tween(ctx, 0.3, (k) => ((beam.material as THREE.MeshBasicMaterial).opacity = 1 - k)).then(() => w.remove(beam));
+  };
 
   stage.onFrame((dt) => {
     hero.update(dt);
@@ -112,7 +143,9 @@ export async function aliens(ctx: Ctx): Promise<void> {
         a.s.holder.position.lerpVectors(a.from, a.target, e);
         a.s.holder.position.x += Math.sin(a.age * 0.9 + a.target.z) * 1.2 * k;
         a.s.holder.position.y += Math.sin(a.age * 1.7 + a.target.x) * 0.5 * k;
-        a.s.update(dt, stage.camera.position);
+        a.s.update(dt, hidden ? undefined : stage.camera.position);
+        // Can't see her invisible unicorn: the aliens look all around, confused.
+        if (hidden) a.s.holder.rotation.y += dt * 2.5;
       }
     }
     // Aliens that finished zooming away are gone.
@@ -126,8 +159,17 @@ export async function aliens(ctx: Ctx): Promise<void> {
       const k = g.age / 1.8;
       const to = new THREE.Vector3(0, 1.6, 0);
       g.m.position.lerpVectors(g.from, to, k);
+      if (hidden) g.m.position.x += (k - 0.5) * 6;
       g.m.position.y += Math.sin(k * Math.PI) * 2;
       g.m.rotation.x += dt * 6;
+      if (hidden && k >= 0.86) {
+        // It can't find her invisible unicorn: the goo sails past.
+        if (k >= 1.6) {
+          w.remove(g.m);
+          goo.splice(goo.indexOf(g), 1);
+        }
+        continue;
+      }
       if (k >= 0.86) {
         shieldFlash = 1;
         fx.sparkles(g.m.position, { count: 30, colors: [0x8ce99a, 0xc0eb75, 0xffffff], speed: 3, up: 1 });
@@ -141,7 +183,7 @@ export async function aliens(ctx: Ctx): Promise<void> {
     (shield.material as THREE.MeshBasicMaterial).opacity = shieldFlash * 0.45;
     shield.scale.setScalar(1 + shieldFlash * 0.08);
     // Every few seconds, a hovering alien lobs some goo.
-    if (!paused) {
+    if (!paused && !hidden) {
       gooIn -= dt;
       const throwers = list.filter((a) => !a.leaving && a.age > 2.5 && !a.glyph);
       if (gooIn <= 0 && throwers.length) {
@@ -168,7 +210,18 @@ export async function aliens(ctx: Ctx): Promise<void> {
   };
 
   let zapped = 0;
-  const zap = (a: Alien) => {
+  const zap = (a: Alien, chain = true) => {
+    // Sneak attack: an invisible unicorn's blast bounces on to the next alien too.
+    if (chain && hidden) {
+      const next = list
+        .filter((o) => o !== a && !o.leaving && !o.glyph)
+        .sort((p, q) => p.s.holder.position.distanceTo(a.s.holder.position) - q.s.holder.position.distanceTo(a.s.holder.position))[0];
+      if (next) setTimeout(() => {
+        if (next.leaving) return;
+        bounce(a.s.holder.position.clone(), next.s.holder.position.clone());
+        zap(next, false);
+      }, 220);
+    }
     laser(hero, a.s.holder.position.clone());
     sfx.zap();
     setTimeout(() => {
@@ -218,7 +271,7 @@ export async function aliens(ctx: Ctx): Promise<void> {
     }
   };
   window.addEventListener('pointerdown', tap);
-  if (import.meta.env.DEV) (window as unknown as { zapAll: () => void }).zapAll = () => list.filter((a) => !a.leaving && !a.glyph).forEach(zap);
+  if (import.meta.env.DEV) (window as unknown as { zapAll: () => void }).zapAll = () => list.filter((a) => !a.leaving && !a.glyph).forEach((a) => zap(a));
 
   const spawn = (glyph?: string) => {
     const s = new Saucer(1.3);
@@ -248,6 +301,7 @@ export async function aliens(ctx: Ctx): Promise<void> {
     });
 
   await say(`Oh no! Silly aliens are flying over the ranch! Tap them, and ${team[0].name} will zap them with rainbow lasers!`);
+  if (hide) void say(`${team[0].name} can turn invisible! Tap the ghost button, and the aliens won't find ${team[0].name}!`);
 
   for (let wave = 0; wave < WAVES.length; wave++) {
     if (wave > 0) await say(['Here come more aliens!', 'Even more aliens! Zap zap!'][wave - 1]);
@@ -301,6 +355,8 @@ export async function aliens(ctx: Ctx): Promise<void> {
         u.holder.position.copy(start);
         u.gait = 'gallop';
         w.add(u.holder);
+        u.holder.userData.invisible = hasUpgrade(f, 'invisible');
+        if (hidden && u.holder.userData.invisible) u.invisible = true;
         helpers.push(u);
         return tween(ctx, 1.8, (k) => u.holder.position.lerpVectors(start, end, k)).then(() => (u.gait = 'idle'));
       }),
@@ -341,8 +397,9 @@ export async function aliens(ctx: Ctx): Promise<void> {
       sfx.zap();
       fx.sparkles(c, { count: 40, colors: RAINBOW, speed: 7 });
       boss.holder.rotation.x = (Math.random() - 0.5) * 0.3;
-      hits++;
-      if (hits === Math.floor(BOSS_HITS / 2)) void say('Keep going!');
+      hits += hidden ? 2 : 1;
+      if (hidden) ui.toast('Sneak attack! ×2', 600);
+      if (hits === Math.floor(BOSS_HITS / 2) || hits === Math.floor(BOSS_HITS / 2) + 1) void say('Keep going!');
       if (hits >= BOSS_HITS) {
         onBossTap = null;
         resolve();
@@ -351,6 +408,7 @@ export async function aliens(ctx: Ctx): Promise<void> {
     if (import.meta.env.DEV) (window as unknown as { bossTap: () => void }).bossTap = () => onBossTap?.();
   });
   window.removeEventListener('pointerdown', tap);
+  hide?.remove();
   bob();
 
   // It spins away home in a burst of fireworks.

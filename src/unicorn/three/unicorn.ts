@@ -54,6 +54,8 @@ export class Unicorn {
   /** How fast the legs cycle, relative to normal. */
   stride = 1;
   grazing = false;
+  /** Turned invisible (it fades out and back smoothly). */
+  invisible = false;
   /** Turn the head a little toward the camera or a target (radians). */
   headYaw = 0;
 
@@ -73,6 +75,8 @@ export class Unicorn {
   private blinkIn = 2;
   private glow = 0;
   private t = Math.random() * 10;
+  private invisNow = 0;
+  private mats: THREE.Material[] = [];
 
   constructor(readonly look: UnicornLook) {
     const bodyColor = BODIES[look.body % BODIES.length];
@@ -237,7 +241,34 @@ export class Unicorn {
 
     this.holder.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+      if (m && !this.mats.includes(m)) {
+        m.userData.baseOpacity = m.opacity;
+        m.userData.baseTransparent = m.transparent;
+        this.mats.push(m);
+      }
     });
+  }
+
+  /** How see-through it is right now (0 = solid, 1 = invisible). */
+  get invisibility(): number {
+    return this.invisNow;
+  }
+
+  /** Fade almost all the way out (the Invisibility upgrade), with a shimmer. */
+  private applyInvisibility(): void {
+    const k = this.invisNow;
+    const shimmer = k > 0.5 ? 0.06 + Math.sin(this.t * 9) * 0.05 : 0;
+    for (const m of this.mats) {
+      const transparent = k > 0.001 || !!m.userData.baseTransparent;
+      if (m.transparent !== transparent) {
+        m.transparent = transparent;
+        m.needsUpdate = true;
+      }
+      m.opacity = (m.userData.baseOpacity ?? 1) * (1 - 0.92 * k + shimmer * k);
+      m.depthWrite = k < 0.5;
+    }
+    this.holder.traverse((o) => (o.castShadow = k < 0.5 && (o as THREE.Mesh).isMesh));
   }
 
   /** Rear up on the back legs, pawing the air. Resolves when back down. */
@@ -257,6 +288,9 @@ export class Unicorn {
 
   update(dt: number): void {
     this.t += dt;
+    const was = this.invisNow;
+    this.invisNow = damp(this.invisNow, this.invisible ? 1 : 0, 4, dt);
+    if (Math.abs(was - this.invisNow) > 0.0005 || this.invisNow > 0.5) this.applyInvisibility();
     const target = { walk: this.gait === 'walk' ? 1 : 0, gallop: this.gait === 'gallop' ? 1 : 0 };
     this.gaitMix.walk = damp(this.gaitMix.walk, target.walk, 6, dt);
     this.gaitMix.gallop = damp(this.gaitMix.gallop, target.gallop, 6, dt);

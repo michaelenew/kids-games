@@ -21,6 +21,8 @@ import { ARCTIC_FOG, arcticSky, buildArctic } from './arctic';
 import { OCEAN_FOG, buildOcean, oceanSky } from './ocean';
 import { VOLCANO_FOG, buildVolcano, volcanoSky } from './volcano';
 import { DEFENSE_LINE, MOON_FOG, type Turret, buildMoon, moonSky } from './moon';
+import { SPACE_FOG, buildSpace, spaceSky } from './space';
+import { starship } from './starship';
 import { CANYON_FOG, buildCanyon, canyonSky } from './canyon';
 import { BOTS } from '../state';
 
@@ -159,6 +161,8 @@ export interface InvasionOptions {
   allyLook?: RobotLook;
   /** The Moon: how many pieces of the base he has built (more pieces, more turrets). */
   baseLevel?: number;
+  /** Space: how many parts of the starship he has built. */
+  shipLevel?: number;
   enemyHp: number;
   fireDelay: number;
   /** Chance the jet rolls past an incoming shot (its afterburners), or TITAN swats it (its treads). */
@@ -234,11 +238,13 @@ export class Invasion {
     const ocean = mission.env === 'ocean';
     const volcano = mission.env === 'volcano';
     const moon = mission.env === 'moon';
-    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas, base: opts.baseLevel, defend: mission.defend };
+    const space = mission.env === 'space';
+    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas, base: opts.baseLevel, defend: mission.defend, ship: opts.shipLevel };
     const moonBase = moon ? buildMoon(this.curve, where) : null;
     this.city = moonBase ?? (desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
       : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
-        : ocean ? buildOcean(this.curve, where) : volcano ? buildVolcano(this.curve, where) : buildCity(this.curve, where));
+        : ocean ? buildOcean(this.curve, where) : volcano ? buildVolcano(this.curve, where)
+          : space ? buildSpace(this.curve, where) : buildCity(this.curve, where));
     // The Moon base's turrets shoot alongside him.
     this.turrets = (moonBase?.turrets ?? []).map((t) => ({ ...t, cooldown: Math.random() }));
     this.root.add(this.city.group);
@@ -260,10 +266,19 @@ export class Invasion {
     const firstMove = mission.steps.find((s) => s.kind === 'move') as Extract<Step, { kind: 'move' }> | undefined;
     this.vehicle = firstMove?.vehicle ?? 'foot';
     if (this.vehicle === 'ship') {
-      this.ship = dropship();
+      // In space he rides the starship he built (and its turrets fight too); otherwise the dropship.
+      if (space) {
+        const ss = starship(opts.shipLevel ?? 0);
+        this.ship = ss;
+        this.turrets.push(...ss.turrets.map((t) => ({ ...t, cooldown: Math.random() })));
+      } else {
+        this.ship = dropship();
+      }
       this.rig.add(this.ship.root);
       engineSound('ship');
     }
+    // Riding a ship, STRIKER stands on deck in robot mode.
+    if (this.robot instanceof Jet && this.vehicle === 'ship') this.robot.setVehicle(false);
     this.vehicle = this.mapVehicle(this.vehicle);
     // A pick-your-robot mission on foot with STRIKER: it starts in robot mode.
     if (this.robot instanceof Jet && this.vehicle === 'foot') this.robot.setVehicle(false);
@@ -275,7 +290,12 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    if (moon) {
+    if (space) {
+      // Deep space: black, with the Sun's hard white light from one side.
+      stage.activate(spaceSky(), new THREE.Fog(SPACE_FOG, 130, 720));
+      stage.key.color.setHex(0xf4f6ff);
+      stage.key.intensity = 2.8;
+    } else if (moon) {
       // Harsh, bright sunlight with no air: black sky, crisp shadows. The dark side is lit only by starlight and lamps.
       const darkSide = mission.id === 'moon-dark';
       stage.activate(moonSky(), new THREE.Fog(MOON_FOG, darkSide ? 110 : 180, darkSide ? 620 : 880));

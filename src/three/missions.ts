@@ -49,7 +49,7 @@ export interface Mission {
   /** Where the boss stands (boss missions). */
   boss?: [number, number, number];
   /** Where it happens (default the city). */
-  env?: 'city' | 'desert' | 'jungle' | 'canyon' | 'arctic' | 'ocean' | 'volcano' | 'moon';
+  env?: 'city' | 'desert' | 'jungle' | 'canyon' | 'arctic' | 'ocean' | 'volcano' | 'moon' | 'space';
   /** Who flies it (default BOLT). A mission with a swap starts with `swapFrom` and ends with this one. */
   bot?: BotId;
   /** Who starts a hand-over mission (default BOLT). */
@@ -83,6 +83,9 @@ export interface Mission {
 const sk = (at: number, from: Spawn['from'], elite = false): Spawn => ({ kind: 'skimmer', at, from, elite });
 const kr = (at: number, from: Spawn['from'], elite = false): Spawn => ({ kind: 'krawler', at, from, elite });
 const rd = (at: number, from: Spawn['from']): Spawn => ({ kind: 'raider', at, from });
+
+/** Space: a long, gently weaving flight, high above nothing. */
+const SPACE_PATH: [number, number, number][] = [[0, 30, 40], [0, 30, 0], [12, 34, -90], [-10, 30, -180], [14, 36, -270], [-8, 32, -360], [6, 30, -440], [0, 30, -500]];
 
 /** Base defense missions: he stands at the start of the road, in front of the base, facing out. */
 const DEFEND_PATH: [number, number, number][] = [[0, 0, 20], [0, 0, -20], [0, 0, -200]];
@@ -1357,6 +1360,110 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'TITAN WALKER!' },
     ],
   },
+  // ---- Into space: the Moon base becomes a starship, and the first space chase (Moon to Mars) ----------
+  {
+    id: 'space-launch',
+    dmg: 3.6, hp: 2, fire: 0.8, extra: 1.1,
+    env: 'space',
+    pick: true,
+    title: 'Invasion 51: Launch!',
+    blurb: 'The Moon base is a starship now. Blast off!',
+    seed: 503,
+    path: SPACE_PATH,
+    plazas: [[0.3, 0.45], [0.75, 0.9]],
+    steps: [
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'The engines are lit! The whole Moon base is flying. Their fleet is running for Mars!' },
+          { who: 'sprocket', text: 'Stand on the deck and shoot down anything that chases us. The ship\'s turrets will help!' },
+        ],
+      },
+      { kind: 'move', to: 2, speed: 16, vehicle: 'ship', spawns: [sk(1.5, 'left'), sk(2.5, 'right'), sk(4, 'above')] },
+      { kind: 'wave', banner: 'ALIEN FIGHTERS!', spawns: [sk(0, 'left'), sk(0.6, 'right'), sk(1.4, 'above', true), sk(2.4, 'left'), sk(3.2, 'right')] },
+      { kind: 'move', to: 5, speed: 18, vehicle: 'ship', spawns: [sk(1, 'right'), sk(2, 'left', true), sk(3.5, 'above'), sk(5, 'right')] },
+      { kind: 'wave', banner: 'ON OUR TAIL!', spawns: [sk(0, 'left', true), sk(0.5, 'right'), sk(1.2, 'above'), sk(2, 'left'), sk(2.8, 'right', true)] },
+      { kind: 'move', to: 7, speed: 18, vehicle: 'ship', spawns: [sk(1, 'left'), sk(2.5, 'above', true)] },
+    ],
+  },
+  {
+    id: 'space-swarm',
+    dmg: 4, hp: 2.2, fire: 0.78, extra: 1.2,
+    env: 'space',
+    pick: true,
+    title: 'Invasion 52: Fighter Swarm',
+    blurb: 'A whole swarm of fighters. Protect the ship!',
+    seed: 509,
+    path: SPACE_PATH,
+    plazas: [[0.3, 0.45], [0.75, 0.9]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Radar\'s lighting up. It\'s a whole swarm!' }] },
+      { kind: 'move', to: 2, speed: 18, vehicle: 'ship', spawns: [sk(1, 'left'), sk(1.6, 'right'), sk(2.6, 'above', true), sk(3.6, 'left')] },
+      { kind: 'wave', banner: 'THE SWARM!', spawns: [sk(0, 'left'), sk(0.3, 'right'), sk(0.8, 'above'), sk(1.4, 'left', true), sk(2, 'right'), sk(2.6, 'above'), sk(3.2, 'left')] },
+      { kind: 'move', to: 5, speed: 18, vehicle: 'ship', spawns: [sk(1, 'right', true), sk(2, 'left'), sk(3, 'above'), sk(4, 'right')] },
+      { kind: 'wave', banner: 'BOMBERS!', spawns: [sk(0, 'above', true), sk(0.6, 'above', true), sk(1.4, 'left'), sk(2, 'right'), sk(3, 'above')] },
+      { kind: 'move', to: 7, speed: 18, vehicle: 'ship', spawns: [sk(1, 'left', true), sk(2.5, 'right', true)] },
+    ],
+  },
+  {
+    id: 'space-meteor',
+    dmg: 4.1, hp: 2.4, fire: 0.76, extra: 1.3,
+    env: 'space',
+    pick: true,
+    title: 'Invasion 53: Meteor Storm',
+    blurb: 'Through the meteors, with reinforcements!',
+    seed: 521,
+    path: SPACE_PATH,
+    plazas: [[0.3, 0.45], [0.75, 0.9]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Meteor storm ahead, and they\'re hiding fighters in it. Call for backup if it gets busy!' }] },
+      { kind: 'move', to: 2, speed: 16, vehicle: 'ship', spawns: [sk(1, 'left'), sk(2, 'right', true), sk(3, 'above')] },
+      { kind: 'wave', banner: 'METEOR STORM!', spawns: [sk(0, 'left', true), sk(0.6, 'right'), sk(1.2, 'above', true), sk(2, 'left'), sk(2.8, 'right')] },
+      { kind: 'say', lines: [{ who: 'volt', text: 'Too many of them! Launching reinforcements!' }] },
+      { kind: 'reinforce' },
+      { kind: 'move', to: 5, speed: 16, vehicle: 'ship', spawns: [sk(1, 'right', true), sk(1.8, 'left', true), sk(3, 'above'), sk(4, 'left')] },
+      { kind: 'wave', banner: 'OUT OF THE ROCKS!', spawns: [sk(0, 'above', true), sk(0.5, 'left', true), sk(1, 'right', true), sk(2, 'above'), sk(2.6, 'left'), sk(3.2, 'right')] },
+      { kind: 'move', to: 7, speed: 18, vehicle: 'ship', spawns: [sk(1, 'left', true), sk(2, 'right', true)] },
+    ],
+  },
+  {
+    id: 'space-cruiser',
+    dmg: 1.5, hp: 2.4, fire: 0.75, extra: 1.3,
+    env: 'space',
+    pick: true,
+    title: 'Invasion 54: Cruiser Chase',
+    blurb: 'Catch their cruisers before Mars!',
+    seed: 523,
+    path: SPACE_PATH,
+    plazas: [[0.3, 0.45], [0.75, 0.9]],
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Their cruisers are dropping fighters behind them to slow us down. Full speed!' }] },
+      { kind: 'move', to: 2, speed: 20, vehicle: 'ship', spawns: [sk(1, 'left', true), sk(1.6, 'right'), sk(2.6, 'above', true), sk(3.4, 'left')] },
+      { kind: 'wave', banner: 'CRUISER ESCORTS!', spawns: [sk(0, 'left', true), sk(0.4, 'right', true), sk(1, 'above', true), sk(1.8, 'left'), sk(2.4, 'right'), sk(3, 'above')] },
+      { kind: 'move', to: 5, speed: 20, vehicle: 'ship', spawns: [sk(1, 'right', true), sk(1.6, 'left', true), sk(2.6, 'above', true), sk(3.6, 'right')] },
+      { kind: 'wave', banner: 'LAST ESCORTS!', spawns: [sk(0, 'above', true), sk(0.4, 'left', true), sk(0.8, 'right', true), sk(1.6, 'above'), sk(2.2, 'left', true), sk(2.8, 'right', true)] },
+      { kind: 'move', to: 7, speed: 20, vehicle: 'ship', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3, 'above', true)] },
+    ],
+  },
+  {
+    id: 'space-station',
+    dmg: 5.8, hp: 2.6, fire: 0.74, extra: 1.3,
+    env: 'space',
+    pick: true,
+    title: 'Invasion 55: The Battle Station',
+    blurb: 'Their battle station guards Mars. Boss!',
+    seed: 541,
+    path: SPACE_PATH,
+    plazas: [[0.3, 0.45], [0.8, 1]],
+    boss: [0, 16, -565],
+    bossHp: 6,
+    steps: [
+      { kind: 'say', lines: [{ who: 'volt', text: 'Mars dead ahead... and a giant battle station in front of it. Take it down!' }] },
+      { kind: 'move', to: 2, speed: 18, vehicle: 'ship', spawns: [sk(1, 'left', true), sk(2, 'right', true), sk(3, 'above', true)] },
+      { kind: 'wave', banner: 'STATION GUARDS!', spawns: [sk(0, 'left', true), sk(0.5, 'right', true), sk(1.2, 'above', true), sk(2, 'left'), sk(2.6, 'right'), sk(3.2, 'above')] },
+      { kind: 'move', to: 7, speed: 16, vehicle: 'ship', spawns: [sk(1, 'right', true), sk(2, 'left', true)] },
+      { kind: 'boss', banner: 'BATTLE STATION!' },
+    ],
+  },
 ];
 
 export function missionById(id: string): Mission {
@@ -1388,6 +1495,8 @@ export function alertBots(id: string): BotId[] | 'any' {
   const m = missionById(id);
   const moves = m.steps.flatMap((st) => (st.kind === 'move' ? [st.vehicle] : []));
   if (moves.includes('jet')) return ['jet'];
+  // On the starship's deck any robot can ride.
+  if (m.env === 'space') return 'any';
   if (moves.includes('ship')) return [m.bot ?? 'bolt'];
   return 'any';
 }

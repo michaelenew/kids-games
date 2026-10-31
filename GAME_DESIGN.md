@@ -282,6 +282,8 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 | The Deep (31–35) | TRIDENT (submarine) | Dividing: sharing hull tiles equally into rows | Multiplying (missing rows on repairs), every report kind, time, money |
 | Volcano Island (36–40) | PHANTOM (stealth) | Fractions: equal parts, naming fractions, fractions on a number line, one whole | Every report kind, time, money |
 | Moon base (41–45) | Any robot he picks | Area (counting tiles, then rows × columns) and perimeter (adding the sides), then telling them apart | Multiplying, adding; every report kind; patrol alerts review everything |
+| Moon Siege (46–50) | Any robot he picks | Nothing new: area and perimeter again with less help | The same, with outlines only |
+| Space chase (51–55) | Any robot, on the starship | Comparing numbers (<, >, =), 2 to 4 digits | Paper mode: subtraction off the boxes; ×2/×5/×10 facts in the drill and alerts |
 
 ---
 

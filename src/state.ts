@@ -1,3 +1,4 @@
+import { type PaperKind, type PaperProgress, type PaperStep, afterProblem as afterPaperProblem, stepOf as stepOfPaper } from './skills/paper';
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
 /** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot), RHINO (the tank) and TRIDENT (the submarine). */
@@ -55,6 +56,10 @@ export interface SaveData {
   titan?: BotData;
   /** Which robot he picked for each pick-your-robot mission. */
   picks?: Record<string, BotId>;
+  /** Paper mode: how far each kind of problem has moved from boxes toward a blank page (see skills/paper.ts). */
+  paper?: Partial<Record<PaperKind, PaperProgress>>;
+  /** The starship: how many of its parts he has built at the Starship Dock (see skills/compare.ts). */
+  ship?: number;
   /** The Moon base: how many of its pieces he has built (see skills/area.ts). */
   base?: number;
   /** Which robot he picked as backup for each mission with reinforcements. */
@@ -542,7 +547,7 @@ export function clearAlert(mission: string, s: SaveData = save()): void {
 }
 
 /** What a pre-launch check can review. */
-export type Review = 'gauge' | 'fuel' | 'crates' | 'clock' | 'share' | 'cell' | 'cells';
+export type Review = 'gauge' | 'fuel' | 'crates' | 'clock' | 'share' | 'cell' | 'cells' | 'times' | 'compare';
 
 /** The concepts he has met so far, in the order they take turns. */
 export function reviewKinds(s: SaveData = save()): Review[] {
@@ -554,6 +559,9 @@ export function reviewKinds(s: SaveData = save()): Review[] {
     share: (s.guide?.share ?? 0) >= 2,
     cell: (s.guide?.['cell-light'] ?? 0) >= 2,
     cells: true,
+    // From the starship on: quick multiplication facts, and comparing (<, >, =).
+    times: s.levelsDone.includes('space-launch'),
+    compare: (s.guide?.['compare-tens'] ?? 0) >= 2,
   };
   return (Object.keys(met) as Review[]).filter((k) => met[k]);
 }
@@ -657,3 +665,16 @@ export function bumpGuide(kind: string, s: SaveData = save()): void {
   persist();
 }
 
+
+// ---- Paper mode ------------------------------------------------------------------
+
+/** The step a kind of problem is at now (see skills/paper.ts). */
+export function paperStep(kind: PaperKind, s: SaveData = save()): PaperStep {
+  return stepOfPaper(s.paper?.[kind], kind, s.levelsDone);
+}
+
+/** One problem of this kind finished: move its step along. */
+export function paperDone(kind: PaperKind, solo: boolean, showMe = false, s: SaveData = save()): void {
+  s.paper = { ...(s.paper ?? {}), [kind]: afterPaperProblem(s.paper?.[kind], kind, s.levelsDone, solo, showMe) };
+  persist();
+}

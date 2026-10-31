@@ -8,7 +8,7 @@ import { clockText } from './time';
  * before it launches, from the kinds of problems it was built with.
  */
 
-export type PracticeKind = 'cells' | 'gauge' | 'barrel' | 'clock';
+export type PracticeKind = 'cells' | 'gauge' | 'barrel' | 'clock' | 'times' | 'compare';
 
 export interface PracticeCheck {
   kind: PracticeKind;
@@ -70,6 +70,30 @@ export function practiceCheck(
         story: `Is ${name}'s ${bot === 'bolt' ? 'blaster' : 'cannon'} barrel the right length? Read it off the ruler.`,
         ask: 'How long is the barrel?',
         choices: shuffle(rng, [q, q + 2, q - 1].map((v) => formatInches(v))),
+      };
+    }
+    case 'times': {
+      // The ×2, ×5 and ×10 facts (and later ×0 and ×1), typed straight in.
+      const a = [2, 5, 10][randInt(rng, 0, 2)];
+      const b = randInt(rng, 2, 9);
+      const [x, y] = rng() < 0.5 ? [a, b] : [b, a];
+      return {
+        kind, item: 'Thruster math', a: x, b: y, answer: String(x * y),
+        story: `${name}'s thrusters fire in bursts. Quick: how much thrust?`,
+        ask: `${x} × ${y} = ?`,
+      };
+    }
+    case 'compare': {
+      // Two readings, the sign goes in the circle (three to choose from: a miss shows why).
+      const a = randInt(rng, 100, 999);
+      let b = rng() < 0.5 ? Math.floor(a / 100) * 100 + randInt(rng, 0, 99) : randInt(rng, 100, 999);
+      if (rng() < 0.15) b = a;
+      const sign = a < b ? '<' : a > b ? '>' : '=';
+      return {
+        kind, item: 'Fuel readings', a, b, answer: sign,
+        story: 'Which fuel tank reading is bigger? Put the right sign in the circle.',
+        ask: `${formatNumber(a)}  ◯  ${formatNumber(b)}`,
+        choices: ['<', '=', '>'],
       };
     }
     default: {

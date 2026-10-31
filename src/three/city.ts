@@ -172,6 +172,8 @@ export interface CityOptions {
   defend?: boolean;
   /** Space: how many parts of the starship he has built (0 to 5). */
   ship?: number;
+  /** Titan's world file: build Saturn's rings (a flight) instead of Titan's surface. */
+  rings?: boolean;
 }
 
 export function buildCity(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City {

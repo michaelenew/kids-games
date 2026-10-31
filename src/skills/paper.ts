@@ -52,6 +52,8 @@ export const PAPER_FLOORS: { mission: string; floors: Partial<Record<PaperKind, 
   { mission: 'belt-chase', floors: { divide: 2, subtract: 3 } },
   { mission: 'europa-dive', floors: { add: 3, multiply: 3 } },
   { mission: 'titan-land', floors: { divide: 3 } },
+  // The last set is the "war": everything on a blank page.
+  { mission: 'kuiper-chase', floors: { subtract: 3, add: 3, multiply: 3, divide: 3 } },
 ];
 
 export function paperFloor(kind: PaperKind, done: string[]): PaperStep {

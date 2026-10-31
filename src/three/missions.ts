@@ -49,11 +49,17 @@ export interface Mission {
   /** Where the boss stands (boss missions). */
   boss?: [number, number, number];
   /** Where it happens (default the city). */
-  env?: 'city' | 'desert' | 'jungle' | 'canyon' | 'arctic' | 'ocean' | 'volcano' | 'moon' | 'space';
+  env?: 'city' | 'desert' | 'jungle' | 'canyon' | 'arctic' | 'ocean' | 'volcano' | 'moon' | 'space' | import('./worlds').WorldId;
   /** Who flies it (default BOLT). A mission with a swap starts with `swapFrom` and ends with this one. */
   bot?: BotId;
   /** Who starts a hand-over mission (default BOLT). */
   swapFrom?: BotId;
+  /**
+   * A ride: he stands on the deck of a vehicle he built (vehicle 'ship' all the
+   * way), and its turrets fight too. The path's height is the deck's height
+   * above the ground, so aliens on the ground stand that far below him.
+   */
+  ride?: import('./rides').RideKind;
   /**
    * Base defense (the Moon): he stands guard in front of the base he built and
    * doesn't move. Walkers march in from the horizon and smash at the base's
@@ -89,6 +95,209 @@ const SPACE_PATH: [number, number, number][] = [[0, 30, 40], [0, 30, 0], [12, 34
 
 /** Base defense missions: he stands at the start of the road, in front of the base, facing out. */
 const DEFEND_PATH: [number, number, number][] = [[0, 0, 20], [0, 0, -20], [0, 0, -200]];
+
+// ---- The solar system's missions (56 to 85), built from a few patterns ----------
+
+/** A path at a height: the deck of a ride (or a flight), with the ground at 0. */
+const pathAt = (y: number, long = false): [number, number, number][] => (long
+  ? [[0, y, 40], [0, y, 0], [12, y, -90], [-10, y, -180], [14, y, -270], [-8, y, -360], [6, y, -440], [0, y, -500]]
+  : [[0, y, 20], [0, y, -20], [10, y, -100], [-8, y, -180], [12, y, -260], [-6, y, -340], [8, y, -420], [-4, y, -500], [0, y, -560], [0, y, -590]]);
+
+type Mix = 'ground' | 'air';
+
+/**
+ * A wave of n aliens, tougher as `tier` goes up (1 to 5). On the ground,
+ * walkers jump in from the sides and saucers swoop; in the air (space,
+ * high flights) it's saucers and fighters.
+ */
+function waveOf(n: number, tier: number, mix: Mix): Spawn[] {
+  const out: Spawn[] = [];
+  const sides: Spawn['from'][] = ['left', 'right', 'above'];
+  for (let i = 0; i < n; i++) {
+    const at = i * (0.7 - tier * 0.05);
+    const elite = (i + tier) % Math.max(2, 6 - tier) === 0;
+    if (mix === 'ground' && i % 3 !== 2) out.push(kr(at, i % 2 ? 'roofR' : 'roofL', elite));
+    else if (mix === 'air' && i % 4 === 3) out.push(rd(at, i % 2 ? 'behindR' : 'behindL'));
+    else out.push(sk(at, sides[i % 3], elite));
+  }
+  return out;
+}
+
+interface RideMissionSpec {
+  id: string;
+  title: string;
+  blurb: string;
+  seed: number;
+  env: NonNullable<Mission['env']>;
+  ride: NonNullable<Mission['ride']>;
+  /** Deck height above the ground (and whether the path is the long space one). */
+  y: number;
+  mix: Mix;
+  tier: number;
+  say: string;
+  banners: string[];
+  reinforce?: boolean;
+  boss?: string;
+}
+
+/** A ride mission: two or three stretches with waves between, maybe reinforcements, maybe a boss. */
+function rideMission(o: RideMissionSpec): Mission {
+  const long = o.y >= 20;
+  const last = long ? 7 : 9;
+  const t = o.tier;
+  const steps: Step[] = [
+    { kind: 'say', lines: [{ who: 'volt', text: o.say }] },
+    { kind: 'move', to: 2, speed: long ? 18 : 10, vehicle: 'ship', spawns: waveOf(2 + Math.ceil(t / 2), t, o.mix).map((sp) => ({ ...sp, at: sp.at + 1 })) },
+    { kind: 'wave', banner: o.banners[0], spawns: waveOf(5 + t, t, o.mix) },
+  ];
+  if (o.reinforce) {
+    steps.push({ kind: 'say', lines: [{ who: 'volt', text: 'There are too many! Calling in backup!' }] }, { kind: 'reinforce' });
+  }
+  steps.push(
+    { kind: 'move', to: long ? 5 : 6, speed: long ? 18 : 10, vehicle: 'ship', spawns: waveOf(3 + Math.ceil(t / 2), t, o.mix).map((sp) => ({ ...sp, at: sp.at + 1 })) },
+    { kind: 'wave', banner: o.banners[1], spawns: waveOf(6 + t, t, o.mix) },
+  );
+  if (o.boss) {
+    steps.push({ kind: 'move', to: last, speed: long ? 16 : 8, vehicle: 'ship', spawns: waveOf(2, t, o.mix).map((sp) => ({ ...sp, at: sp.at + 1 })) }, { kind: 'boss', banner: o.boss });
+  } else {
+    steps.push(
+      { kind: 'move', to: last - 1, speed: long ? 18 : 10, vehicle: 'ship', spawns: waveOf(2 + Math.ceil(t / 2), t, o.mix).map((sp) => ({ ...sp, at: sp.at + 1 })) },
+      { kind: 'wave', banner: o.banners[2] ?? 'LAST WAVE!', spawns: waveOf(6 + t, t, o.mix) },
+      { kind: 'move', to: last, speed: long ? 16 : 8, vehicle: 'ship' },
+    );
+  }
+  const path = pathAt(o.y, long);
+  const end = path[path.length - 1];
+  return {
+    id: o.id, title: o.title, blurb: o.blurb, seed: o.seed, env: o.env, ride: o.ride, pick: true,
+    dmg: 1, hp: 1.4 + t * 0.15, fire: 0.85 - t * 0.02, extra: 0.8 + t * 0.1,
+    path, plazas: [[0.25, 0.4], [0.55, 0.7], [0.85, 1]],
+    ...(o.boss ? { boss: [end[0], end[1] - 14, end[2] - 65] as [number, number, number], bossHp: 3 } : {}),
+    steps,
+  };
+}
+
+interface FootMissionSpec {
+  id: string;
+  title: string;
+  blurb: string;
+  seed: number;
+  env: NonNullable<Mission['env']>;
+  bot: BotId;
+  swapFrom?: BotId;
+  tier: number;
+  say: string;
+  banners: string[];
+  boss?: string;
+}
+
+/** A robot's own mission: on foot, with a stretch in vehicle mode, like the volcano's. */
+function footMission(o: FootMissionSpec): Mission {
+  const t = o.tier;
+  const steps: Step[] = [{ kind: 'say', lines: [{ who: 'volt', text: o.say }] }];
+  steps.push(
+    { kind: 'move', to: 2, speed: 6, vehicle: 'foot', spawns: waveOf(2, t, 'ground').map((sp) => ({ ...sp, at: sp.at + 1 })) },
+    { kind: 'wave', banner: o.banners[0], spawns: waveOf(4 + t, t, 'ground') },
+  );
+  if (o.swapFrom) {
+    steps.push(
+      { kind: 'move', to: 4, speed: 5, vehicle: 'foot' },
+      {
+        kind: 'say', lines: [
+          { who: 'volt', text: 'The haze is too thick to see through! We need eyes in the sky.' },
+          { who: 'sprocket', text: 'Then meet my newest robot! It\'s an astronaut AND a starfighter. ASTRO, LAUNCH!' },
+        ],
+      },
+      { kind: 'swap' },
+      { kind: 'say', lines: [{ who: 'sprocket', text: 'ASTRO can fly through anything. TITAN, go find a lake to float on!' }] },
+    );
+  }
+  steps.push(
+    { kind: 'transform', to: 'car' },
+    { kind: 'move', to: 6, speed: 22, vehicle: 'car', spawns: [rd(1.5, 'behindL'), rd(3, 'behindR'), sk(4.5, 'above', t > 2), rd(6, 'behindL')] },
+    { kind: 'transform', to: 'robot' },
+    { kind: 'wave', banner: o.banners[1], spawns: waveOf(5 + t, t, 'ground') },
+  );
+  if (o.boss) steps.push({ kind: 'move', to: 8, speed: 5, vehicle: 'foot' }, { kind: 'boss', banner: o.boss });
+  else steps.push({ kind: 'move', to: 8, speed: 6, vehicle: 'foot', spawns: waveOf(2, t, 'ground') }, { kind: 'wave', banner: o.banners[2] ?? 'LAST WAVE!', spawns: waveOf(5 + t, t, 'ground') }, { kind: 'move', to: 9, speed: 5, vehicle: 'foot' });
+  return {
+    id: o.id, title: o.title, blurb: o.blurb, seed: o.seed, env: o.env, bot: o.bot,
+    ...(o.swapFrom ? { swapFrom: o.swapFrom, noControl: true } : {}),
+    dmg: 1, hp: 1.3 + t * 0.15, fire: 0.85 - t * 0.02, extra: 0.7 + t * 0.12,
+    path: pathAt(0), plazas: [[0, 0.12], [0.45, 0.6], [0.85, 1]],
+    ...(o.boss ? { boss: [0, -8, -655] as [number, number, number], bossHp: 3 } : {}),
+    steps,
+  };
+}
+
+const SOLAR: Mission[] = [
+  // Mars: RHINO's rover. Ride on its deck across the red planet.
+  rideMission({ id: 'mars-land', title: 'Invasion 56: Mars Landing', blurb: 'Ride RHINO\'s rover across Mars!', seed: 601, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1,
+    say: 'We\'re on Mars! RHINO\'s rover is ready. Pick a robot to ride on top and keep the aliens off!', banners: ['RED DUNES!', 'DUST DEVILS!'] }),
+  rideMission({ id: 'mars-dunes', title: 'Invasion 57: Dune Run', blurb: 'Race over the dunes!', seed: 607, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 2,
+    say: 'They\'re hiding behind the dunes. Full speed ahead!', banners: ['DUNE RAIDERS!', 'SAND STRIKE!'] }),
+  rideMission({ id: 'mars-canyon', title: 'Invasion 58: The Great Canyon', blurb: 'Down into the biggest canyon in the solar system!', seed: 613, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 3,
+    say: 'This canyon is way bigger than the Grand Canyon. And it\'s full of aliens!', banners: ['CANYON FLOOR!', 'CLIFF CRAWLERS!'] }),
+  rideMission({ id: 'mars-storm', title: 'Invasion 59: Dust Storm', blurb: 'A Mars dust storm. Call for backup!', seed: 617, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 4, reinforce: true,
+    say: 'A dust storm! They\'re attacking from inside it.', banners: ['IN THE STORM!', 'STORM BREAKERS!'] }),
+  rideMission({ id: 'mars-olympus', title: 'Invasion 60: Olympus Mons', blurb: 'Their walker on the biggest volcano. Boss!', seed: 619, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 5, boss: 'MARS WALKER!',
+    say: 'Olympus Mons, the biggest volcano in the solar system. Their Mars walker is at the top!', banners: ['VOLCANO GUARDS!', 'UP THE SLOPE!'] }),
+  // The asteroid belt: TITAN's mining ship, a space chase through the rocks.
+  rideMission({ id: 'belt-chase', title: 'Invasion 61: Into the Belt', blurb: 'Chase them into the asteroid belt!', seed: 631, env: 'belt', ride: 'miner', y: 30, mix: 'air', tier: 1,
+    say: 'They\'re hiding in the asteroid belt. TITAN\'s mining ship can fly right through it!', banners: ['ROCK FIELD!', 'FIGHTERS!'] }),
+  rideMission({ id: 'belt-mine', title: 'Invasion 62: The Mining Rocks', blurb: 'They want our ore!', seed: 641, env: 'belt', ride: 'miner', y: 30, mix: 'air', tier: 2,
+    say: 'They\'re trying to steal the ore we dug up. Protect the ship!', banners: ['ORE THIEVES!', 'ROCK RAIDERS!'] }),
+  rideMission({ id: 'belt-swarm', title: 'Invasion 63: Rock Hoppers', blurb: 'A swarm in the rocks. Backup coming!', seed: 643, env: 'belt', ride: 'miner', y: 30, mix: 'air', tier: 3, reinforce: true,
+    say: 'They hop from rock to rock. Watch every side!', banners: ['ROCK HOPPERS!', 'SWARM!'] }),
+  rideMission({ id: 'belt-giant', title: 'Invasion 64: The Giant Asteroid', blurb: 'Around the biggest asteroid of all!', seed: 647, env: 'belt', ride: 'miner', y: 30, mix: 'air', tier: 4,
+    say: 'That asteroid is as big as a city! Their base is on the far side.', banners: ['GIANT ROCK!', 'FAR SIDE!'] }),
+  rideMission({ id: 'belt-hive', title: 'Invasion 65: The Hive Rock', blurb: 'Their hive inside an asteroid. Boss!', seed: 653, env: 'belt', ride: 'miner', y: 30, mix: 'air', tier: 5, boss: 'ASTEROID HIVE!',
+    say: 'They dug a whole hive into an asteroid. Smash it!', banners: ['HIVE GUARDS!', 'INSIDE THE ROCK!'] }),
+  // Europa: TRIDENT's ice sub, under the ice of Jupiter's moon.
+  rideMission({ id: 'europa-dive', title: 'Invasion 66: Under the Ice', blurb: 'Drill through the ice of Europa!', seed: 661, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 1,
+    say: 'There\'s a whole ocean under Europa\'s ice! TRIDENT\'s sub just drilled through. Dive!', banners: ['ICE OCEAN!', 'DEEP DIVERS!'] }),
+  rideMission({ id: 'europa-vents', title: 'Invasion 67: Hot Vents', blurb: 'Hot vents on the sea floor!', seed: 673, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 2,
+    say: 'Hot water vents keep this ocean warm. And the aliens are using them!', banners: ['THE VENTS!', 'BUBBLE STORM!'] }),
+  rideMission({ id: 'europa-caves', title: 'Invasion 68: Ice Caves', blurb: 'Through the ice caves!', seed: 677, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 3,
+    say: 'Ice caves, glowing blue. Keep your eyes open!', banners: ['ICE CAVES!', 'CAVE CRAWLERS!'] }),
+  rideMission({ id: 'europa-glow', title: 'Invasion 69: The Glow Reef', blurb: 'A glowing reef. Backup coming!', seed: 683, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 4, reinforce: true,
+    say: 'A reef that glows in the dark... and it\'s swarming!', banners: ['GLOW REEF!', 'REEF SWARM!'] }),
+  rideMission({ id: 'europa-depths', title: 'Invasion 70: Europa\'s Deep', blurb: 'The bottom of Europa\'s ocean. Boss!', seed: 691, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 5, boss: 'ICE KRAKEN!',
+    say: 'All the way down. Something huge is waiting at the bottom!', banners: ['DEEP GUARDS!', 'THE ABYSS!'] }),
+  // Titan: ASTRO joins. TITAN's hovercraft on the methane lakes, and a chase through Saturn's rings.
+  footMission({ id: 'titan-land', title: 'Invasion 71: TITAN on Titan', blurb: 'TITAN lands on Saturn\'s moon Titan!', seed: 701, env: 'titan', bot: 'astro', swapFrom: 'titan', tier: 1,
+    say: 'Saturn\'s biggest moon is called Titan. So who else would we send? TITAN!', banners: ['ORANGE HAZE!', 'HAZE HUNTERS!'] }),
+  rideMission({ id: 'titan-lakes', title: 'Invasion 72: Methane Lakes', blurb: 'Hovercraft across the lakes!', seed: 709, env: 'titan', ride: 'hover', y: 2.2, mix: 'ground', tier: 2,
+    say: 'Titan has lakes, but they aren\'t water! TITAN\'s hovercraft skims right over them.', banners: ['LAKE RAIDERS!', 'SHORE CRAWLERS!'] }),
+  footMission({ id: 'titan-haze', title: 'Invasion 73: Into the Haze', blurb: 'ASTRO flies into the haze!', seed: 719, env: 'titan', bot: 'astro', tier: 3,
+    say: 'ASTRO, take the lead. Fly low through the haze!', banners: ['HAZE WALKERS!', 'DUNE FIGHT!'] }),
+  rideMission({ id: 'rings-chase', title: 'Invasion 74: Saturn\'s Rings', blurb: 'Chase them through Saturn\'s rings!', seed: 727, env: 'rings', ride: 'starship', y: 30, mix: 'air', tier: 4, reinforce: true,
+    say: 'They\'re running into Saturn\'s rings! Starship, full speed!', banners: ['THE RINGS!', 'ICE STORM!'] }),
+  footMission({ id: 'titan-core', title: 'Invasion 75: Titan\'s Walker', blurb: 'Their walker on Titan. Boss!', seed: 733, env: 'titan', bot: 'astro', tier: 5, boss: 'METHANE WALKER!',
+    say: 'Their Titan walker is guarding a lake of fuel. ASTRO, take it down!', banners: ['FUEL GUARDS!', 'THE LAKE SHORE!'] }),
+  // Pluto: PHANTOM's stealth shuttle, sneaking up on their hideout.
+  rideMission({ id: 'pluto-land', title: 'Invasion 76: Pluto', blurb: 'Sneak onto Pluto!', seed: 751, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 1,
+    say: 'Pluto! Cold, dark and very far away. Their hideout is here somewhere. Stay sneaky!', banners: ['ICE PLAINS!', 'FROST FIGHTERS!'] }),
+  rideMission({ id: 'pluto-heart', title: 'Invasion 77: The Heart', blurb: 'Over Pluto\'s giant heart!', seed: 757, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 2,
+    say: 'Pluto has a giant heart-shaped plain of ice! Fly over it.', banners: ['THE HEART!', 'ICE GLIDERS!'] }),
+  rideMission({ id: 'pluto-peaks', title: 'Invasion 78: Ice Mountains', blurb: 'Between the ice mountains!', seed: 761, env: 'pluto', ride: 'shuttle', y: 8, mix: 'ground', tier: 3,
+    say: 'Mountains made of ice, as tall as the Rockies. Weave between them!', banners: ['ICE PEAKS!', 'AVALANCHE!'] }),
+  rideMission({ id: 'pluto-dark', title: 'Invasion 79: Pluto\'s Night', blurb: 'In the dark. Backup coming!', seed: 769, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 4, reinforce: true,
+    say: 'The Sun is just a bright star from here. It\'s so dark. Sensors on!', banners: ['IN THE DARK!', 'NIGHT RAID!'] }),
+  rideMission({ id: 'pluto-base', title: 'Invasion 80: Their Hideout', blurb: 'Their hideout under the ice. Boss!', seed: 773, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 5, boss: 'FROST WALKER!',
+    say: 'Found it! Their hideout. They know we\'re here now!', banners: ['HIDEOUT GATES!', 'LAST GUARDS!'] }),
+  // The Kuiper Belt: BOLT's rocket fighter, all the way to their home.
+  rideMission({ id: 'kuiper-chase', title: 'Invasion 81: The Kuiper Belt', blurb: 'Past Pluto, into the Kuiper Belt!', seed: 801, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 2,
+    say: 'Past Pluto there\'s a whole belt of ice worlds. Their home is out here!', banners: ['ICE WORLDS!', 'FIGHTER SCREEN!'] }),
+  rideMission({ id: 'haumea-land', title: 'Invasion 82: Haumea', blurb: 'Past the egg-shaped planet!', seed: 809, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 3,
+    say: 'Haumea! It spins so fast it\'s shaped like an egg. And it\'s their lookout post!', banners: ['LOOKOUT POST!', 'EGG PLANET!'] }),
+  rideMission({ id: 'kuiper-fleet', title: 'Invasion 83: The Last Fleet', blurb: 'Their whole fleet. Everyone, help!', seed: 811, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 4, reinforce: true,
+    say: 'Their whole fleet is here. Everyone, together!', banners: ['THE LAST FLEET!', 'ALL TOGETHER!'] }),
+  rideMission({ id: 'kuiper-gate', title: 'Invasion 84: The Star Gate', blurb: 'Through their giant gate!', seed: 821, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 5,
+    say: 'A giant gate, and their home is on the other side!', banners: ['GATE GUARDS!', 'THROUGH THE GATE!'] }),
+  rideMission({ id: 'kuiper-home', title: 'Invasion 85: The Alien Mothership', blurb: 'Their mothership. The final battle!', seed: 823, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 5, reinforce: true, boss: 'THE MOTHERSHIP!',
+    say: 'There it is. Their mothership, the one that started it all. This is the final battle!', banners: ['MOTHERSHIP GUARDS!', 'FINAL WAVE!'] }),
+];
 
 export const MISSIONS: Mission[] = [
   {
@@ -1464,6 +1673,7 @@ export const MISSIONS: Mission[] = [
       { kind: 'boss', banner: 'BATTLE STATION!' },
     ],
   },
+  ...SOLAR,
 ];
 
 export function missionById(id: string): Mission {
@@ -1495,8 +1705,8 @@ export function alertBots(id: string): BotId[] | 'any' {
   const m = missionById(id);
   const moves = m.steps.flatMap((st) => (st.kind === 'move' ? [st.vehicle] : []));
   if (moves.includes('jet')) return ['jet'];
-  // On the starship's deck any robot can ride.
-  if (m.env === 'space') return 'any';
+  // On the starship's (or any built vehicle's) deck any robot can ride.
+  if (m.env === 'space' || m.ride) return 'any';
   if (moves.includes('ship')) return [m.bot ?? 'bolt'];
   return 'any';
 }

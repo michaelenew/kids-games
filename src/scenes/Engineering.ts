@@ -32,6 +32,11 @@ const STORY: Record<BotId, Record<GearId, string>> = {
     blaster: 'Cut new torpedo tubes for bigger shots.',
     boots: 'Fuel the jet fins to dash past shots.',
   },
+  astro: {
+    armor: 'Forge space armor plates so hits hurt less.',
+    blaster: 'Cut new star-blaster barrels for bigger shots.',
+    boots: 'Fuel the jet pack to dash past shots.',
+  },
   stealth: {
     armor: 'Charge cloak cells: equal parts, lit just right.',
     blaster: 'Cut new pulse barrels for bigger shots.',
@@ -103,6 +108,11 @@ export class EngineeringScene extends Phaser.Scene {
         { who: 'sprocket', text: 'This is my favorite place! Each bench builds one kind of upgrade.' },
         { who: 'sprocket', text: 'Building takes scrap, and a little brain power. Pick whatever you like!' },
       ], () => markSeen('engineering-intro'));
+    } else if (bot === 'astro' && !hasSeen('engineering-astro')) {
+      dialog(this, [
+        { who: 'sprocket', text: 'ASTRO\'s benches! Space armor, a star blaster and a jet pack.' },
+        { who: 'sprocket', text: 'It\'s all stuff you know how to build already. Show the new robot what you can do!' },
+      ], () => markSeen('engineering-astro'));
     } else if (bot === 'stealth' && !hasSeen('engineering-stealth')) {
       dialog(this, [
         { who: 'sprocket', text: 'PHANTOM\'s benches! Cloak cells, a pulse blaster and a cloak emitter.' },

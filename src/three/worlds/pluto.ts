@@ -686,7 +686,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const uv = floorGeo.attributes.uv;
     const col = new Float32Array(pos.count * 3);
     const ice = new Float32Array(pos.count * 2);
-    const cream = new THREE.Color(0xd2b896);
+    const cream = new THREE.Color(0xc8ab88);
     const tan = new THREE.Color(0xb08058);
     const rust = new THREE.Color(0x93502f);
     const cthulhu = new THREE.Color(0x5c2a1c);
@@ -732,8 +732,8 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
         {
           vec4 cell = texture2D(cellMap, vXZ / 110.0);
           float cells = clamp(vIce.y * 1.2, 0.0, 1.0);
-          vec3 smooth_ice = mix(vec3(0.46, 0.54, 0.68), vec3(0.68, 0.7, 0.74), cell.g * 0.6 + 0.4);
-          vec3 iceCol = mix(vec3(0.66, 0.66, 0.65), smooth_ice * (0.6 + 0.4 * cell.r), cells);
+          vec3 smooth_ice = mix(vec3(0.36, 0.42, 0.55), vec3(0.54, 0.56, 0.6), cell.g * 0.6 + 0.4);
+          vec3 iceCol = mix(vec3(0.52, 0.52, 0.53), smooth_ice * (0.62 + 0.38 * cell.r), cells);
           // A faint bluish shine toward each cell's middle.
           iceCol += vec3(0.01, 0.03, 0.06) * (1.0 - cell.b) * cells;
           diffuseColor.rgb = mix(diffuseColor.rgb, iceCol * iceTint, iceK);

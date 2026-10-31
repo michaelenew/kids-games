@@ -292,15 +292,15 @@ const SOLAR: Mission[] = [
   rideMission({ id: 'pluto-base', title: 'Invasion 80: Their Hideout', blurb: 'Their hideout under the ice. Boss!', seed: 773, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 5, dmg: 1.25, boss: 'FROST WALKER!',
     say: 'Found it! Their hideout. They know we\'re here now!', banners: ['HIDEOUT GATES!', 'LAST GUARDS!'] }),
   // The Kuiper Belt: BOLT's rocket fighter, all the way to their home.
-  rideMission({ id: 'kuiper-chase', title: 'Invasion 81: The Kuiper Belt', blurb: 'Past Pluto, into the Kuiper Belt!', seed: 801, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 2, dmg: 1.15,
+  rideMission({ id: 'kuiper-chase', title: 'Invasion 81: The Kuiper Belt', blurb: 'Past Pluto, into the Kuiper Belt!', seed: 801, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 2, dmg: 1.2,
     say: 'Past Pluto there\'s a whole belt of ice worlds. Their home is out here!', banners: ['ICE WORLDS!', 'FIGHTER SCREEN!'] }),
-  rideMission({ id: 'haumea-land', title: 'Invasion 82: Haumea', blurb: 'Past the egg-shaped planet!', seed: 809, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 3, dmg: 1.27,
+  rideMission({ id: 'haumea-land', title: 'Invasion 82: Haumea', blurb: 'Past the egg-shaped planet!', seed: 809, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 3, dmg: 0.56,
     say: 'Haumea! It spins so fast it\'s shaped like an egg. And it\'s their lookout post!', banners: ['LOOKOUT POST!', 'EGG PLANET!'] }),
-  rideMission({ id: 'kuiper-fleet', title: 'Invasion 83: The Last Fleet', blurb: 'Their whole fleet. Everyone, help!', seed: 811, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 4, dmg: 2.0, reinforce: true,
+  rideMission({ id: 'kuiper-fleet', title: 'Invasion 83: The Last Fleet', blurb: 'Their whole fleet. Everyone, help!', seed: 811, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 4, dmg: 0.84, reinforce: true,
     say: 'Their whole fleet is here. Everyone, together!', banners: ['THE LAST FLEET!', 'ALL TOGETHER!'] }),
-  rideMission({ id: 'kuiper-gate', title: 'Invasion 84: The Star Gate', blurb: 'Through their giant gate!', seed: 821, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 5, dmg: 1.3,
+  rideMission({ id: 'kuiper-gate', title: 'Invasion 84: The Star Gate', blurb: 'Through their giant gate!', seed: 821, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 5, dmg: 0.47,
     say: 'A giant gate, and their home is on the other side!', banners: ['GATE GUARDS!', 'THROUGH THE GATE!'] }),
-  rideMission({ id: 'kuiper-home', title: 'Invasion 85: The Alien Mothership', blurb: 'Their mothership. The final battle!', seed: 823, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 5, dmg: 1.3, reinforce: true, boss: 'THE MOTHERSHIP!',
+  rideMission({ id: 'kuiper-home', title: 'Invasion 85: The Alien Mothership', blurb: 'Their mothership. The final battle!', seed: 823, env: 'kuiper', ride: 'rocket', y: 30, mix: 'air', tier: 5, dmg: 1.96, reinforce: true, boss: 'THE MOTHERSHIP!',
     say: 'There it is. Their mothership, the one that started it all. This is the final battle!', banners: ['MOTHERSHIP GUARDS!', 'FINAL WAVE!'] }),
 ];
 

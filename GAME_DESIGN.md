@@ -261,13 +261,15 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 - **RHINO** (built): an army-green camo tank robot that transforms into a tank. Drops in for TITAN in the first Arctic mission. Review only: its armor uses the regular forge.
 - **TRIDENT** (built): a sea-teal submarine robot with a glass dome helmet. Drops in for RHINO in the first ocean mission. Its armor is hull tiles shared into equal rows, which is where dividing lives.
 - **PHANTOM** (built): a violet stealth robot that cloaks (shots pass through it) and rides a hoverbike. Drops in for TRIDENT in the first volcano mission. Its armor is cloak cells, power bars cut into equal parts, which is where fractions live.
-- **Planned: a brand-new space robot** for the solar-system sets (for example an astronaut robot that turns into a starfighter), debuting partway through them, probably with the first space chase, to keep new characters coming.
+- **ASTRO** (built): a white astronaut robot that turns into a starfighter. Lands on Titan in mission 71 (TITAN hands over to it) and fights the Titan set on foot. Review only: its benches use the regular forge.
+- **Solar-system vehicles:** RHINO's Mars rover, TITAN's mining ship and lake hovercraft, TRIDENT's ice sub, PHANTOM's stealth shuttle and BOLT's rocket fighter. Any robot can ride them; each is built a part at a time in its vehicle bay.
 
-### What's next (agreed plan)
+### How the solar system is planned
 
 - **No more review rounds.** Patrol alerts (pick any robot, the pre-launch check takes turns through every concept he has learned) plus super gadgets keep the old ideas coming back.
-- **The Moon base (41–45) is built** (see the table above).
-- **Then across the solar system (46 on):** a planet or moon per set, with space chase sections. Each set he builds a space vehicle for one of his old robots (BOLT a rocket fighter, TITAN a mining lander, RHINO a Mars rover, TRIDENT an ice-moon sub, PHANTOM a stealth shuttle, STRIKER a starfighter upgrade), and that vehicle's bench carries the set's one new concept: measurement (liters and kilograms) first, then comparing and equivalent fractions, then two-step word problems. The asteroid belt (rounding and estimating) comes later.
+- **One new idea per set, at the vehicle bay.** Eighths on a ruler and "how much longer" with fractions are not sets of their own: each gets a good picture at the bench the first time only.
+- **Help fades on the old ideas.** Paper mode floors rise set by set (Mars: adding and multiplying off the boxes; the belt: dividing, and subtraction onto the blank page; Europa: adding and multiplying onto the blank page; Titan: dividing; the Kuiper Belt: everything). Bay jobs on old ideas are on his own.
+- **Everything he built comes back:** each old robot gets a space vehicle, and the last set is the "war": nothing new, all on paper.
 
 ### Where each skill lives, by area
 
@@ -284,6 +286,12 @@ Keeping **skills** separate from **story** means a new chapter is mostly writing
 | Moon base (41–45) | Any robot he picks | Area (counting tiles, then rows × columns) and perimeter (adding the sides), then telling them apart | Multiplying, adding; every report kind; patrol alerts review everything |
 | Moon Siege (46–50) | Any robot he picks | Nothing new: area and perimeter again with less help | The same, with outlines only |
 | Space chase (51–55) | Any robot, on the starship | Comparing numbers (<, >, =), 2 to 4 digits | Paper mode: subtraction off the boxes; ×2/×5/×10 facts in the drill and alerts |
+| Mars (56–60) | Any robot, on RHINO's rover | Adding three 2-digit numbers; eighths on a ruler (first time only) | Paper mode: adding and multiplying off the boxes |
+| Asteroid belt (61–65) | Any robot, on TITAN's mining ship | Two-step word problems | Dividing off the boxes; subtraction on the blank page |
+| Europa (66–70) | Any robot, on TRIDENT's ice sub | Picture graphs (each picture = 3 or 5, twice as many); how much longer in eighths (first time only) | Adding and multiplying on the blank page |
+| Titan & Saturn (71–75) | ASTRO on foot; TITAN's hovercraft; the starship | Even and odd; ×0 and ×1 | Dividing on the blank page |
+| Pluto (76–80) | Any robot, on PHANTOM's stealth shuttle | The calendar | Everything mixed into bay jobs, on his own |
+| Kuiper Belt (81–85) | Any robot, on BOLT's rocket fighter | Nothing new: the "war" | Everything on the blank page |
 
 ---
 

@@ -281,9 +281,9 @@ const SOLAR: Mission[] = [
   footMission({ id: 'titan-core', title: 'Invasion 75: Titan\'s Walker', blurb: 'Their walker on Titan. Boss!', seed: 733, env: 'titan', bot: 'astro', tier: 5, dmg: 1.19, boss: 'METHANE WALKER!',
     say: 'Their Titan walker is guarding a lake of fuel. ASTRO, take it down!', banners: ['FUEL GUARDS!', 'THE LAKE SHORE!'] }),
   // Pluto: PHANTOM's stealth shuttle, sneaking up on their hideout.
-  rideMission({ id: 'pluto-land', title: 'Invasion 76: Pluto', blurb: 'Sneak onto Pluto!', seed: 751, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 1, dmg: 1.75,
+  rideMission({ id: 'pluto-land', title: 'Invasion 76: Pluto', blurb: 'Sneak onto Pluto!', seed: 751, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 1, dmg: 1.68,
     say: 'Pluto! Cold, dark and very far away. Their hideout is here somewhere. Stay sneaky!', banners: ['ICE PLAINS!', 'FROST FIGHTERS!'] }),
-  rideMission({ id: 'pluto-heart', title: 'Invasion 77: The Heart', blurb: 'Over Pluto\'s giant heart!', seed: 757, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 2, dmg: 1.15,
+  rideMission({ id: 'pluto-heart', title: 'Invasion 77: The Heart', blurb: 'Over Pluto\'s giant heart!', seed: 757, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 2, dmg: 0.97,
     say: 'Pluto has a giant heart-shaped plain of ice! Fly over it.', banners: ['THE HEART!', 'ICE GLIDERS!'] }),
   rideMission({ id: 'pluto-peaks', title: 'Invasion 78: Ice Mountains', blurb: 'Between the ice mountains!', seed: 761, env: 'pluto', ride: 'shuttle', y: 8, mix: 'ground', tier: 3, dmg: 0.265,
     say: 'Mountains made of ice, as tall as the Rockies. Weave between them!', banners: ['ICE PEAKS!', 'AVALANCHE!'] }),

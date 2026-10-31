@@ -57,7 +57,8 @@ export class VehicleBay extends Phaser.Scene {
     music('calm');
     const next = nextBayPart(this.bay, s);
     this.part = next ?? Math.max(0, Math.min(this.bay.parts.length - 1, bayParts(this.bay, s) - 1));
-    this.showPart(this.part);
+    // Building a part: that part on the stand. Nothing to build: the whole vehicle so far.
+    this.showPart(this.part, next === undefined ? bayParts(this.bay, s) : undefined);
     button(this, 95, 46, 160, 60, '◀ Garage', () => this.scene.start('Garage'), { size: 24, fill: 0x3d4458 });
     if (next === undefined) {
       this.status();
@@ -84,17 +85,35 @@ export class VehicleBay extends Phaser.Scene {
     }
   }
 
-  private showPart(part: number) {
+  private showPart(part: number, whole?: number) {
     const stage = getStage(this.game.canvas);
     new Showcase(stage, []);
     const holder = new THREE.Group();
-    holder.position.set(px2w(285), py2w(600), 0);
-    holder.scale.setScalar(1.25);
-    holder.add(RIDES[this.bay.ride].partModel(part));
+    holder.position.set(px2w(285), py2w(630), 0);
+    // Parts come in all shapes (a tall mast, a long flat hull), so fit each one
+    // to the stand: about 560 px across as it turns, at most 380 px tall.
+    const ride = RIDES[this.bay.ride];
+    const ship = whole !== undefined ? ride.build(whole) : undefined;
+    const model = ship ? ship.root : ride.partModel(part);
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const across = Math.hypot(size.x, size.z) || 1;
+    const k = Math.min(px2w(560) / across, px2w(380) / (size.y || 1));
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.set(-center.x, -box.min.y, -center.z);
+    const fit = new THREE.Group();
+    fit.scale.setScalar(k);
+    fit.add(model);
+    holder.add(fit);
     holder.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh));
     stage.content.add(holder);
     holder.rotation.y = 0.6;
-    stage.onUpdate((dt) => (holder.rotation.y += dt * 0.4));
+    let t = 0;
+    stage.onUpdate((dt) => {
+      t += dt;
+      holder.rotation.y += dt * 0.4;
+      ship?.update(dt, t);
+    });
   }
 
   private say(label: string, ask: string, color = '#ffffff') {

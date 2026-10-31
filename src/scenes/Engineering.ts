@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONT } from '../art';
 import { REGIONS, forgeScene, lookFromSave } from '../armor';
 import { Showcase } from '../three/showcase';
+import { BAYS } from '../skills/bays';
 import { getStage } from '../three/stage';
 import {
   BOTS, BUILD_COST, GADGET_IDS, type BotId, type GadgetId, type GearId, activeBot, botData, botName, botsUnlocked, egyptUnlocked,
@@ -148,11 +149,14 @@ export class EngineeringScene extends Phaser.Scene {
     const base = save().levelsDone.includes('moon-land');
     // Once the Moon is won, the base is the starship: its dock takes the tab.
     const dock = save().levelsDone.includes('siege-final');
-    const tabs: { id: BotId | 'lab' | 'base' | 'dock'; label: string; fill: number; edge: number }[] = [
+    // In the solar system, the current set's vehicle bay takes the tab.
+    const bay = [...BAYS].reverse().find((b) => save().levelsDone.includes(b.after));
+    const tabs: { id: BotId | 'lab' | 'base' | 'dock' | 'bay'; label: string; fill: number; edge: number }[] = [
       ...botsUnlocked().map((b) => ({ id: b, label: `${TAB(b).icon} ${botName(b)}`, fill: TAB(b).fill, edge: TAB(b).edge })),
       ...(lab ? [{ id: 'lab' as const, label: '⚡ SUPER LAB', fill: 0x7b2cbf, edge: 0xe0aaff }] : []),
       ...(base && !dock ? [{ id: 'base' as const, label: '🌕 MOON BASE', fill: 0x3a4a66, edge: 0xcfe8ff }] : []),
-      ...(dock ? [{ id: 'dock' as const, label: '🚀 STARSHIP', fill: 0x1f4f6a, edge: 0x9ff0ff }] : []),
+      ...(dock && !bay ? [{ id: 'dock' as const, label: '🚀 STARSHIP', fill: 0x1f4f6a, edge: 0x9ff0ff }] : []),
+      ...(bay ? [{ id: 'bay' as const, label: `🔧 ${bay.vehicle.toUpperCase()}`, fill: 0x3a4a7a, edge: 0xffe28a }] : []),
     ];
     // The tabs share the space right of the Garage button.
     const left = 200;
@@ -170,6 +174,10 @@ export class EngineeringScene extends Phaser.Scene {
         }
         if (t.id === 'dock') {
           this.scene.start('StarshipDock', {});
+          return;
+        }
+        if (t.id === 'bay') {
+          if (bay) this.scene.start('VehicleBay', { bay: bay.id });
           return;
         }
         if (t.id === 'lab') {

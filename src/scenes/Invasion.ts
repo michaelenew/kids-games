@@ -10,6 +10,7 @@ import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { nextPiece } from '../skills/area';
 import { nextShipPart } from '../skills/compare';
+import { BAYS, bayFor, readyBay } from '../skills/bays';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, text, toast } from '../ui/widgets';
 
@@ -510,6 +511,11 @@ export class InvasionScene extends Phaser.Scene {
     // On the Moon, a win means the next piece of the base can go up; in space (and after the Siege), the next ship part.
     if (this.mission.env === 'moon' && nextPiece(s) !== undefined) return { key: 'BaseBuilder', label: 'Build the base!' };
     if ((this.mission.env === 'space' || this.mission.id === 'siege-final') && nextShipPart(s) !== undefined) return { key: 'StarshipDock', label: 'Build the ship!' };
+    // In the solar system, a win means the next part of this set's vehicle (or the next set's first part).
+    const rb = readyBay(s);
+    if (rb && (bayFor(this.mission.id) || BAYS.some((b) => b.after === this.mission.id))) {
+      return { key: 'VehicleBay', data: { bay: rb.bay.id }, label: `Build the ${rb.bay.vehicle}!` };
+    }
     return { key: 'Garage', label: 'Back to Garage' };
   }
 
@@ -668,6 +674,44 @@ export class InvasionScene extends Phaser.Scene {
           { who: 'volt', text: 'The battle station is gone! Mars is right below us.' },
           { who: 'sprocket', text: 'And RHINO has been waiting for this. Time to build it a Mars rover!' },
         ], after);
+      } else if (this.mission.id === 'mars-olympus' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Mars walker is down! But the rest flew off into the ASTEROID BELT.' },
+          { who: 'sprocket', text: 'Rocks everywhere out there. TITAN\'s going to need a mining ship. Let\'s build one!' },
+        ], after);
+      } else if (this.mission.id === 'belt-hive' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The hive rock is smashed! The last few dove toward Jupiter... to its moon EUROPA.' },
+          { who: 'sprocket', text: 'Europa has a whole ocean under its ice. That sounds like a job for TRIDENT, and an ice submarine!' },
+        ], after);
+      } else if (this.mission.id === 'europa-depths' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Ice Kraken is done! Next stop: Saturn, and its biggest moon, called... TITAN.' },
+          { who: 'sprocket', text: 'TITAN on Titan! It\'ll need a hovercraft for the lakes. And I\'ve got a surprise: a brand-new robot.' },
+        ], after);
+      } else if (this.mission.id === 'titan-land' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'ASTRO! Our space robot is here! It\'s an astronaut AND a starfighter.' },
+          { who: 'sprocket', text: 'Its armor is bare, though. Let\'s forge ASTRO some space armor, just like the others!' },
+        ], after);
+      } else if (this.mission.id === 'titan-core' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'The Methane Walker is down! They\'re running to the coldest, darkest place yet: PLUTO.' },
+          { who: 'sprocket', text: 'Then we sneak up on them. PHANTOM needs a stealth shuttle!' },
+        ], after);
+      } else if (this.mission.id === 'pluto-base' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'Their hideout is gone! And look: their map. Their HOME is out in the Kuiper Belt.' },
+          { who: 'sprocket', text: 'This is it. And who should lead the way? The very first robot you ever built: BOLT. With a rocket fighter!' },
+        ], after);
+      } else if (this.mission.id === 'kuiper-home' && firstWin) {
+        dialog(this, [
+          { who: 'volt', text: 'THE MOTHERSHIP IS DOWN! The aliens are flying away, all the way out of the solar system!' },
+          { who: 'volt', text: 'From the city to the Kuiper Belt... BOLT, STRIKER, TITAN, RHINO, TRIDENT, PHANTOM and ASTRO saved everyone.' },
+          { who: 'sprocket', text: 'And YOU built every single thing they used. The best engineer in the whole solar system!' },
+        ], after);
+      } else if (next.key === 'VehicleBay') {
+        dialog(this, [{ who: 'sprocket', text: 'Great job! Let\'s build the next part.' }], after);
       } else if (next.key === 'StarshipDock') {
         dialog(this, [{ who: 'sprocket', text: 'Great flying! Let\'s bolt the next part onto the ship.' }], after);
       } else if (next.key === 'BaseBuilder') {

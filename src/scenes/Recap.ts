@@ -4,6 +4,7 @@ import { hitBars, makeGraphQuestion, pickAddPair, type Bar } from '../skills/rec
 import { addColumns } from '../skills/steps';
 import { bumpGuide, guideCount, mathDone, paperDone, paperStep, persist, recordSkill, save } from '../state';
 import { columnPaper } from '../ui/paper';
+import { isWorld } from '../three/worlds';
 import { getStage } from '../three/stage';
 import { numpad } from '../ui/numpad';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
@@ -78,7 +79,7 @@ export class RecapScene extends Phaser.Scene {
       else this.pictureGraph();
       return;
     }
-    if (this.env === 'canyon' || this.env === 'arctic' || this.env === 'tour' || this.env === 'ocean' || this.env === 'volcano' || this.env === 'moon' || this.env === 'siege' || this.env === 'space') {
+    if (this.env === 'canyon' || this.env === 'arctic' || this.env === 'tour' || this.env === 'ocean' || this.env === 'volcano' || this.env === 'moon' || this.env === 'siege' || this.env === 'space' || isWorld(this.env)) {
       // The canyon is about multiplying and the Arctic is all review, so the report is review: each kind in turn.
       const k = (s.guide?.recap ?? 1) % 4;
       if (k === 1 && pair) this.addition(pair[0], pair[1]);

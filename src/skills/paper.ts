@@ -1,4 +1,4 @@
-import { addColumns, writtenSubtraction } from './steps';
+import { writtenSubtraction } from './steps';
 
 /**
  * "Paper mode": moving him, one kind of problem at a time, from fill-in
@@ -129,18 +129,34 @@ export function subtractWrites(top: number, bottom: number): Write[] {
   return out;
 }
 
-/** Column addition on paper: each column's answer digit, then its carry above the next column. */
-export function addWrites(a: number, b: number): Write[] {
-  const cols = addColumns(a, b);
+/** Column addition on paper (two or three numbers): each column's answer digit, then its carry above the next column. */
+export function addWrites(...nums: number[]): Write[] {
   const out: Write[] = [];
+  const places = Math.max(...nums.map((n) => String(n).length));
+  let carry = 0;
   let g = 0;
-  cols.forEach((c, i) => {
-    const last = i === cols.length - 1;
-    if (last && c.sum === 0) return;
-    out.push({ slot: { place: c.place, row: 'answer' }, value: last ? c.sum : c.write, group: ++g, why: 'answer' });
-    if (!last && c.carryOut) out.push({ slot: { place: c.place + 1, row: 'above' }, value: c.carryOut, group: ++g, why: 'carry' });
-  });
+  for (let p = 0; p <= places; p++) {
+    const sum = nums.reduce((t, n) => t + (Math.floor(n / 10 ** p) % 10), 0) + carry;
+    if (p === places) {
+      if (sum > 0) out.push({ slot: { place: p, row: 'answer' }, value: sum, group: ++g, why: 'answer' });
+      break;
+    }
+    out.push({ slot: { place: p, row: 'answer' }, value: sum % 10, group: ++g, why: 'answer' });
+    carry = Math.floor(sum / 10);
+    if (carry) out.push({ slot: { place: p + 1, row: 'above' }, value: carry, group: ++g, why: 'carry' });
+  }
   return out;
+}
+
+/** What a column adds up to (its digits plus the carry in), for guided prompts. */
+export function columnSum(nums: number[], place: number): { digits: number[]; carryIn: number; sum: number } {
+  let carry = 0;
+  for (let p = 0; ; p++) {
+    const digits = nums.map((n) => Math.floor(n / 10 ** p) % 10);
+    const sum = digits.reduce((a, b) => a + b, 0) + carry;
+    if (p === place) return { digits, carryIn: carry, sum };
+    carry = Math.floor(sum / 10);
+  }
 }
 
 /**

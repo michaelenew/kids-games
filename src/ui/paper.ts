@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
-import { type PaperStep, type Slot, type Write, addWrites, checkWrite, subtractWrites } from '../skills/paper';
+import { type PaperStep, type Slot, type Write, addWrites, checkWrite, columnSum, subtractWrites } from '../skills/paper';
 import { guideCount, bumpGuide } from '../state';
 import { button, text, toast } from './widgets';
 
@@ -44,7 +44,7 @@ const DEPTH = 950;
 const PLACE = ['ones', 'tens', 'hundreds', 'thousands'];
 
 /** The page and the keypad: the parts every paper problem shares. */
-function sheet(scene: Phaser.Scene, area: Area, title: string) {
+export function sheet(scene: Phaser.Scene, area: Area, title: string) {
   const items: Phaser.GameObjects.GameObject[] = [];
   const add = <T extends Phaser.GameObjects.GameObject>(g: T, depth = DEPTH): T => {
     (g as unknown as Phaser.GameObjects.Components.Depth).setDepth?.(depth);
@@ -140,10 +140,10 @@ function sheet(scene: Phaser.Scene, area: Area, title: string) {
   };
 }
 
-type Sheet = ReturnType<typeof sheet>;
+export type Sheet = ReturnType<typeof sheet>;
 
 /** The scratch page's two buttons, under the keypad: wipe the drawing, and "Show me". */
-function scratchButtons(scene: Phaser.Scene, sh: Sheet, area: Area, showMe: () => void) {
+export function scratchButtons(scene: Phaser.Scene, sh: Sheet, area: Area, showMe: () => void) {
   const y = area.y + area.h / 2 - 34;
   sh.add(button(scene, sh.padX - 52, y, 96, 46, 'Clear', () => sh.ink.clear(), { size: 20, fill: 0x3d4458 }));
   sh.add(button(scene, sh.padX + 52, y, 96, 46, 'Show me', showMe, { size: 18, fill: 0x5a4a1f, edge: 0xffd166 }));
@@ -155,7 +155,11 @@ export interface ColumnOptions {
   kind: 'subtract' | 'add';
   a: number;
   b: number;
+  /** A third number to add (column addition of three). */
+  c?: number;
   step: PaperStep;
+  /** Walked through: the next spot is picked for him and the prompt shows the column's sum. */
+  guide?: boolean;
   area: Area;
   title: string;
   onDone: (r: PaperResult) => void;
@@ -165,9 +169,11 @@ export interface ColumnOptions {
 export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
   const sh = sheet(scene, o.area, o.title);
   const { page } = sh;
-  const answer = o.kind === 'subtract' ? o.a - o.b : o.a + o.b;
-  const writes: Write[] = o.kind === 'subtract' ? subtractWrites(o.a, o.b) : addWrites(o.a, o.b);
-  const places = Math.max(String(o.a).length, String(o.b).length) + (o.kind === 'add' ? 1 : 0);
+  const nums = o.c !== undefined ? [o.a, o.b, o.c] : [o.a, o.b];
+  const answer = o.kind === 'subtract' ? o.a - o.b : nums.reduce((t, n) => t + n, 0);
+  const writes: Write[] = o.kind === 'subtract' ? subtractWrites(o.a, o.b) : addWrites(...nums);
+  const places = Math.max(...nums.map((n) => String(n).length)) + (o.kind === 'add' ? 1 : 0);
+  const three = nums.length === 3;
 
   // The printed problem, right-aligned in columns.
   const DIG = 52;
@@ -176,14 +182,17 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
   const yAbove = page.top + 112;
   const yA = page.top + 160;
   const yB = page.top + 214;
-  const yLine = page.top + 244;
-  const yAns = page.top + 284;
+  const yC = page.top + 266;
+  const yLine = page.top + (three ? 296 : 244);
+  const yAns = page.top + (three ? 336 : 284);
   const printed = (x: number, y: number, v: string, color = INK, size = 44) =>
     sh.add(scene.add.text(x, y, v, { fontFamily: 'monospace', fontSize: `${size}px`, fontStyle: 'bold', color }).setOrigin(0.5));
   const aDigits = String(o.a).split('').reverse();
   const aText = aDigits.map((d, p) => printed(colX(p), yA, d));
   String(o.b).split('').reverse().forEach((d, p) => printed(colX(p), yB, d));
-  printed(colX(Math.max(aDigits.length, String(o.b).length)) + 4, yB, o.kind === 'subtract' ? '−' : '+');
+  if (three) String(o.c).split('').reverse().forEach((d, p) => printed(colX(p), yC, d));
+  const widest = Math.max(...nums.map((n) => String(n).length));
+  printed(colX(widest) + 4, three ? yC : yB, o.kind === 'subtract' ? '−' : '+');
   const rule = sh.add(scene.add.graphics());
   rule.lineStyle(4, 0x1d2b53, 1).lineBetween(colX(places - 1) - DIG / 2 - 26, yLine, colX(0) + DIG / 2, yLine);
   const crosses = sh.add(scene.add.graphics());
@@ -194,7 +203,7 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
     if (finished) return;
     finished = true;
     sfx.success();
-    sh.setPrompt(`${formatNumber(o.a)} ${o.kind === 'subtract' ? '−' : '+'} ${formatNumber(o.b)} = ${formatNumber(answer)}`, DONE);
+    sh.setPrompt(`${nums.map(formatNumber).join(o.kind === 'subtract' ? ' − ' : ' + ')} = ${formatNumber(answer)}`, DONE);
     scene.time.delayedCall(1700, () => {
       sh.destroy();
       o.onDone({ solo: solo && !showMe, showMe });
@@ -265,8 +274,16 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
     }
   }
   // Prompts say which column for the first few problems at this step, then just "What's next?".
-  const detailed = guideCount(`paper-${o.kind}`) < 3;
+  const detailed = o.guide || guideCount(`paper-${o.kind}`) < 3;
   const promptFor = (w: Write) => {
+    if (o.guide && o.kind === 'add') {
+      // Walked through: the spot is picked, and the column's sum is spelled out.
+      const cs = columnSum(nums, w.why === 'carry' ? w.slot.place - 1 : w.slot.place);
+      const parts = [...cs.digits, ...(cs.carryIn ? [cs.carryIn] : [])].join(' + ');
+      const col = PLACE[w.why === 'carry' ? w.slot.place - 1 : w.slot.place];
+      if (w.why === 'carry') return `${cs.sum} has ${w.value} ten${w.value === 1 ? '' : 's'}. Carry it: type ${w.value} above the next column.`;
+      return w.slot.place >= places - 1 ? `The carried ${w.value} goes down into the answer. Type it.` : `The ${col}: ${parts} = ${cs.sum}. Write the ${cs.sum % 10} under the line.`;
+    }
     if (!detailed) return 'What\'s next? Tap where it goes, then type it.';
     const col = PLACE[w.slot.place];
     if (w.why === 'answer') return `Tap the spot under the line in the ${col} column, and write its answer.`;
@@ -276,7 +293,14 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
   const nextDue = () => writes.find((_, i) => !done.has(i));
   const say = () => {
     const due = nextDue();
-    if (due) sh.setPrompt(promptFor(due));
+    if (!due) return;
+    sh.setPrompt(promptFor(due));
+    if (o.guide) {
+      // Walked through: the spot is already picked.
+      if (picked) drawZone(picked, false);
+      picked = zones.find((zz) => zz.slot.place === due.slot.place && zz.slot.row === due.slot.row) ?? null;
+      if (picked) drawZone(picked, true);
+    }
   };
   let misses = 0;
   const writeAt = (w: Write) => {

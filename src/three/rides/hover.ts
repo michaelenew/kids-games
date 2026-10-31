@@ -284,7 +284,7 @@ function makeMats() {
     hazard: d(new THREE.MeshStandardMaterial({ map: hazardTexture(), metalness: 0.2, roughness: 0.55 })),
     rubber: d(new THREE.MeshStandardMaterial({ map: rubberTexture(), color: 0x6a6c74, metalness: 0.05, roughness: 0.5 })),
     rubberPlain: d(new THREE.MeshStandardMaterial({ color: 0x1a1b1f, metalness: 0.05, roughness: 0.6 })),
-    deck: d(new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0xe4e8ee, metalness: 0.45, roughness: 0.55 })),
+    deck: d(new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0xe8e2d8, metalness: 0.2, roughness: 0.6 })),
     glass: d(new THREE.MeshPhysicalMaterial({
       color: 0xffe2b8, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.3, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide,
     })),

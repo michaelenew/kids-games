@@ -531,15 +531,6 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   const keepOut: { p: THREE.Vector3; r: number }[] = [];
   const clearR = 30;
 
-  // ---- Per-mission set pieces ----
-  if (kind === 'haumea') haumea();
-  if (kind === 'fleet') fleet();
-  if (kind === 'gate') gate();
-  if (kind === 'home') home();
-  if (kind === 'open') {
-    // A big snowman of a rock beside the path, and a smaller one further on.
-    keepOut.push({ p: v3(-70, 40, -170), r: 50 }, { p: v3(90, 10, -390), r: 35 });
-  }
 
   // ---- Ice: tumbling snowballs, white and rusty red ----
   const tumblers: Tumbler[] = [];
@@ -579,6 +570,16 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     w: 0.1 + rnd() * 0.2,
     ph: rnd() * 6,
   });
+  // ---- Per-mission set pieces (they keep the ice out of their way) ----
+  if (kind === 'haumea') haumea();
+  if (kind === 'fleet') fleet();
+  if (kind === 'gate') gate();
+  if (kind === 'home') home();
+  if (kind === 'open') {
+    // A big snowman of a rock beside the path, and a smaller one further on.
+    keepOut.push({ p: v3(-70, 40, -170), r: 50 }, { p: v3(90, 10, -390), r: 35 });
+  }
+
   const snowSize = () => (rnd() < 0.05 ? 7 + rnd() * 10 : 0.5 + rnd() ** 2.6 * 5);
   for (let v = 0; v < 4; v++) {
     const spots = v === 3 ? place(Math.round(12 * density), 60, 260, () => 14 + rnd() * 26) : place(Math.round(60 * density), 4, 170, snowSize);

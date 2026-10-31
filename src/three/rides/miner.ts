@@ -634,15 +634,15 @@ function oreHold(root: THREE.Object3D, m: Mats, anim: Anim, piece = false) {
     r.scale.setScalar(s);
   }
   const glows: [number, THREE.Vector3][] = [];
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 22; i++) {
     const px = (rnd() * 2 - 1) * (x - 1);
     const pz = z0 + 1 + rnd() * (L - 2);
     const hx = px / x;
     const hz = (pz - zc) / (L / 2);
     const top = -depth + 0.4 + (depth + 0.5) * Math.max(0, 1 - hx * hx * 0.8 - hz * hz * 0.7);
     const p = v3(px, top, pz);
-    if (i % 2) {
-      const s = 0.35 + rnd() * 0.3;
+    if (i % 3 !== 0) {
+      const s = 0.5 + rnd() * 0.4;
       const nug = mesh(root, cg('nugget', () => new THREE.OctahedronGeometry(1, 0)), m.gold, px, top, pz, { rx: rnd() * 3, ry: rnd() * 3 });
       nug.scale.set(s, s * 0.8, s * 1.2);
       glows.push([0xffb52a, p]);
@@ -898,7 +898,7 @@ function armorSlab(parent: THREE.Object3D, m: Mats, s: number, x: number, y: num
 
 /** Part 5: heavy riveted armor down the sides, a ram on the bow, and two more turrets on armored sponsons. */
 function armor(root: THREE.Object3D, m: Mats, sides = [-1, 1], piece = false): Turret[] {
-  const zs = piece ? [0] : [-8.2, -4.2, -0.2, 3.8, 9.8];
+  const zs = piece ? [] : [-8.2, -4.2, -0.2, 3.8, 9.8];
   for (const s of sides) {
     for (const z of zs) {
       armorSlab(root, m, s, s * (HALF + 0.35), -1.2, z, 3.8, 2.3, 0.18);
@@ -912,8 +912,17 @@ function armor(root: THREE.Object3D, m: Mats, sides = [-1, 1], piece = false): T
     }
   }
   if (piece) {
-    mesh(root, rboxGeo(3, 0.5, 4.2, 0.12), m.grey, -1.4, 0.1, 0);
-    return [turret(root, m, -1.4, 0.35, 0, 0.8)];
+    // A stretch of hull side, plated, with a sponson and its turret.
+    mesh(root, rboxGeo(2.2, 3.2, 8.4, 0.2), m.plate, HALF - 1.1, -1.4, 0);
+    hazardBox(root, m, 2.3, 0.3, 8.5, HALF - 1.1, -0.45, 0);
+    for (const z of [-2.1, 2.1]) {
+      armorSlab(root, m, 1, HALF + 0.35, -1.2, z, 3.8, 2.3, 0.18);
+      armorSlab(root, m, 1, HALF - 0.4, -2.8, z, 3.8, 1.2, 0.7);
+    }
+    mesh(root, rboxGeo(0.5, 0.45, 8.2, 0.1), m.plate, HALF + 0.12, 0.1, 0);
+    mesh(root, boxGeo(0.52, 0.12, 8.0), m.orange, HALF + 0.12, 0.3, 0, { shadow: false });
+    mesh(root, rboxGeo(2.6, 1.6, 3.4, 0.3), m.plate, HALF - 1.6, -0.75 + 0.8, 0);
+    return [turret(root, m, HALF - 1.6, 0.98, 0, 0.78)];
   }
   // The ram: a heavy plate across the bow with big rivets and hazard stripes.
   const ram = new THREE.Group();
@@ -1020,10 +1029,11 @@ export function partModel(part: number): THREE.Group {
     // A short laser for the showroom.
     for (const l of anim.lasers) l.o.children.forEach((c) => (c.scale.z = 2.5));
   } else if (p === 3) {
-    const tr = tractor(inner, m, anim, 0, 0, 0, 5);
-    tr.position.y = 0;
-    turret(inner, m, 0, 0.4, -3.2, 0.7);
-    mesh(inner, rboxGeo(4.5, 0.5, 2.6, 0.12), m.grey, 0, 0.6, -3.2);
+    // The dish under a piece of bow, a turret on top.
+    tractor(inner, m, anim, 0, 0, 0, 5);
+    mesh(inner, rboxGeo(4.6, 0.5, 6.4, 0.15), m.plate, 0, 1.05, -1.2);
+    hazardBox(inner, m, 4.7, 0.2, 0.5, 0, 1.2, 2.0);
+    turret(inner, m, 0, 1.3, -2.4, 0.7);
   } else {
     armor(inner, m, [1], true);
   }

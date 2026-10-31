@@ -806,8 +806,8 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
 
   const mid = frame(0.5);
   if (giant) {
-    // One gigantic asteroid fills the left side, its alien mining town facing the path.
-    const side = -1;
+    // One gigantic asteroid fills the right side (the lit side), its alien mining town facing the path.
+    const side = 1;
     const c = mid.p.clone().addScaledVector(mid.n, side * 330).add(new THREE.Vector3(0, -40, 0));
     const away = mid.n.clone().multiplyScalar(side);
     const extra: Crater[] = [];

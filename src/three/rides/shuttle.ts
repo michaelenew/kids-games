@@ -284,8 +284,9 @@ function makeMats() {
       color: 0x6a3aa8, metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.45, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide,
     })),
     ice: d(new THREE.MeshStandardMaterial({ color: 0xd8f2ff, emissive: 0x3a8ac0, emissiveIntensity: 0.6, metalness: 0.2, roughness: 0.15, flatShading: true })),
-    edge: glow(0xa050ff, 2.4),
-    pink: glow(0xff4fd8, 2.3),
+    edge: glow(0xa050ff, 1.6),
+    rail: glow(0xa050ff, 1.15),
+    pink: glow(0xff4fd8, 1.7),
     hot: glow(0xff7be8, 2.6),
     scan: glow(0x4dffc8, 2.4),
     coil: glow(0xb46cff, 2.4),
@@ -473,12 +474,12 @@ function hull(root: THREE.Object3D, m: Mats, anim: Anim) {
   for (let s = 0; s < HULL.length - 1; s++) {
     const a = ring(HULL[s]);
     const b = ring(HULL[s + 1]);
-    for (const k of [1, 4]) bar(root, m.edge, a[k].clone().multiplyScalar(1.01), b[k].clone().multiplyScalar(1.01), 0.08);
+    for (const k of [1, 4]) bar(root, m.edge, a[k].clone().multiplyScalar(1.01), b[k].clone().multiplyScalar(1.01), 0.06);
     for (const k of [2, 3]) bar(root, m.trim, a[k], b[k], 0.1);
-    if (s >= 3) for (const k of [0, 5]) bar(root, m.pink, a[k].clone().setY(a[k].y + 0.02), b[k].clone().setY(b[k].y + 0.02), 0.06);
+    if (s >= 3) for (const k of [0, 5]) bar(root, m.pink, a[k].clone().setY(a[k].y + 0.02), b[k].clone().setY(b[k].y + 0.02), 0.045);
   }
   // A V of light on the nose, under his line of fire.
-  for (const sx of [-1, 1]) bar(root, m.edge, new THREE.Vector3(sx * 1.9, -0.04, DECK_FRONT), new THREE.Vector3(0, -0.5, 12.2), 0.07);
+  for (const sx of [-1, 1]) bar(root, m.edge, new THREE.Vector3(sx * 1.9, -0.04, DECK_FRONT), new THREE.Vector3(0, -0.5, 12.2), 0.05);
   // The deck: a plate he stands on, edged in dark trim.
   const D = DECK_FRONT - DECK_BACK;
   const zc = (DECK_BACK + DECK_FRONT) / 2;
@@ -498,10 +499,10 @@ function hull(root: THREE.Object3D, m: Mats, anim: Anim) {
     }
     const mid = mesh(root, boxGeo(0.07, 0.07, 1), m.metal, x, 0.45, (z0 + z1) / 2, { shadow: false });
     mid.scale.z = z1 - z0;
-    const topBar = mesh(root, boxGeo(0.1, 0.1, 1), m.edge, x, 0.88, (z0 + z1) / 2, { shadow: false });
+    const topBar = mesh(root, boxGeo(0.07, 0.07, 1), m.rail, x, 0.88, (z0 + z1) / 2, { shadow: false });
     topBar.scale.z = z1 - z0;
     // The rail dips down to the deck at the front.
-    bar(root, m.edge, new THREE.Vector3(x, 0.88, z1), new THREE.Vector3(x * 0.95, 0.1, DECK_FRONT - 0.1), 0.09);
+    bar(root, m.rail, new THREE.Vector3(x, 0.88, z1), new THREE.Vector3(x * 0.95, 0.1, DECK_FRONT - 0.1), 0.07);
   }
   // The spine behind him: a low faceted hump with glowing slits, tapering to the tail.
   const spine = cg('shSpine', () => loft([
@@ -737,7 +738,7 @@ function animate(anim: Anim, m: Mats, dt: number, t: number) {
   for (const s of anim.spin) s.o.rotation.y += s.speed * dt;
   for (const p of anim.pulse) p.o.scale.setScalar(p.base * (1 + Math.max(0, Math.sin(t * p.speed + p.phase)) * 0.35));
   m.shimmer.uniforms.time.value = t;
-  m.edge.color.setRGB(0.63, 0.31, 1).multiplyScalar(2.2 + Math.sin(t * 1.6) * 0.35);
+  m.edge.color.setRGB(0.63, 0.31, 1).multiplyScalar(1.5 + Math.sin(t * 1.6) * 0.25);
   m.coil.color.setRGB(0.7, 0.42, 1).multiplyScalar(2.0 + Math.max(0, Math.sin(t * 6)) * 1.2);
 }
 

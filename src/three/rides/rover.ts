@@ -391,10 +391,7 @@ function wheel(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, y: number
   const hubR = R * 0.55;
   mesh(w, cylGeo(hubR, hubR, W + 0.06, 18), m.panel, 0, 0, 0, { rz: Math.PI / 2 });
   // Spokes on the outside face, so the spin shows.
-  for (let k = 0; k < 5; k++) {
-    const a = (k / 5) * Math.PI * 2;
-    mesh(w, boxGeo(0.12, hubR * 1.7, 0.18), m.grey, side * (W / 2 + 0.05), 0, 0, { rx: a, shadow: false });
-  }
+  mesh(w, cg(`spokes${hubR}`, () => mergeGeometries(Array.from({ length: 5 }, (_, k) => new THREE.BoxGeometry(0.12, hubR * 1.7, 0.18).rotateX((k / 5) * Math.PI * 2).toNonIndexed()))!), m.grey, side * (W / 2 + 0.05), 0, 0, { shadow: false });
   mesh(w, cylGeo(hubR * 0.42, hubR * 0.5, 0.2, 14), m.orange, side * (W / 2 + 0.1), 0, 0, { rz: Math.PI / 2 });
   mesh(w, torusGeo(hubR * 0.9, 0.045, 24), m.hubGlow, side * (W / 2 + 0.04), 0, 0, { ry: Math.PI / 2, shadow: false });
   anim.wheels.push({ o: w, r: R });
@@ -901,10 +898,23 @@ export function partModel(part: number): THREE.Group {
   const anim = newAnim();
   const inner = new THREE.Group();
   if (p === 0) {
-    // One side's rocker-bogie with its three wheels.
-    bigWheels(inner, m, anim, [1]);
+    // Four of the big wheels round a bit of chassis, on their rockers.
+    mesh(inner, rboxGeo(2.2, 0.7, 3.6, 0.15), m.green, 0, WHEEL_R + 0.3, 0);
+    mesh(inner, boxGeo(2.24, 0.12, 3.64), m.orange, 0, WHEEL_R + 0.55, 0, { shadow: false });
+    for (const s of [-1, 1]) {
+      beam(inner, m.grey, new THREE.Vector3(s * 1.25, WHEEL_R + 0.3, -1.8), new THREE.Vector3(s * 1.25, WHEEL_R + 0.3, 1.8), 0.3, 0.36);
+      mesh(inner, cylGeo(0.3, 0.3, 0.4, 14), m.orange, s * 1.3, WHEEL_R + 0.3, 0, { rz: Math.PI / 2 });
+      for (const z of [-1.8, 1.8]) {
+        mesh(inner, cylGeo(0.18, 0.18, 0.6, 10), m.dark, s * 1.6, WHEEL_R, z, { rz: Math.PI / 2 });
+        wheel(inner, m, anim, s * 2.3, WHEEL_R, z, s, WHEEL_R, WHEEL_W, true);
+        mesh(inner, rboxGeo(WHEEL_W + 0.24, 0.1, 1.9, 0.04), m.grey, s * 2.3, WHEEL_R * 2 + 0.24, z);
+      }
+    }
   } else if (p === 1) {
     drillArm(inner, m, anim, 0, 0, 0);
+    // A stand to show it on.
+    mesh(inner, rboxGeo(0.8, 3.4, 0.8, 0.1), m.green, 0, -2.0, 0);
+    mesh(inner, rboxGeo(2.4, 0.3, 2.4, 0.1), m.grey, 0, -3.7, 0.6);
   } else if (p === 2) {
     sampleLab(inner, m, anim, 0);
   } else if (p === 3) {
@@ -912,9 +922,10 @@ export function partModel(part: number): THREE.Group {
     turret(inner, m, 2.2, 0, 1.4, 0.68);
     mesh(inner, boxGeo(5, 0.3, 4), m.panel, 1.0, -0.15, 0.6);
   } else {
-    solarRoof(inner, m, [1], true);
-    mesh(inner, rboxGeo(5.6, 1.2, 2.4, 0.2), m.green, 0, 0.9, DECK_FRONT + 1.2);
-    turret(inner, m, 1.4, 0, DECK_FRONT - 2.2, 0.68);
+    // A wing of panels on its hinge, with a turret beside it.
+    solarRoof(inner, m, [1], false);
+    mesh(inner, rboxGeo(1.4, 0.5, 6, 0.1), m.green, DECK_HALF - 0.6, -0.1, -3.6);
+    turret(inner, m, DECK_HALF - 0.6, 0.15, -1.8, 0.6);
   }
   mergeStatic(inner);
   const box = new THREE.Box3().setFromObject(inner);

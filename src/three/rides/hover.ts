@@ -735,7 +735,7 @@ function floodLamp(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, z: nu
     mesh(lamp, boxGeo(0.6, 0.5, 0.04), m.lens, lx, 0.2, 0.28, { shadow: false });
     mesh(lamp, boxGeo(0.74, 0.08, 0.3), m.trim, lx, 0.54, 0.18, { shadow: false });
   }
-  const flare = glowSprite(0xfff0d0, 2.4, 1.2);
+  const flare = glowSprite(0xfff0d0, 1.3, 0.9);
   flare.position.set(0, 0.2, 0.45);
   lamp.add(flare);
   const outer = new THREE.Mesh(cg(`floodOuter${beamLen}`, () => new THREE.CylinderGeometry(0.7, beamLen * 0.22, beamLen, 24, 1, true).rotateX(-Math.PI / 2).translate(0, 0, beamLen / 2 + 0.3)), m.beam);
@@ -751,8 +751,8 @@ function floodLamp(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, z: nu
 function lampsAndTurrets(root: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
   for (const s of [-1, 1]) floodLamp(root, m, anim, s * (HALF - 0.45), DECK_FRONT - 0.7, s);
   return [-1, 1].map((s) => {
-    mesh(root, cylGeo(1.0, 1.1, 0.2, 16), m.trim, s * 3.4, 0.1, 3.9);
-    return turret(root, m, s * 3.4, 0.15, 3.9, 0.72);
+    mesh(root, cylGeo(1.0, 1.1, 0.2, 16), m.trim, s * 3.85, 0.1, 4.3);
+    return turret(root, m, s * 3.85, 0.15, 4.3, 0.72);
   });
 }
 
@@ -782,13 +782,14 @@ function twinCannons(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, y: 
   return g;
 }
 
-/** Part 5: twin cannons on the back between the fans, and two more turrets beside him. */
+/** Part 5: twin cannons on the back between the fans, and two more turrets out on the pontoons. */
 function cannonsAndTurrets(root: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
   mesh(root, rboxGeo(2.6, 0.5, 2.6, 0.12), m.frame, 0, 0.25, -6.6);
   twinCannons(root, m, anim, 0, 0.5, -6.6);
+  const y = LAKE + 0.65 + 0.7;
   return [-1, 1].map((s) => {
-    mesh(root, cylGeo(1.0, 1.1, 0.2, 16), m.trim, s * 4.0, 0.1, -3.3);
-    return turret(root, m, s * 4.0, 0.15, -3.3, 0.72);
+    mesh(root, cylGeo(0.95, 1.05, 0.3, 16), m.trim, s * PONTOON_X, y, -1.6);
+    return turret(root, m, s * PONTOON_X, y + 0.1, -1.6, 0.72);
   });
 }
 
@@ -890,7 +891,7 @@ export function partModel(part: number): THREE.Group {
     if ((o as THREE.Mesh).isMesh) box.expandByObject(o, false);
   });
   const size = box.getSize(new THREE.Vector3());
-  const k = 6 / Math.max(size.x, size.z);
+  const k = 6 / Math.max(size.x, size.z, size.y);
   const g = new THREE.Group();
   inner.scale.setScalar(k);
   inner.position.set(-((box.min.x + box.max.x) / 2) * k, -box.min.y * k, -((box.min.z + box.max.z) / 2) * k);

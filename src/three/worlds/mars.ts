@@ -504,20 +504,18 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     volcano.renderOrder = -1;
     const dir = olympus ? new THREE.Vector3(-0.04, 0, -1) : new THREE.Vector3(-0.6, 0, -1);
     const dist = olympus ? 10000 : 12000;
-    const R = olympus ? 6000 : 4200;
+    const R = olympus ? 6000 : 4800;
     const at = start.clone().addScaledVector(dir.normalize(), dist);
     at.y = -R * 0.012;
     // On the boss mission it towers over everything.
-    if (olympus) volcano.scale.y = 1.7;
+    const tall = olympus ? 1.7 : 1.4;
     if (!storm) {
       far(volcano, at, R, 860);
       const place = volcano.onBeforeRender;
       volcano.onBeforeRender = (...args) => {
         place(...args);
-        if (olympus) {
-          volcano.scale.y *= 1.7;
-          volcano.updateMatrixWorld();
-        }
+        volcano.scale.y *= tall;
+        volcano.updateMatrixWorld();
       };
     }
   }
@@ -698,7 +696,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       wall(s, 120, 190, 150, false);
     }
   } else {
-    for (const s of [-1, 1]) wall(s, 190 + rnd() * 40, 260, 34 + rnd() * 16, true);
+    for (const s of [-1, 1]) wall(s, 190 + rnd() * 40, 260, 22 + rnd() * 12, true);
   }
 
   // ---- Alien spires: dark twisted towers glowing green, off the track ----

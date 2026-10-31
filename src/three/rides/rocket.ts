@@ -345,6 +345,8 @@ function slab(key: string, pts: [number, number][], depth: number, bevel = 0.1) 
     pts.forEach(([x, z], i) => (i ? s.lineTo(x, z) : s.moveTo(x, z)));
     s.closePath();
     const geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1 });
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 0.22, uv.getY(i) * 0.22);
     geo.rotateX(Math.PI / 2);
     return geo;
   });
@@ -740,7 +742,7 @@ function shieldBubble(parent: THREE.Object3D, anim: Anim, at: THREE.Vector3, sca
         float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.5);
         float wave = 1.0 - smoothstep(0.0, 0.06, abs(fract(vP.z * 0.8 - time * 0.35) - 0.5));
         float sparkle = step(0.985, fract(sin(dot(floor(vUv * vec2(22.0, 11.0) * 3.0), vec2(12.9898, 78.233))) * 43758.5453 + time * 0.2));
-        float k = 0.002 + rim * 0.06 + hex * (0.004 + rim * 0.1 + wave * 0.06) + wave * 0.006 + sparkle * hex * 0.08;
+        float k = 0.001 + rim * 0.035 + hex * (0.001 + rim * 0.06 + wave * 0.03) + wave * 0.003 + sparkle * hex * 0.06;
         float fade = mix(1.0, smoothstep(-0.25, 0.45, vP.z), front);
         vec3 c = mix(color, gold, wave * 0.5);
         gl_FragColor = vec4(c * k * strength * fade, 1.0);

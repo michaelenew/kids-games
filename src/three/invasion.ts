@@ -23,6 +23,8 @@ import { VOLCANO_FOG, buildVolcano, volcanoSky } from './volcano';
 import { DEFENSE_LINE, MOON_FOG, type Turret, buildMoon, moonSky } from './moon';
 import { SPACE_FOG, buildSpace, spaceSky } from './space';
 import { starship } from './starship';
+import { RIDES } from './rides';
+import { WORLDS, isWorld } from './worlds';
 import { CANYON_FOG, buildCanyon, canyonSky } from './canyon';
 import { BOTS } from '../state';
 
@@ -244,7 +246,7 @@ export class Invasion {
     this.city = moonBase ?? (desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
       : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
         : ocean ? buildOcean(this.curve, where) : volcano ? buildVolcano(this.curve, where)
-          : space ? buildSpace(this.curve, where) : buildCity(this.curve, where));
+          : space ? buildSpace(this.curve, where) : isWorld(mission.env) ? WORLDS[mission.env].build(this.curve, where) : buildCity(this.curve, where));
     // The Moon base's turrets shoot alongside him.
     this.turrets = (moonBase?.turrets ?? []).map((t) => ({ ...t, cooldown: Math.random() }));
     this.root.add(this.city.group);
@@ -267,8 +269,8 @@ export class Invasion {
     this.vehicle = firstMove?.vehicle ?? 'foot';
     if (this.vehicle === 'ship') {
       // In space he rides the starship he built (and its turrets fight too); otherwise the dropship.
-      if (space) {
-        const ss = starship(opts.shipLevel ?? 0);
+      if (space || mission.ride) {
+        const ss = mission.ride ? RIDES[mission.ride].build(opts.shipLevel ?? 0) : starship(opts.shipLevel ?? 0);
         this.ship = ss;
         this.turrets.push(...ss.turrets.map((t) => ({ ...t, cooldown: Math.random() })));
       } else {
@@ -290,7 +292,12 @@ export class Invasion {
 
     this.fx = new FX(this.root);
     stage.content.add(this.root);
-    if (space) {
+    if (isWorld(mission.env)) {
+      const w = WORLDS[mission.env];
+      stage.activate(w.sky(), new THREE.Fog(w.fog, w.near, w.far));
+      stage.key.color.setHex(w.light);
+      stage.key.intensity = w.intensity;
+    } else if (space) {
       // Deep space: black, with the Sun's hard white light from one side.
       stage.activate(spaceSky(), new THREE.Fog(SPACE_FOG, 130, 720));
       stage.key.color.setHex(0xf4f6ff);
@@ -561,6 +568,11 @@ export class Invasion {
   // ---- Base defense --------------------------------------------------------------
 
   private baseHp = BASE_HP;
+
+  /** On a ride: how high the deck is above the ground (the path's height, ground at 0). */
+  private get rideHeight() {
+    return Math.max(0, this.rig.position.y);
+  }
 
   /** A walker at the front line hits the base every so often (sparks where it hits). */
   private smashBase(e: Enemy, dt: number) {
@@ -920,7 +932,8 @@ export class Invasion {
         : new THREE.Vector3(26 * side, this.rand(4, 9), this.rand(16, 30));
     } else if (sp.kind === 'krawler') {
       // Below a flying jet they land on the ground, not level with it.
-      const ground = this.vehicle === 'jet' ? STREET_Y - this.rig.position.y : 0;
+      // Below a flying jet (or a vehicle's deck) they land on the ground, not level with him.
+      const ground = this.vehicle === 'jet' ? STREET_Y - this.rig.position.y : this.mission.ride ? -this.rideHeight : 0;
       to = new THREE.Vector3(this.rand(1.5, 6) * (sp.from === 'ahead' ? (Math.random() < 0.5 ? 1 : -1) : side), ground, this.rand(13, 19) + (ground < 0 ? 4 : 0));
       if (this.mission.defend) {
         // They head for the base's front line, spread out along it.
@@ -939,7 +952,10 @@ export class Invasion {
         sfx.screech();
       }
     } else {
-      to = new THREE.Vector3(this.rand(5, 8) * side, 0, this.rand(7, 14));
+      // On a ground vehicle they race along the ground beside it; in space (no
+      // ground under a high path) they fly level with the deck.
+      const low = this.mission.ride && this.rideHeight < 20 ? -this.rideHeight + 1 : 0;
+      to = new THREE.Vector3(this.rand(5, 8) * side, low, this.rand(7, 14));
       from = new THREE.Vector3(7 * side, 0, -14);
     }
     const e: Enemy = {

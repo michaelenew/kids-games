@@ -866,9 +866,9 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     const t1 = new THREE.Vector3().crossVectors(face, new THREE.Vector3(0, 1, 0)).normalize();
     const t2 = new THREE.Vector3().crossVectors(t1, face).normalize();
     const cells: { p: THREE.Vector3; n: THREE.Vector3; k: number }[] = [];
-    const step = 0.05;
-    for (let j = -14; j <= 14; j++) {
-      for (let i = -14; i <= 14; i++) {
+    const step = 0.04;
+    for (let j = -18; j <= 18; j++) {
+      for (let i = -18; i <= 18; i++) {
         const x = (i + (j % 2 ? 0.5 : 0)) * step;
         const y = j * step * 0.866;
         const r = Math.hypot(x, y);
@@ -880,7 +880,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       }
     }
     const wallMat = disposable(new THREE.MeshStandardMaterial({ color: 0x2e3a2a, roughness: 0.6, metalness: 0.3, emissive: 0x0a2a10 }));
-    const cellSize = step * R * 0.62;
+    const cellSize = step * R * 0.55;
     const walls = new THREE.InstancedMesh(cg('hexWall', () => new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).translate(0, 0.5, 0)), wallMat, cells.length);
     const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, side: THREE.DoubleSide });
     glowMat.userData.disposable = true;

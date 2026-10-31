@@ -270,15 +270,15 @@ const SOLAR: Mission[] = [
   rideMission({ id: 'europa-depths', title: 'Invasion 70: Europa\'s Deep', blurb: 'The bottom of Europa\'s ocean. Boss!', seed: 691, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 5, boss: 'ICE KRAKEN!',
     say: 'All the way down. Something huge is waiting at the bottom!', banners: ['DEEP GUARDS!', 'THE ABYSS!'] }),
   // Titan: ASTRO joins. TITAN's hovercraft on the methane lakes, and a chase through Saturn's rings.
-  footMission({ id: 'titan-land', title: 'Invasion 71: TITAN on Titan', blurb: 'TITAN lands on Saturn\'s moon Titan!', seed: 701, env: 'titan', bot: 'astro', swapFrom: 'titan', tier: 1,
+  footMission({ id: 'titan-land', title: 'Invasion 71: TITAN on Titan', blurb: 'TITAN lands on Saturn\'s moon Titan!', seed: 701, env: 'titan', bot: 'astro', swapFrom: 'titan', tier: 1, dmg: 3,
     say: 'Saturn\'s biggest moon is called Titan. So who else would we send? TITAN!', banners: ['ORANGE HAZE!', 'HAZE HUNTERS!'] }),
   rideMission({ id: 'titan-lakes', title: 'Invasion 72: Methane Lakes', blurb: 'Hovercraft across the lakes!', seed: 709, env: 'titan', ride: 'hover', y: 2.2, mix: 'ground', tier: 2,
     say: 'Titan has lakes, but they aren\'t water! TITAN\'s hovercraft skims right over them.', banners: ['LAKE RAIDERS!', 'SHORE CRAWLERS!'] }),
-  footMission({ id: 'titan-haze', title: 'Invasion 73: Into the Haze', blurb: 'ASTRO flies into the haze!', seed: 719, env: 'titan', bot: 'astro', tier: 3,
+  footMission({ id: 'titan-haze', title: 'Invasion 73: Into the Haze', blurb: 'ASTRO flies into the haze!', seed: 719, env: 'titan', bot: 'astro', tier: 3, dmg: 1.45,
     say: 'ASTRO, take the lead. Fly low through the haze!', banners: ['HAZE WALKERS!', 'DUNE FIGHT!'] }),
   rideMission({ id: 'rings-chase', title: 'Invasion 74: Saturn\'s Rings', blurb: 'Chase them through Saturn\'s rings!', seed: 727, env: 'rings', ride: 'starship', y: 30, mix: 'air', tier: 4, reinforce: true,
     say: 'They\'re running into Saturn\'s rings! Starship, full speed!', banners: ['THE RINGS!', 'ICE STORM!'] }),
-  footMission({ id: 'titan-core', title: 'Invasion 75: Titan\'s Walker', blurb: 'Their walker on Titan. Boss!', seed: 733, env: 'titan', bot: 'astro', tier: 5, boss: 'METHANE WALKER!',
+  footMission({ id: 'titan-core', title: 'Invasion 75: Titan\'s Walker', blurb: 'Their walker on Titan. Boss!', seed: 733, env: 'titan', bot: 'astro', tier: 5, dmg: 1.25, boss: 'METHANE WALKER!',
     say: 'Their Titan walker is guarding a lake of fuel. ASTRO, take it down!', banners: ['FUEL GUARDS!', 'THE LAKE SHORE!'] }),
   // Pluto: PHANTOM's stealth shuttle, sneaking up on their hideout.
   rideMission({ id: 'pluto-land', title: 'Invasion 76: Pluto', blurb: 'Sneak onto Pluto!', seed: 751, env: 'pluto', ride: 'shuttle', y: 8, mix: 'air', tier: 1,

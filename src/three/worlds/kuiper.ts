@@ -1099,7 +1099,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       green: nf(glow(GREEN, 2.6)),
       greenDim: nf(glow(0x3dff6a, 1.6)),
       purple: nf(glow(0xb070ff, 2.2)),
-      core: nf(glow(0x9dffb8, 2.4)),
+      core: nf(glow(0x2aff6a, 0.7)),
     };
     const ship = new THREE.Group();
     root.add(ship);
@@ -1158,15 +1158,15 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     // The head facing him: a long six-sided prow, narrowing, its hangar mouth glowing green.
     const headLen = 190;
     const head = v3(0, -4, R - 70 + headLen / 2);
-    sm.add(cg('msHead', () => new THREE.CylinderGeometry(58, 100, 1, 6).rotateX(Math.PI / 2)), ms.mid, head, new THREE.Euler(0, 0, Math.PI / 6), v3(1, headLen, 1));
-    sm.add(cg('msHead2', () => new THREE.CylinderGeometry(64, 70, 1, 6).rotateX(Math.PI / 2)), ms.hull, head.clone().add(v3(0, 0, headLen * 0.25)), new THREE.Euler(0, 0, Math.PI / 6), v3(1, 30, 1));
+    sm.add(cg('msHead', () => new THREE.CylinderGeometry(58, 100, 1, 6).rotateX(Math.PI / 2)), ms.mid, head, new THREE.Euler(0, 0, Math.PI / 6), v3(1, 1, headLen));
+    sm.add(cg('msHead2', () => new THREE.CylinderGeometry(64, 70, 1, 6).rotateX(Math.PI / 2)), ms.hull, head.clone().add(v3(0, 0, headLen * 0.25)), new THREE.Euler(0, 0, Math.PI / 6), v3(1, 1, 30));
     for (let k = 0; k < 6; k++) {
       const a = (k / 6) * Math.PI * 2;
       sm.beam(ms.green, head.clone().add(v3(Math.cos(a) * 99, Math.sin(a) * 99, -headLen / 2 + 2)), head.clone().add(v3(Math.cos(a) * 58, Math.sin(a) * 58, headLen / 2)), 2.5, 2.5);
     }
     const mouth = head.clone().add(v3(0, 0, headLen / 2 + 0.5));
     sm.add(cg('msMouth', () => new THREE.CircleGeometry(46, 6)), ms.dark, mouth, new THREE.Euler(0, 0, Math.PI / 6), 1);
-    sm.add(torG(0.06, 6), ms.green, mouth.clone().add(v3(0, 0, 0.6)), new THREE.Euler(0, 0, Math.PI / 6), 48);
+    sm.add(torG(0.03, 6), ms.green, mouth.clone().add(v3(0, 0, 0.6)), new THREE.Euler(0, 0, Math.PI / 6), 47);
     sm.add(cg('msCore', () => new THREE.CircleGeometry(22, 24)), ms.core, mouth.clone().add(v3(0, 0, 0.8)), null, 1);
     for (let k = 0; k < 3; k++) sm.add(torG(0.05, 32), ms.green, mouth.clone().add(v3(0, 0, -10 - k * 22)), null, 52 + k * 6);
     // Windows: rows and rows of little lights round the rim, along the head.
@@ -1188,7 +1188,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       sm.add(boxG(), ms.greenDim, head.clone().add(v3(Math.cos(a) * ap, Math.sin(a) * ap, z)), new THREE.Euler(0, 0, a), v3(1, 6, 3));
     }
     sm.build(ship);
-    const mouthGlow = glowSprite(GREEN, 170, 0.8);
+    const mouthGlow = glowSprite(GREEN, 170, 0.22);
     mouthGlow.material.fog = false;
     mouthGlow.position.copy(mouth).add(v3(0, 0, 10));
     ship.add(mouthGlow);
@@ -1290,7 +1290,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
       mouthGlow.scale.setScalar(170 * (1 + Math.sin(t * 1.3) * 0.12));
       lampSprites.forEach((s, i) => s.scale.setScalar(Math.sin(t * 3 - i * 0.4) > 0 ? 10 : 4));
       auraMat.opacity = 0.14 + Math.sin(t * 0.8) * 0.05;
-      ms.core.color.setHex(0x9dffb8).multiplyScalar(2.2 + Math.sin(t * 2.2) * 0.5);
+      ms.core.color.setHex(0x2aff6a).multiplyScalar(0.6 + Math.sin(t * 2.2) * 0.25);
     });
   }
 

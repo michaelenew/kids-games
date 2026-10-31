@@ -298,6 +298,51 @@ function sparkleTexture() {
   }));
 }
 
+/** Looking into a tunnel: dark, with rings of green light running away to a bright glow at the end. */
+function tunnelTexture() {
+  return ct('plutoTunnel', () => canvasTex(256, 220, (g) => {
+    const W = 256;
+    const H = 220;
+    g.fillStyle = '#020604';
+    g.fillRect(0, 0, W, H);
+    const vx = W / 2;
+    const vy = H * 0.56;
+    // The glow at the far end.
+    const grad = g.createRadialGradient(vx, vy, 0, vx, vy, 70);
+    grad.addColorStop(0, 'rgba(200,255,210,1)');
+    grad.addColorStop(0.15, 'rgba(93,255,122,0.8)');
+    grad.addColorStop(1, 'rgba(93,255,122,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+    // Edges running in to it.
+    g.strokeStyle = 'rgba(93,255,122,0.25)';
+    g.lineWidth = 2;
+    for (const [x, y] of [[0, 0], [W, 0], [0, H], [W, H]]) {
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(vx, vy);
+      g.stroke();
+    }
+    // Rings of light, closer together further in.
+    for (let k = 0; k < 9; k++) {
+      const t = 1 / (1 + k * 0.55);
+      const w = W * t;
+      const h = H * t;
+      g.strokeStyle = `rgba(93,255,122,${0.3 + 0.5 * (1 - t)})`;
+      g.lineWidth = 1 + 5 * t;
+      g.strokeRect(vx - w / 2, vy - h * 0.56, w, h);
+    }
+    // A lit floor strip.
+    g.fillStyle = 'rgba(150,255,170,0.35)';
+    g.beginPath();
+    g.moveTo(W * 0.42, H);
+    g.lineTo(W * 0.58, H);
+    g.lineTo(vx + 3, vy);
+    g.lineTo(vx - 3, vy);
+    g.fill();
+  }));
+}
+
 // ---- Shapes -------------------------------------------------------------------------
 
 /**
@@ -334,7 +379,7 @@ function peakGeo(v: number) {
       // Tholin-dusted feet, grey-blue ice, snow-white tops.
       const snow = THREE.MathUtils.smoothstep(h + crag * 0.4, 0.3, 0.6);
       const dust = 1 - THREE.MathUtils.smoothstep(h + crag * 0.3, 0.03, 0.22);
-      const c = new THREE.Color(0.5, 0.56, 0.68).lerp(new THREE.Color(0.8, 0.82, 0.86), snow).lerp(new THREE.Color(0.42, 0.24, 0.14), dust * 0.85);
+      const c = new THREE.Color(0.42, 0.48, 0.6).lerp(new THREE.Color(0.66, 0.68, 0.73), snow).lerp(new THREE.Color(0.38, 0.22, 0.13), dust * 0.85);
       col.set([c.r, c.g, c.b], i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -450,42 +495,28 @@ function plain(geos: THREE.BufferGeometry[]) {
   return out;
 }
 
-/** A hangar mouth in the ice: a dark arch frame lined with green light, a glowing tunnel behind. Front faces +Z, unit = 1. */
+/** A tunnel mouth's frame: dark jambs and a lintel round a 1 × 0.84 opening. Front faces +Z. */
 function hangarGeo() {
   return cg('plutoHangar', () => {
     const parts: THREE.BufferGeometry[] = [];
-    // The frame: two sloped jambs, a lintel and buttresses.
-    for (const s of [-1, 1]) {
-      parts.push(new THREE.BoxGeometry(0.12, 0.85, 0.3).translate(s * 0.5, 0.42, 0).rotateZ(s * 0.05));
-      parts.push(new THREE.BoxGeometry(0.22, 0.5, 0.45).translate(s * 0.62, 0.25, -0.05));
+    for (const sx of [-1, 1]) {
+      parts.push(new THREE.BoxGeometry(0.12, 0.92, 0.3).translate(sx * 0.55, 0.46, 0));
+      parts.push(new THREE.BoxGeometry(0.2, 0.36, 0.42).translate(sx * 0.6, 0.18, 0.04));
+      parts.push(new THREE.BoxGeometry(0.1, 0.3, 0.2).translate(sx * 0.66, 0.98, 0).rotateZ(-sx * 0.4));
     }
-    parts.push(new THREE.BoxGeometry(1.2, 0.14, 0.32).translate(0, 0.86, 0));
-    parts.push(new THREE.BoxGeometry(0.6, 0.12, 0.3).translate(0, 0.98, -0.02));
-    // The tunnel's walls running back into the ice.
-    parts.push(new THREE.BoxGeometry(0.06, 0.8, 1.6).translate(-0.47, 0.4, -0.85));
-    parts.push(new THREE.BoxGeometry(0.06, 0.8, 1.6).translate(0.47, 0.4, -0.85));
-    parts.push(new THREE.BoxGeometry(1.0, 0.06, 1.6).translate(0, 0.8, -0.85));
+    parts.push(new THREE.BoxGeometry(1.24, 0.14, 0.32).translate(0, 0.91, 0));
+    parts.push(new THREE.BoxGeometry(0.5, 0.12, 0.28).translate(0, 1.02, 0));
     return plain(parts);
   });
 }
+/** Its green light strips. */
 function hangarGlowGeo() {
-  return cg('plutoHangarGlow', () => {
-    const parts: THREE.BufferGeometry[] = [];
-    // Light strips round the opening, and stripes running back down the tunnel.
-    for (const s of [-1, 1]) parts.push(new THREE.BoxGeometry(0.03, 0.78, 0.04).translate(s * 0.43, 0.4, 0.16));
-    parts.push(new THREE.BoxGeometry(0.86, 0.03, 0.04).translate(0, 0.79, 0.16));
-    for (let k = 0; k < 5; k++) {
-      const z = -0.15 - k * 0.32;
-      for (const s of [-1, 1]) parts.push(new THREE.BoxGeometry(0.02, 0.5, 0.06).translate(s * 0.43, 0.4, z));
-      parts.push(new THREE.BoxGeometry(0.7, 0.02, 0.06).translate(0, 0.76, z));
-      parts.push(new THREE.BoxGeometry(0.5, 0.01, 0.08).translate(0, 0.02, z));
-    }
-    return plain(parts);
-  });
-}
-/** The tunnel's far end: a soft green glow (and its floor). */
-function hangarBackGeo() {
-  return cg('plutoHangarBack', () => new THREE.PlaneGeometry(0.9, 0.78).translate(0, 0.39, -1.6));
+  return cg('plutoHangarGlow', () => plain([
+    new THREE.BoxGeometry(0.025, 0.8, 0.04).translate(-0.48, 0.42, 0.16),
+    new THREE.BoxGeometry(0.025, 0.8, 0.04).translate(0.48, 0.42, 0.16),
+    new THREE.BoxGeometry(0.98, 0.025, 0.04).translate(0, 0.85, 0.17),
+    new THREE.BoxGeometry(0.3, 0.04, 0.04).translate(0, 1.0, 0.15),
+  ]));
 }
 
 // ---- The scene ----------------------------------------------------------------------
@@ -514,7 +545,7 @@ function configFor(seed: number): Cfg {
       return { heart: { x: -360, z: 80, rot: -0.3, S: 330 }, dark: { x: 300, z: -200, r: 260 }, peaks: { n: 22, near: 38, size: 0.95 }, night: false, base: true, structures: 22 };
     default:
       // 751, the landing: gentle plains, the heart off on the horizon to the left.
-      return { heart: { x: -170, z: -190, rot: -0.75, S: 340 }, dark: { x: 330, z: -250, r: 240 }, peaks: { n: 14, near: 70, size: 0.75 }, night: false, base: false, structures: 12 };
+      return { heart: { x: -60, z: -150, rot: -1.0, S: 360 }, dark: { x: 330, z: -250, r: 240 }, peaks: { n: 14, near: 70, size: 0.75 }, night: false, base: false, structures: 12 };
   }
 }
 
@@ -682,6 +713,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
   const rust = new THREE.Color(0x93502f);
   const cthulhu = new THREE.Color(0x5c2a1c);
   const frostC = new THREE.Color(0xcfd3dc);
+  const pitIce = new THREE.Color(0x8e9cb8);
   const gcol = new THREE.Color();
   /** The ground's colour (outside the heart's ice): tholins in cream, tan and rust drifts, frost up high, the dark red region. */
   const groundColor = (x: number, z: number, h: number, sd: number, k: number) => {
@@ -691,6 +723,8 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     c.lerp(rust, THREE.MathUtils.smoothstep(n2 + n1 * 0.5, 0.35, 0.9) * 0.8);
     c.lerp(frostC, THREE.MathUtils.smoothstep(h, 18, 34) * 0.7);
     c.lerp(cthulhu, darkAt(x, z) * 0.9);
+    // The pit dug down into the ice.
+    if (h < -0.3) c.lerp(pitIce, THREE.MathUtils.smoothstep(-h, 0.3, 4));
     // A slightly darker, scuffed band round the heart's edge.
     const rim = Math.exp(-((sd - 0.03) ** 2) / 0.0006) * (1 - k);
     return c.multiplyScalar(1 - rim * 0.18);
@@ -806,6 +840,8 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
 
   // ---- Water-ice mountains ----
   const peakMat = disposable(new THREE.MeshStandardMaterial({ color: night ? 0x8090c0 : 0xffffff, vertexColors: true, flatShading: true, roughness: 0.62, metalness: 0.05 }));
+  const peakMatBack = disposable(peakMat.clone());
+  peakMatBack.side = THREE.BackSide;
   {
     type P = { x: number; z: number; R: number; H: number; ry: number };
     const placed: P[] = [];
@@ -836,7 +872,7 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     if (cfg.base) {
       for (let k = 0; k < 13; k++) {
         const a = -2.0 + (k / 12) * 4.0;
-        const r = 98 + rnd() * 20;
+        const r = 128 + rnd() * 24;
         const R = 30 + rnd() * 12;
         placed.push({ x: PIT.x + Math.sin(a) * r, z: PIT.z - Math.cos(a) * r, R, H: 52 + rnd() * 30, ry: rnd() * 6 });
       }
@@ -1020,72 +1056,125 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     mk(domeGeo(), domeLightsGeo(), domes, false);
   }
 
-  // ---- The hideout: hangar mouths dug into the ice cliffs, lights round the pit ----
-  const tunnelGlowMat = disposable(new THREE.MeshBasicMaterial({
-    map: glowTexture(), color: new THREE.Color(ALIEN).multiplyScalar(1.6), toneMapped: false,
-  }));
-  const frameMat = disposable(new THREE.MeshStandardMaterial({ color: 0x1e1a28, metalness: 0.7, roughness: 0.45, flatShading: true }));
-  const darkInside = disposable(new THREE.MeshBasicMaterial({ color: 0x050a08 }));
-  const hangars: { x: number; z: number; s: number; ry: number }[] = [];
-  if (cfg.base) {
-    // Big mouths in the cliffs behind the pit, facing out over it.
-    for (const a of [-0.95, -0.42, 0.1, 0.62, 1.12]) {
-      const r = 80;
-      const x = PIT.x + Math.sin(a) * r;
-      const z = PIT.z - Math.cos(a) * r;
-      hangars.push({ x, z, s: Math.abs(a - 0.1) < 0.1 ? 26 : 17, ry: -a });
+  // ---- Ice cliffs with tunnel mouths: their hideout dug into the ice ----
+  const frameMat = disposable(new THREE.MeshStandardMaterial({ color: 0x241e30, metalness: 0.7, roughness: 0.45, flatShading: true }));
+  const tunnelMat = disposable(new THREE.MeshBasicMaterial({ map: tunnelTexture(), color: new THREE.Color(0xffffff).multiplyScalar(night ? 1.25 : 1.1), toneMapped: false }));
+  const hangars: { x: number; y: number; z: number; s: number; ry: number }[] = [];
+  /**
+   * A cliff of ice along a line of points, its face toward each point's (nx, nz):
+   * a near-vertical face, a jagged top, sloping away behind. Tunnel mouths go in
+   * the face at the points listed in `mouths` (index, size).
+   */
+  const cliff = (pts: { x: number; z: number; nx: number; nz: number }[], H: number, mouths: [number, number][]) => {
+    const prof: [number, number][] = [[-1.5, -0.08], [0, 0.12], [0.5, 0.5], [1.4, 0.9], [4.5, 1], [11, 0.94], [20, 0.68], [32, 0.15], [40, -0.1]];
+    const M = prof.length;
+    const N = pts.length;
+    const pos = new Float32Array(N * M * 3);
+    const colA = new Float32Array(N * M * 3);
+    const c = new THREE.Color();
+    const face = new THREE.Color(0.42, 0.48, 0.6);
+    const top = new THREE.Color(0.64, 0.66, 0.72);
+    const dust = new THREE.Color(0.36, 0.22, 0.14);
+    for (let i = 0; i < N; i++) {
+      const p = pts[i];
+      const Hh = H * (0.85 + 0.12 * Math.sin(i * 0.9 + H) + 0.08 * Math.sin(i * 2.3));
+      const g = heightAt(p.x, p.z);
+      for (let j = 0; j < M; j++) {
+        const [off, hf] = prof[j];
+        const jag = j > 0 && j < M - 1 ? Math.sin(i * 1.7 + j * 2.1) * 0.9 + Math.sin(i * 0.6 + j) * 0.6 : 0;
+        const o = off + jag * (j < 3 ? 0.3 : 1.2);
+        const x = p.x - p.nx * o;
+        const z = p.z - p.nz * o;
+        const y = g + Hh * hf + (j >= 3 && j <= 5 ? Math.sin(i * 2.9 + j) * H * 0.06 : 0);
+        pos.set([x, y, z], (i * M + j) * 3);
+        c.copy(face).lerp(top, THREE.MathUtils.smoothstep(j, 2.5, 4.5)).lerp(dust, j === 0 ? 0.8 : j === 1 ? 0.35 : j === M - 1 ? 0.6 : 0);
+        c.multiplyScalar(0.92 + 0.12 * Math.sin(i * 3.1 + j * 1.3));
+        colA.set([c.r, c.g, c.b], (i * M + j) * 3);
+      }
     }
-    // Smaller tunnels in the ridges along the way in.
-    for (let k = 0; k < 6; k++) {
-      const f = frame(0.45 + k * 0.09);
-      const side = k % 2 ? 1 : -1;
-      const dd = 60 + rnd() * 25;
-      const x = f.p.x + f.n.x * side * dd;
-      const z = f.p.z + f.n.z * side * dd;
-      // Facing the path.
-      const ry = Math.atan2(-f.n.x * side, -f.n.z * side);
-      hangars.push({ x, z, s: 9 + rnd() * 4, ry });
+    const idx: number[] = [];
+    for (let i = 0; i < N - 1; i++) {
+      for (let j = 0; j < M - 1; j++) {
+        const a0 = i * M + j;
+        const b0 = (i + 1) * M + j;
+        idx.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colA, 3));
+    geo.setIndex(idx);
+    const flat = geo.toNonIndexed();
+    flat.computeVertexNormals();
+    // Which way round the faces went depends on the points' order: face them toward the open side.
+    const nrm = flat.attributes.normal;
+    let dot = 0;
+    for (let k = 0; k < Math.min(nrm.count, M * 6); k++) dot += nrm.getX(k) * pts[0].nx + nrm.getZ(k) * pts[0].nz;
+    const mesh = new THREE.Mesh(flat, peakMat);
+    if (dot < 0) mesh.material = peakMatBack;
+    root.add(mesh);
+    for (const [i, size] of mouths) {
+      const p = pts[i];
+      hangars.push({ x: p.x + p.nx * 0.4, y: heightAt(p.x, p.z) - 0.3, z: p.z + p.nz * 0.4, s: size, ry: Math.atan2(p.nx, p.nz) });
+    }
+  };
+  if (cfg.base) {
+    // The great wall round the back of the pit, with five hangar mouths looking out over it.
+    const pts = [];
+    for (let k = 0; k <= 56; k++) {
+      const a = -1.95 + (k / 56) * 3.9;
+      const R = 84 + Math.sin(a * 5) * 3;
+      pts.push({ x: PIT.x + Math.sin(a) * R, z: PIT.z - Math.cos(a) * R, nx: -Math.sin(a), nz: Math.cos(a) });
+    }
+    cliff(pts, 40, [[28, 26], [17, 17], [39, 17], [7, 14], [49, 14]]);
+    // Ridges along the way in, with tunnels facing the path.
+    for (const side of [-1, 1]) {
+      const pts2 = [];
+      for (let k = 0; k <= 30; k++) {
+        const f = frame(0.56 + (k / 30) * 0.42);
+        const dd = 50 + Math.sin(k * 0.5 + side) * 4;
+        pts2.push({ x: f.p.x + f.n.x * side * dd, z: f.p.z + f.n.z * side * dd, nx: -f.n.x * side, nz: -f.n.z * side });
+      }
+      cliff(pts2, 24, side < 0 ? [[8, 11], [24, 12]] : [[15, 12]]);
     }
   } else {
-    // Here and there, a lone tunnel in an icy hill: a hint of where they're hiding.
+    // Here and there, a short cliff with a lone tunnel in it: a hint of where they're hiding.
     for (let k = 0; k < 2; k++) {
-      const f = frame(0.3 + k * 0.4 + rnd() * 0.1);
-      const side = rnd() < 0.5 ? -1 : 1;
-      const dd = 70 + rnd() * 30;
-      const x = f.p.x + f.n.x * side * dd;
-      const z = f.p.z + f.n.z * side * dd;
-      if (heartAt(x, z).k > 0.1) continue;
-      hangars.push({ x, z, s: 8 + rnd() * 3, ry: Math.atan2(-f.n.x * side, -f.n.z * side) });
+      const u = 0.25 + k * 0.4 + rnd() * 0.1;
+      const side = (k + opts.seed) % 2 ? 1 : -1;
+      const dd = 75 + rnd() * 25;
+      const f0 = frame(u);
+      const cx = f0.p.x + f0.n.x * side * dd;
+      const cz = f0.p.z + f0.n.z * side * dd;
+      if (heartAt(cx, cz).k > 0.05) continue;
+      const pts = [];
+      for (let i = 0; i <= 12; i++) {
+        const f = frame(u + ((i - 6) / 12) * (50 / len));
+        pts.push({ x: f.p.x + f.n.x * side * (dd + Math.abs(i - 6) * 1.2), z: f.p.z + f.n.z * side * (dd + Math.abs(i - 6) * 1.2), nx: -f.n.x * side, nz: -f.n.z * side });
+      }
+      cliff(pts, 20, [[6, 10]]);
     }
   }
   if (hangars.length) {
     const fr = new THREE.InstancedMesh(hangarGeo(), frameMat, hangars.length);
     const gl = new THREE.InstancedMesh(hangarGlowGeo(), greenMat, hangars.length);
-    const bk = new THREE.InstancedMesh(hangarBackGeo(), tunnelGlowMat, hangars.length);
-    const inside = new THREE.InstancedMesh(cg('plutoHangarIn', () => new THREE.BoxGeometry(0.9, 0.78, 1.6).translate(0, 0.39, -0.82)), darkInside, hangars.length);
-    // An icy mound round the smaller tunnels, so they're dug into something.
-    const mound = new THREE.InstancedMesh(peakGeo(1), peakMat, hangars.length);
+    const mouth = new THREE.InstancedMesh(cg('plutoMouth', () => new THREE.PlaneGeometry(0.98, 0.84).translate(0, 0.42, 0.02)), tunnelMat, hangars.length);
     hangars.forEach((hg, i) => {
-      const y = cfg.base && Math.hypot(hg.x - PIT.x, hg.z - PIT.z) < 90 ? -6 : heightAt(hg.x, hg.z);
       q.setFromEuler(eul.set(0, hg.ry, 0));
-      m4.compose(at.set(hg.x, y - 0.2, hg.z), q, sc.setScalar(hg.s));
+      m4.compose(at.set(hg.x, hg.y, hg.z), q, sc.setScalar(hg.s));
       fr.setMatrixAt(i, m4);
       gl.setMatrixAt(i, m4);
-      bk.setMatrixAt(i, m4);
-      inside.setMatrixAt(i, m4);
-      // The mound sits behind the mouth.
-      const back = new THREE.Vector3(0, 0, -1.1 * hg.s).applyQuaternion(q);
-      m4.compose(at.set(hg.x + back.x, y - 2, hg.z + back.z), q, sc.set(hg.s * 1.6, hg.s * 1.55, hg.s * 1.4));
-      mound.setMatrixAt(i, m4);
-      pools.push({ x: hg.x + Math.sin(hg.ry) * hg.s * 0.4, y, z: hg.z + Math.cos(hg.ry) * hg.s * 0.4, r: hg.s * 0.9 });
+      mouth.setMatrixAt(i, m4);
+      pools.push({ x: hg.x + Math.sin(hg.ry) * hg.s * 0.5, y: hg.y + 0.3, z: hg.z + Math.cos(hg.ry) * hg.s * 0.5, r: hg.s * 0.8 });
+      beacons.push(hg.x + Math.cos(hg.ry) * hg.s * 0.62, hg.y + hg.s * 1.08, hg.z - Math.sin(hg.ry) * hg.s * 0.62);
+      beacons.push(hg.x - Math.cos(hg.ry) * hg.s * 0.62, hg.y + hg.s * 1.08, hg.z + Math.sin(hg.ry) * hg.s * 0.62);
     });
-    inside.renderOrder = 0;
-    root.add(fr, gl, bk, inside, mound);
+    root.add(fr, gl, mouth);
   }
   if (cfg.base) {
     // Rings of green lights round the pit floor and its rim, and stripes leading to the hangars.
     const ringGeo = cg('plutoPitRing', () => new THREE.TorusGeometry(1, 0.012, 4, 64).rotateX(Math.PI / 2));
-    for (const [r, y] of [[PIT_R - 6, -5.85], [PIT_R + 21, 0.1]] as [number, number][]) {
+    for (const [r, y] of [[PIT_R - 6, -5.85], [PIT_R - 16, -5.85]] as [number, number][]) {
       const m = new THREE.Mesh(ringGeo, greenMat);
       m.position.set(PIT.x, y, PIT.z);
       m.scale.set(r, 30, r);

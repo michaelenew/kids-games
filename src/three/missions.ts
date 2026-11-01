@@ -135,6 +135,8 @@ interface RideMissionSpec {
   mix: Mix;
   tier: number;
   say: string;
+  /** More opening lines after Volt's (Sprocket chiming in, say). */
+  more?: { who: 'volt' | 'sprocket'; text: string }[];
   banners: string[];
   /** Tuned by the test bot (see README "Difficulty is measured"). */
   dmg?: number;
@@ -149,7 +151,7 @@ function rideMission(o: RideMissionSpec): Mission {
   const last = long ? 7 : 9;
   const t = o.tier;
   const steps: Step[] = [
-    { kind: 'say', lines: [{ who: 'volt', text: o.say }] },
+    { kind: 'say', lines: [{ who: 'volt', text: o.say }, ...(o.more ?? [])] },
     { kind: 'move', to: 2, speed: long ? 18 : 10, vehicle: 'ship', spawns: waveOf(2 + Math.ceil(t / 2), t, o.mix).map((sp) => ({ ...sp, at: sp.at + 1 })) },
     { kind: 'wave', banner: o.banners[0], spawns: waveOf(5 + t, t, o.mix) },
   ];
@@ -237,16 +239,23 @@ function footMission(o: FootMissionSpec): Mission {
 
 const SOLAR: Mission[] = [
   // Mars: RHINO's rover. Ride on its deck across the red planet.
-  rideMission({ id: 'mars-land', title: 'Invasion 56: Mars Landing', blurb: 'Ride RHINO\'s rover across Mars!', seed: 601, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1, dmg: 1.15,
-    say: 'We\'re on Mars! RHINO\'s rover is ready. Pick a robot to ride on top and keep the aliens off!', banners: ['RED DUNES!', 'DUST DEVILS!'] }),
-  rideMission({ id: 'mars-dunes', title: 'Invasion 57: Dune Run', blurb: 'Race over the dunes!', seed: 607, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 2, dmg: 0.63,
-    say: 'They\'re hiding behind the dunes. Full speed ahead!', banners: ['DUNE RAIDERS!', 'SAND STRIKE!'] }),
+  rideMission({ id: 'mars-land', title: 'Invasion 56: Jezero Crater', blurb: 'Meet Perseverance, a real rover from Earth!', seed: 601, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1, dmg: 1.15,
+    say: 'We landed in Jezero Crater on Mars. Look who\'s here: PERSEVERANCE! It\'s a real rover from Earth. NASA landed it here in 2021.',
+    more: [
+      { who: 'sprocket', text: 'Jezero was a lake a long, long time ago. Perseverance drills rocks and keeps the best bits in little tubes, to look for signs of tiny life from back then.' },
+      { who: 'volt', text: 'And its little helicopter, Ingenuity, flew on Mars! The aliens want those sample tubes. Keep them away from Perseverance!' },
+    ], banners: ['RED DUNES!', 'DUST DEVILS!'] }),
+  rideMission({ id: 'mars-dunes', title: 'Invasion 57: Dune Run', blurb: 'Guard Perseverance\'s sample tubes!', seed: 607, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 2, dmg: 0.63,
+    say: 'Perseverance left a row of sample tubes on the ground, so a future mission can carry them home to Earth. The aliens are raiding them!',
+    more: [{ who: 'sprocket', text: 'Those tubes hold rock from an old lake bed. Full speed over the dunes!' }], banners: ['DUNE RAIDERS!', 'SAND STRIKE!'] }),
   rideMission({ id: 'mars-canyon', title: 'Invasion 58: The Great Canyon', blurb: 'Down into the biggest canyon in the solar system!', seed: 613, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 3, dmg: 0.3,
-    say: 'This canyon is way bigger than the Grand Canyon. And it\'s full of aliens!', banners: ['CANYON FLOOR!', 'CLIFF CRAWLERS!'] }),
-  rideMission({ id: 'mars-storm', title: 'Invasion 59: Dust Storm', blurb: 'A Mars dust storm. Call for backup!', seed: 617, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 4, dmg: 0.365, reinforce: true,
-    say: 'A dust storm! They\'re attacking from inside it.', banners: ['IN THE STORM!', 'STORM BREAKERS!'] }),
-  rideMission({ id: 'mars-olympus', title: 'Invasion 60: Olympus Mons', blurb: 'Their walker on the biggest volcano. Boss!', seed: 619, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 5, dmg: 0.335, boss: 'MARS WALKER!',
-    say: 'Olympus Mons, the biggest volcano in the solar system. Their Mars walker is at the top!', banners: ['VOLCANO GUARDS!', 'UP THE SLOPE!'] }),
+    say: 'Perseverance\'s cameras spotted their base down in this canyon. It\'s way bigger than the Grand Canyon. And it\'s full of aliens!', banners: ['CANYON FLOOR!', 'CLIFF CRAWLERS!'] }),
+  rideMission({ id: 'mars-storm', title: 'Invasion 59: Dust Storm', blurb: 'They took Perseverance! Follow its tracks.', seed: 617, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 4, dmg: 0.365, reinforce: true,
+    say: 'Oh no! The aliens grabbed Perseverance in the dust storm! Its wheel tracks lead this way.',
+    more: [{ who: 'sprocket', text: 'Six wheels make tracks you can\'t miss. Follow them, and watch out: they\'re attacking from inside the storm!' }], banners: ['IN THE STORM!', 'STORM BREAKERS!'] }),
+  rideMission({ id: 'mars-olympus', title: 'Invasion 60: Olympus Mons', blurb: 'Rescue Perseverance from their walker. Boss!', seed: 619, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 5, dmg: 0.335, boss: 'MARS WALKER!',
+    say: 'Olympus Mons, the biggest volcano in the solar system. Their Mars walker is holding Perseverance in a tractor beam up there!',
+    more: [{ who: 'sprocket', text: 'Knock out the walker and the beam lets go. Let\'s rescue Perseverance!' }], banners: ['VOLCANO GUARDS!', 'UP THE SLOPE!'] }),
   // The asteroid belt: TITAN's mining ship, a space chase through the rocks.
   rideMission({ id: 'belt-chase', title: 'Invasion 61: Into the Belt', blurb: 'Chase them into the asteroid belt!', seed: 631, env: 'belt', ride: 'miner', y: 30, mix: 'air', tier: 1, dmg: 2.2,
     say: 'They\'re hiding in the asteroid belt. TITAN\'s mining ship can fly right through it!', banners: ['ROCK FIELD!', 'FIGHTERS!'] }),

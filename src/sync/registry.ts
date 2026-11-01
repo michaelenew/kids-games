@@ -40,7 +40,11 @@ export const GAMES: Record<GameId, GameInfo> = {
 
 export interface Group {
   blob: string;
+  /** The encryption key. */
   key: string;
+  /** The JSONBin API key the group's save is stored with, and which kind it is. */
+  api: string;
+  kind: 'access' | 'master';
 }
 
 export interface Slot {
@@ -55,6 +59,8 @@ export interface Slot {
   synced?: number;
   /** Why the last sync didn't work, if it didn't. */
   problem?: 'offline' | 'lost' | 'unreadable';
+  /** What JSONBin (or the browser) said, for the grown-ups' screen. */
+  problemText?: string;
 }
 
 interface Registry {

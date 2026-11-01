@@ -96,6 +96,10 @@ export function openSyncPanel(opts: PanelOptions): void {
   for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'keydown', 'keyup']) root.addEventListener(ev, (e) => e.stopPropagation());
 
   let sharing = '';
+  /** A save showing its form: starting a group (name and JSONBin key) or renaming. */
+  let editing: { k: string; mode: 'start' | 'rename' } | null = null;
+  /** "Stop syncing" was tapped once; a second tap does it. */
+  let leaving = '';
   let joining = opts.join ?? '';
   let scanning: AbortController | null = null;
   let busy = '';
@@ -120,6 +124,15 @@ export function openSyncPanel(opts: PanelOptions): void {
          No camera? Copy the code and paste it there instead. Anyone with this code can open this save, so only share it with your own devices.</div>
          <div class="row">${btn('copy', 'Copy the code')}${btn('unshare', 'Hide')}</div>`
       : '';
+    const form = editing?.k !== k
+      ? ''
+      : editing.mode === 'rename'
+        ? `<div class="row"><input id="kgs-name" value="${esc(s.name)}" placeholder="Name">${btn('rename-ok', 'Save', 'main')}${btn('cancel-edit', 'Cancel')}</div>`
+        : `<div class="note" style="margin-top:10px">Name the synced save (for example, the kid's name). Other devices see this name.</div>
+           <div class="row"><input id="kgs-name" value="${esc(s.name === "This device's save" ? '' : s.name)}" placeholder="Name"></div>
+           <div class="note" style="margin-top:10px">Your JSONBin.io key: an Access Key (API Keys page) or the Master Key.</div>
+           <div class="row"><input id="kgs-api" value="${esc(rememberedKey())}" placeholder="Paste the JSONBin key here" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+           <div class="row">${btn('start-ok', 'Start syncing', 'main')}${btn('cancel-edit', 'Cancel')}</div>`;
     return `<div class="card${on ? ' on' : ''}">
       <b>${esc(s.name)}</b>${on ? '<span class="badge">Playing on this device</span>' : ''}
       <div class="note">${esc(GAMES[game].summary(readJson(storageKey(game, s.id))))}</div>
@@ -128,8 +141,8 @@ export function openSyncPanel(opts: PanelOptions): void {
         ${on ? '' : btn('play', 'Play this save', 'main')}
         ${s.group ? btn('share', 'Add another device') + btn('sync', 'Sync now') : btn('start', 'Start syncing this save')}
         ${btn('rename', 'Rename')}
-        ${s.group ? btn('leave', 'Stop syncing', 'danger') : ''}
-      </div>${share}
+        ${s.group ? btn('leave', leaving === k ? 'Tap again: stop syncing here' : 'Stop syncing', 'danger') : ''}
+      </div>${form}${share}
     </div>`;
   };
 
@@ -142,14 +155,14 @@ export function openSyncPanel(opts: PanelOptions): void {
            <button data-act="join"${busy ? ' disabled' : ''}>Add</button>
          </div>`;
     root.innerHTML = `<div class="kgs-box">
-      <div class="top"><h2>Saves &amp; sync <span class="note">(grown-ups)</span></h2><button data-act="close">Done</button></div>
+      <div class="top"><h2>Saves &amp; sync <span class="note">(grown-ups · v3)</span></h2><button data-act="close">Done</button></div>
       <ul class="note">
         <li>A synced save is the same save on several devices, so a kid can switch between the iPad, a phone or a computer.</li>
         <li>It's locked (encrypted) on this device before it goes online, then kept in your free <b>JSONBin.io</b> account. Without the key the stored copy is unreadable. The key goes from device to device only by QR code (or a code you copy); it is never sent online.</li>
         <li>It uploads a moment after each save, and checks for news when the game opens or you come back to it.</li>
         <li>Adding a device never replaces anything on it: the synced save is added next to the saves already there, and you can switch back here at any time.</li>
         <li>JSONBin.io is a service we don't control. If it loses the online copy, every device still has its own.</li>
-        <li><b>To start syncing</b> you need a JSONBin key, once: make a free account at jsonbin.io, open <b>API Keys</b>, and create an <b>Access Key</b> allowed to create, read and update bins (the Master Key also works). Paste it when asked. It's kept on this device and inside the QR code, so other devices don't need it.</li>
+        <li><b>To start syncing</b> you need a JSONBin key, once: make a free account at jsonbin.io, open <b>API Keys</b>, and create an <b>Access Key</b> allowed to create, read and update bins (the Master Key also works). Paste it after tapping <b>Start syncing this save</b>. It's kept on this device and inside the QR code, so other devices don't need it.</li>
       </ul>
       ${canEncrypt() ? '' : '<div class="warn">Sync needs the secure (https) address of the games; it can\'t lock saves on this page.</div>'}
       ${message ? `<div class="warn">${message}</div>` : ''}
@@ -185,7 +198,7 @@ export function openSyncPanel(opts: PanelOptions): void {
     try {
       await job();
     } catch (e) {
-      message = `That didn't work: ${esc((e as Error).message)}. Check the internet connection and try again.`;
+      message = `That didn't work: ${esc((e as Error).message)}.`;
     }
     busy = '';
     render();
@@ -211,6 +224,9 @@ export function openSyncPanel(opts: PanelOptions): void {
     const game = b.dataset.game as GameId;
     const id = b.dataset.id ?? '';
     const s = game ? slots(game).find((x) => x.id === id) : undefined;
+    const k = `${game}/${id}`;
+    const field = (sel: string) => (root.querySelector(sel) as HTMLInputElement | null)?.value.trim() ?? '';
+    if (b.dataset.act !== 'leave') leaving = '';
     switch (b.dataset.act) {
       case 'close':
         return close();
@@ -228,20 +244,33 @@ export function openSyncPanel(opts: PanelOptions): void {
         setActive(game, id);
         if (opts.game === game) reload = true;
         return render();
-      case 'rename': {
-        const name = prompt('Name for this save (only on this device):', s?.name)?.trim();
+      case 'rename':
+      case 'start':
+        editing = { k, mode: b.dataset.act };
+        render();
+        (root.querySelector('#kgs-name') as HTMLInputElement | null)?.focus();
+        return;
+      case 'cancel-edit':
+        editing = null;
+        return render();
+      case 'rename-ok': {
+        const name = field('#kgs-name');
         if (name) updateSlot(game, id, (x) => (x.name = name));
+        editing = null;
         return render();
       }
-      case 'start': {
-        const name = prompt("Name the synced save (for example, the kid's name). Other devices will see this name.", s?.name === "This device's save" ? '' : s?.name)?.trim();
-        if (!name) return;
-        const api = prompt('Paste your JSONBin.io key (API Keys → Access Key, or the Master Key):', rememberedKey())?.trim();
-        if (!api) return;
+      case 'start-ok': {
+        const name = field('#kgs-name');
+        const api = field('#kgs-api');
+        if (!name || !api) {
+          message = !name ? 'Give the save a name first.' : 'Paste the JSONBin key first.';
+          return render();
+        }
+        editing = null;
         return work('Locking and uploading the save', async () => {
           await startGroup(game, id, name, api);
           rememberKey(api);
-          sharing = `${game}/${id}`;
+          sharing = k;
         });
       }
       case 'share':
@@ -267,9 +296,11 @@ export function openSyncPanel(opts: PanelOptions): void {
           if (opts.game === game && takeChanged()) reload = true;
         });
       case 'leave':
-        if (confirm(`Stop syncing “${s?.name}” on this device? It stays here as it is now, and the other devices keep syncing with each other.`)) {
+        // It stays here as it is now, and the other devices keep syncing with each other.
+        if (leaving === k) {
           leaveGroup(game, id);
-        }
+          leaving = '';
+        } else leaving = k;
         return render();
     }
   });

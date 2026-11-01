@@ -229,8 +229,9 @@ export class TraderScene extends Phaser.Scene {
       ? `That's only ${moneyText(total)}. Not enough!`
       : `That's ${moneyText(total)}. Too much! I don't make change.`;
     toast(this, 640, 330, msg, '#ff9f9f', 30);
-    // After two misses, show the running total as a hint.
-    if (this.misses >= 2) {
+    // After a miss, the running total stays on screen: he just counted it, so he
+    // shouldn't have to remember it while he works out what's missing.
+    if (this.misses >= 1) {
       this.problem.showTotal = true;
       this.refresh();
     }

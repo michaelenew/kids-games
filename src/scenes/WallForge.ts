@@ -365,9 +365,10 @@ export class WallForge extends Phaser.Scene {
         sl.brick = b;
         this.tweens.add({ targets: b, y: sl.y, alpha: 1, duration: 200, ease: 'Bounce.easeOut' });
         sfx.tick();
-        const t = text(this, sl.x, sl.y, String(start + i + 1), 20, '#ffffff').setStroke('#000000', 4);
+        // The count stays on each brick (his counting is his work; the last one is the total).
+        const t = text(this, sl.x, sl.y, String(start + i + 1), 20, '#ffffff').setStroke('#000000', 4).setScale(1.4);
         this.wall.add(t);
-        this.tweens.add({ targets: t, y: sl.y - 26, alpha: 0, delay: 400, duration: 500 });
+        this.tweens.add({ targets: t, scale: 1, duration: 250, ease: 'Back.easeOut' });
       });
     });
     this.time.delayedCall(holes.length * 380 + 300, done);

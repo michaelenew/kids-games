@@ -189,13 +189,18 @@ export class BootsBench extends BenchScene {
         const zone = this.add.zone(sx, y, 110, 100).setInteractive({ useHandCursor: true });
         zone.on('pointerup', () => this.unpick(i));
         this.slotLayer.add([g, label, zone]);
+        // A chain is worked one step at a time: each step's result is written under it,
+        // like on paper, so he never has to hold "9 − 4 = 5" in his head for the next one.
+        if (this.problem.kind === 'chain') {
+          this.slotLayer.add(text(this, sx, y + 72, `= ${applyCells(this.start, this.chosen.slice(0, i + 1))}`, 28, '#ffd166'));
+        }
       }
       if (i < this.slots - 1 || this.problem.kind === 'chain') {
         const sign = this.problem.kind === 'pair' && i === 0 ? '+' : '';
         if (sign) this.slotLayer.add(text(this, sx + 70, y, sign, 40, '#ffffff'));
       }
     }
-    this.slotLayer.add(text(this, 790, 540, 'tap a cell to take it back out', 18, '#9ad1ff'));
+    this.slotLayer.add(text(this, 790, 556, 'tap a cell to take it back out', 18, '#9ad1ff'));
   }
 
   private drawGauge(value = applyCells(this.start, this.chosen), showNumber = this.mark === 1) {
@@ -414,7 +419,7 @@ export class BootsBench extends BenchScene {
     if (this.misses >= 2) {
       // Show the answer and move on without counting it, so nobody gets stuck.
       this.busy = true;
-      this.say(`${f.a} ${f.op === '+' ? 'plus' : 'minus'} ${f.b} is ${f.answer}. Next one!`);
+      this.say(`${f.a} ${f.op === '+' ? 'plus' : f.op === '-' ? 'minus' : 'times'} ${f.b} is ${f.answer}. Next one!`);
       this.answerText.setText(`${f.answer}`).setColor('#9ad1ff');
       this.time.delayedCall(1500, () => {
         this.misses = 0;

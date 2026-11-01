@@ -269,10 +269,19 @@ export class PreLaunchScene extends Phaser.Scene {
       sparks(this, RIGHT_X, 420, 0x06d6a0, 24);
       done(misses === 0);
     };
+    // The hint stays up (it doesn't fade), so once it says the answer he can read it while he enters it.
+    let hint: Phaser.GameObjects.Text | null = null;
     const wrongHint = () => {
       misses++;
       sfx.buzz();
-      toast(this, RIGHT_X, 600, misses >= 2 ? `It's ${c.answer}${c.kind === 'barrel' ? ' inches' : ''}.` : 'Not quite. Look again!', '#ff9f9f', 26);
+      const msg = misses >= 2 ? `It's ${c.answer}${c.kind === 'barrel' ? ' inches' : ''}.` : 'Not quite. Look again!';
+      if (!hint) {
+        hint = c.choices
+          ? text(this, RIGHT_X, 548, '', 26, '#ff9f9f')
+          : text(this, RIGHT_X - 170, 560, '', 26, '#ff9f9f', { wordWrap: { width: 320 } });
+        this.layer.add(hint);
+      }
+      hint.setText(msg).setColor(misses >= 2 ? '#ffd166' : '#ff9f9f');
     };
     if (c.choices) {
       c.choices.forEach((ch, i) => {

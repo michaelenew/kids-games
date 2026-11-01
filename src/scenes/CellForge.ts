@@ -57,6 +57,8 @@ const BAR = { x0: 600, x1: 840 };
 const PAD_X = 1100;
 const LIT = 0xc77dff;
 const LIT_EDGE = 0xf3e3ff;
+/** Parts he charged himself on a repair (the already-lit ones stay violet). */
+const CHARGED = 0x06d6a0;
 const DARK = 0x1c1630;
 const DARK_EDGE = 0x5a4a8a;
 const BTN = { fill: 0x5a2bbf, edge: 0xd6c2ff };
@@ -559,9 +561,18 @@ export class CellForge extends Phaser.Scene {
     this.prelight(left);
     this.drawFraction(String(left), String(bottom), null);
     this.setTask('RECHARGE IT', `This cell is down to ${left}/${bottom}. Light the dark parts until it's FULL!`);
+    let charged = 0;
     this.onTap = (i) => {
       if (this.busy || this.lit[i]) return;
       this.setLit(i, true);
+      // The parts he charges look different from the ones that were already lit,
+      // and each gets its number (1, 2, 3...), so his count stays on the cell.
+      charged++;
+      const r = this.parts[i];
+      r.setFillStyle(CHARGED).setStrokeStyle(3, 0xd8fff1);
+      const n = text(this, r.x, r.y, String(charged), Math.min(30, Math.max(16, r.width * 0.45)), '#0b3d2c');
+      if (r.parentContainer) r.parentContainer.add(n);
+      else this.work.add(n);
       sfx.tick();
       this.drawFraction(String(this.litCount), String(bottom), null);
       if (this.litCount < bottom) return;
@@ -570,7 +581,7 @@ export class CellForge extends Phaser.Scene {
       this.time.delayedCall(500, () => {
         this.busy = false;
         this.pad?.clear();
-        this.setTask('HOW MANY DID YOU CHARGE?', `It had ${left}/${bottom}. How many parts did you light up?`);
+        this.setTask('HOW MANY DID YOU CHARGE?', `It had ${left}/${bottom}. How many parts did you light up (the green ones)?`);
         this.onAnswer = (v) => {
           if (v !== bottom - left) {
             this.miss(false, `${bottom} parts in all, and ${left} were already lit. Count the ones you lit!`);

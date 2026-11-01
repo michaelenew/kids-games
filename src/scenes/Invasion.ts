@@ -676,8 +676,9 @@ export class InvasionScene extends Phaser.Scene {
         ], after);
       } else if (this.mission.id === 'mars-olympus' && firstWin) {
         dialog(this, [
-          { who: 'volt', text: 'The Mars walker is down! But the rest flew off into the ASTEROID BELT.' },
-          { who: 'sprocket', text: 'Rocks everywhere out there. TITAN\'s going to need a mining ship. Let\'s build one!' },
+          { who: 'volt', text: 'The Mars walker is down, and Perseverance is FREE! It\'s rolling back to Jezero Crater to keep exploring.' },
+          { who: 'sprocket', text: 'Its tubes are safe for the trip home to Earth one day. But the rest of the aliens flew off into the ASTEROID BELT.' },
+          { who: 'volt', text: 'Rocks everywhere out there. TITAN\'s going to need a mining ship. Let\'s build one!' },
         ], after);
       } else if (this.mission.id === 'belt-hive' && firstWin) {
         dialog(this, [

@@ -56,8 +56,8 @@ export const BAYS: BaySet[] = [
       { name: 'Solar roof', jobs: ['add3', 'add3', 'ruler8'], level: 5 },
     ],
     intros: [
-      ['RHINO\'s Mars rover! First the wheels. Their axles have to be cut to just the right length.', 'This ruler has EIGHTHS: even smaller marks than quarters. Let\'s look closely!'],
-      ['A drill arm for rock samples. Each load is three numbers to add up.', 'Line them up in columns: ones under ones, tens under tens. Start with the ones!'],
+      ['RHINO\'s Mars rover! First the wheels: six of them on rocking legs, just like NASA\'s real rover, Perseverance. Their axles have to be cut to just the right length.', 'This ruler has EIGHTHS: even smaller marks than quarters. Let\'s look closely!'],
+      ['A drill arm for rock samples, like Perseverance\'s. Each load is three numbers to add up.', 'Line them up in columns: ones under ones, tens under tens. Start with the ones!'],
       ['A sample lab! More rocks to weigh, and one more part to cut.'],
       ['A radar mast to find the aliens. Three numbers again, on your own this time.'],
       ['The solar roof! Last part. Add it all up, and one last cut.'],

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { type City, type CityOptions, canvasTex, ribbon, seeded } from '../city';
 import { glow, glowSprite } from '../kit';
+import { type Prop, ingenuity, perseverance, sampleDepot, sampleTube, tractorCage } from '../perseverance';
 
 /**
  * Mars: rusty red-orange ground strewn with dark rocks and pebbles, a dusty
@@ -170,6 +171,40 @@ function trackTexture() {
 }
 
 /** Rock layers: horizontal bands of lighter and darker rock with thin dark seams (grey, to tint). Repeats upwards. */
+/**
+ * Perseverance's own wheel tracks: two ruts (about the rover's width apart)
+ * with the grousers' chevrons pressed in. Canvas left to right is across.
+ */
+function perseTrackTexture() {
+  return ct('marsPerseTrack', () => {
+    const t = canvasTex(64, 128, (g) => {
+      const rnd = seeded(5);
+      g.clearRect(0, 0, 64, 128);
+      for (const cx of [7, 57]) {
+        g.fillStyle = 'rgba(105,45,24,0.38)';
+        g.fillRect(cx - 6, 0, 12, 128);
+        g.fillStyle = 'rgba(70,28,14,0.55)';
+        for (let y = 0; y < 128; y += 8) {
+          g.beginPath();
+          g.moveTo(cx - 6, y);
+          g.lineTo(cx, y + 3);
+          g.lineTo(cx + 6, y);
+          g.lineTo(cx + 6, y + 2);
+          g.lineTo(cx, y + 5);
+          g.lineTo(cx - 6, y + 2);
+          g.fill();
+        }
+      }
+      for (let i = 0; i < 80; i++) {
+        g.fillStyle = 'rgba(90,40,25,0.3)';
+        g.fillRect(rnd() * 64, rnd() * 128, 1 + rnd() * 2, 1 + rnd() * 2);
+      }
+    });
+    t.wrapT = THREE.RepeatWrapping;
+    return t;
+  });
+}
+
 function strataTexture() {
   return ct('marsStrata', () => {
     const t = canvasTex(8, 256, (g) => {
@@ -345,6 +380,59 @@ function olympusGeo() {
 }
 
 /** An alien spire: a twisted, tapering dark tower with fins, unit height. */
+/**
+ * Jezero's old river delta: a fan of layered rock spreading out from its apex
+ * (at the origin) towards +Z, flat-topped, with a stripy cliff round its front
+ * edge, lobes where the old channels ended, and dry channels across the top.
+ */
+function deltaGeo() {
+  return cg('marsDelta', () => {
+    const NA = 40;
+    const NR = 14;
+    const R = 90;
+    const H = 16;
+    const pos: number[] = [];
+    const cols: number[] = [];
+    const uvs: number[] = [];
+    const c = new THREE.Color();
+    const rimAt = (a: number) => R * (0.88 + 0.07 * Math.sin(a * 6 + 1) + 0.04 * Math.sin(a * 15));
+    for (let i = 0; i <= NA; i++) {
+      const a = -1.05 + (i / NA) * 2.1;
+      const rr = rimAt(a);
+      for (let j = 0; j <= NR; j++) {
+        const f = j / NR;
+        // Out along the top, then down the cliff over the last few rings.
+        const top = f < 0.72;
+        const k = top ? f / 0.72 : (f - 0.72) / 0.28;
+        const r = top ? rr * k * 0.94 : rr * (0.94 + 0.06 * k);
+        const chan = 0.5 * Math.max(0, Math.sin(a * 9 + 0.5)) ** 8 * (top ? k : 1);
+        const y = top ? H * (1 - 0.15 * k) - chan * 3 : H * 0.85 * (1 - k) ** 1.3 - 0.5 * k;
+        pos.push(Math.sin(a) * r, y, Math.cos(a) * r);
+        strataColor(y * 2.2, c, Math.sin(a * 3) * 0.6);
+        if (top && j > 0) c.lerp(new THREE.Color(0xd99a68), 0.35 + chan * 0.5);
+        cols.push(c.r, c.g, c.b);
+        uvs.push(a * 4, y / 6);
+      }
+    }
+    const idx: number[] = [];
+    for (let i = 0; i < NA; i++) {
+      for (let j = 0; j < NR; j++) {
+        const p0 = i * (NR + 1) + j;
+        const p1 = (i + 1) * (NR + 1) + j;
+        idx.push(p0, p0 + 1, p1, p0 + 1, p1 + 1, p1);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    const flat = g.toNonIndexed();
+    flat.computeVertexNormals();
+    return flat;
+  });
+}
+
 function spireGeo() {
   return cg('marsSpire', () => {
     const prof: [number, number][] = [[0.16, 0], [0.13, 0.08], [0.09, 0.3], [0.1, 0.36], [0.07, 0.5], [0.075, 0.56], [0.045, 0.78], [0.05, 0.82], [0.02, 0.97], [0, 1]];
@@ -886,12 +974,138 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     };
   }
 
+  // ---- Perseverance, NASA's real rover, and its friends ----
+  // (their own random numbers, so the rest of the scenery stays the same)
+  const props: Prop[] = [];
+  const prnd = seeded(opts.seed * 31 + 7);
+  /** A spot `along` units down the track, `side` (-1 left, 1 right) `off` units out, on the ground. */
+  const spot = (along: number, side: number, off: number) => {
+    const f = frame(along / len);
+    const p = f.p.clone().addScaledVector(f.n, side * off);
+    p.y = heightAt(p.x, p.z);
+    return { p, f };
+  };
+  /** Wheel tracks along a list of ground points (x, z). */
+  const tracks = (pts: THREE.Vector3[]) => {
+    const c = new THREE.CatmullRomCurve3(pts.map((v) => new THREE.Vector3(v.x, heightAt(v.x, v.z) + 0.04, v.z)));
+    const segs = Math.ceil(c.getLength() / 1.5);
+    // Points every 1.5 units, each lifted onto the dunes.
+    const dense = new THREE.CatmullRomCurve3(Array.from({ length: segs + 1 }, (_, i) => {
+      const v = c.getPointAt(i / segs);
+      v.y = heightAt(v.x, v.z) + 0.05;
+      return v;
+    }));
+    const m = disposable(new THREE.MeshLambertMaterial({ map: perseTrackTexture(), transparent: true, depthWrite: false }));
+    const r = new THREE.Mesh(ribbon(dense, -2.5, 2.5, 0, segs, 4), m);
+    r.receiveShadow = true;
+    r.renderOrder = -1;
+    root.add(r);
+  };
+  if (opts.seed === 601) {
+    // Jezero Crater: Perseverance parked beside the track just ahead, looking
+    // round, with Ingenuity hovering beside it.
+    const { p, f } = spot(40, -1, 13.5);
+    const rover = perseverance();
+    rover.position.copy(p);
+    // A bit bigger than life next to RHINO's rover, so he can see it well.
+    rover.scale.setScalar(1.4);
+    // Nose towards the track and back a bit, so he sees it from the front three-quarters.
+    rover.rotation.y = Math.atan2(f.n.x + f.t.x * -0.9, f.n.z + f.t.z * -0.9);
+    root.add(rover);
+    props.push(rover);
+    const heli = ingenuity({ flying: true, height: 3.6 });
+    heli.scale.setScalar(1.4);
+    heli.position.copy(p).addScaledVector(f.n, 1).addScaledVector(f.t, -6.5);
+    heli.position.y = heightAt(heli.position.x, heli.position.z);
+    root.add(heli);
+    props.push(heli);
+    // Its tracks curling in behind it from the crater floor.
+    const head = new THREE.Vector3(Math.sin(rover.rotation.y), 0, Math.cos(rover.rotation.y));
+    const behind = (k: number) => p.clone().addScaledVector(head, -k);
+    tracks([spot(-30, -1, 44).p, spot(0, -1, 30).p, behind(14).addScaledVector(f.t, 3), behind(7), behind(1.9)]);
+    // The old river delta: a fan of layered rock where a river once ran into
+    // the crater's lake, its front a cliff of stripes, off on the left.
+    const fan = new THREE.Mesh(deltaGeo(), mesaMat);
+    fan.name = 'jezeroDelta';
+    const d = spot(260, -1, 150).p;
+    fan.position.set(d.x, heightAt(d.x, d.z) - 1.5, d.z);
+    // The fan opens towards the track.
+    fan.rotation.y = Math.atan2(f.n.x, f.n.z);
+    fan.scale.set(1.4, 1, 1.4);
+    root.add(fan);
+  } else if (opts.seed === 607) {
+    // The sample depot: a row of tubes beside the track, Perseverance's tracks leading in and away.
+    const along = len * 0.3;
+    const { p, f } = spot(along, 1, 11.5);
+    const depot = sampleDepot(10, 1.7);
+    depot.position.copy(p);
+    depot.scale.setScalar(1.5);
+    // The row runs along the track.
+    depot.rotation.y = Math.atan2(-f.t.z, f.t.x);
+    root.add(depot);
+    props.push(depot);
+    tracks([spot(along - 90, 1, 46).p, spot(along - 30, 1, 16.5).p, spot(along, 1, 15.5).p, spot(along + 30, 1, 16.5).p, spot(along + 80, 1, 42).p]);
+  } else if (opts.seed === 613) {
+    // Ingenuity scouting high ahead down the canyon.
+    const heli = ingenuity({ flying: true, height: 0 });
+    heli.scale.setScalar(1.6);
+    root.add(heli);
+    props.push(heli);
+    const goal = new THREE.Vector3();
+    let along = 60;
+    props.push({
+      update: (dt: number, t: number) => {
+        // Keep about 55 units ahead of the camera, weaving, high up.
+        const cam = Math.max(0, Math.min(len, start.z - camPos.z));
+        along += (cam + 55 - along) * Math.min(1, dt * 0.8);
+        const f = frame(along / len);
+        goal.copy(f.p).addScaledVector(f.n, Math.sin(t * 0.3) * 9);
+        goal.y = 17 + Math.sin(t * 0.5) * 2;
+        heli.position.lerp(goal, Math.min(1, dt * 2));
+      },
+    } as Prop);
+  } else if (opts.seed === 617) {
+    // The storm: Perseverance's tracks run beside the track, then stop dead,
+    // a scorched green ring where the aliens beamed it up, a dropped tube.
+    const a = len * 0.08;
+    const b = len * 0.42;
+    const pts: THREE.Vector3[] = [];
+    for (let x = a; x <= b; x += 25) pts.push(spot(x, 1, 11 + Math.sin(x * 0.04) * 1.5).p);
+    tracks(pts);
+    const endP = pts[pts.length - 1];
+    const burnMat = disposable(new THREE.MeshBasicMaterial({ color: 0x2a1a10, transparent: true, opacity: 0.55, depthWrite: false }));
+    const burn = new THREE.Mesh(cg('marsBurn', () => new THREE.CircleGeometry(4.5, 28).rotateX(-Math.PI / 2)), burnMat);
+    burn.position.copy(endP).setY(endP.y + 0.07);
+    root.add(burn);
+    const ringMat = glow(0x5dff7a, 1.3);
+    const ring = new THREE.Mesh(cg('marsBurnRing', () => new THREE.RingGeometry(4.1, 4.5, 32).rotateX(-Math.PI / 2)), ringMat);
+    ring.position.copy(endP).setY(endP.y + 0.09);
+    root.add(ring);
+    const tube = sampleTube();
+    const tp = spot(len * 0.25, 1, 8.5).p;
+    tube.position.copy(tp);
+    tube.rotation.y = 0.7;
+    tube.scale.setScalar(1.6);
+    root.add(tube);
+    props.push(tube);
+  } else if (olympus) {
+    // The boss: Perseverance held in an alien tractor beam, off to the side of the walker.
+    const cage = tractorCage();
+    const bz = end.z - 65;
+    cage.position.set(end.x - 27, 0, bz + 24);
+    cage.position.y = heightAt(cage.position.x, cage.position.z);
+    cage.rotation.y = prnd() * 6;
+    root.add(cage);
+    props.push(cage);
+  }
+
   let time = 0;
   return {
     group: root,
     smokeSpots: [],
     update(dt: number) {
       time += dt;
+      for (const p of props) p.update(dt, time);
       for (const g of glows) g.s.scale.setScalar(g.base * (1 + Math.sin(time * 2.2 + g.phase) * 0.18));
       for (const [i, tx] of swirls.entries()) tx.offset.y = -time * (0.5 + (i % 2) * 0.25);
       for (const d of devils) {

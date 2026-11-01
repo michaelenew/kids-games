@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { newKey, open, seal } from '../src/sync/crypto';
-import { joinCode, joinGroup, leaveGroup, noteSaved, parseJoinCode, startGroup, syncSlot } from '../src/sync/engine';
+import { joinCode, joinGroup, keyCode, leaveGroup, noteSaved, parseJoinCode, parseKeyCode, startGroup, syncSlot } from '../src/sync/engine';
 import { merge3 } from '../src/sync/merge';
-import { activeId, MAIN, readJson, slot, slots, storageKey } from '../src/sync/registry';
+import { activeId, deviceApiKey, MAIN, readJson, slot, slots, storageKey } from '../src/sync/registry';
 import { type BlobStore, createWithKey, jsonBin, setStore } from '../src/sync/store';
 
 /** A browser's storage. Each simulated device gets its own. */
@@ -248,5 +248,27 @@ describe('the QR code', () => {
     const read = jsQR(px, size, size)?.data;
     expect(read).toBe(link);
     expect(parseJoinCode(read!)).toEqual(group);
+  });
+});
+
+describe('the device JSONBin key', () => {
+  it('travels on its own in a key code, and joining a save picks it up when the device has none', async () => {
+    const api = '$2a$10$Zx8rQ1v/abcDEFghiJKLmnoPQRstuVWXyz0123456789.ABCDEFGHIJ';
+    expect(parseKeyCode(`https://michaelenew.github.io/kids-games/#${keyCode(api)}`)).toBe(api);
+    expect(parseKeyCode(keyCode(api))).toBe(api);
+    // A save's code isn't a key code, and the other way round.
+    const g = { blob: '65f0c2a1e41b4d34e5a1b2c3', key: newKey(), api, kind: 'master' as const };
+    expect(parseKeyCode(`https://x/#join=${joinCode(g)}`)).toBeNull();
+    expect(parseJoinCode(`https://x/#${keyCode(api)}`)).toBeNull();
+
+    setStore(fakeStore);
+    on(storage());
+    put(MAIN, { v: 1 });
+    await startGroup('mecha', MAIN, 'Sam', api);
+    const group = slot('mecha', MAIN)!.group!;
+    on(storage());
+    expect(deviceApiKey()).toBe('');
+    await joinGroup(group);
+    expect(deviceApiKey()).toBe(api);
   });
 });

@@ -128,6 +128,29 @@ export function updateSlot(game: GameId, id: string, change: (s: Slot) => void):
   return s;
 }
 
+/**
+ * This device's JSONBin key: set by pasting it, by scanning another device's
+ * key QR code, or picked up when joining a group. Used to start new groups.
+ */
+const API_KEY = 'kids-games-jsonbin-key';
+
+export function deviceApiKey(): string {
+  try {
+    return localStorage.getItem(API_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setDeviceApiKey(key: string): void {
+  try {
+    if (key) localStorage.setItem(API_KEY, key);
+    else localStorage.removeItem(API_KEY);
+  } catch {
+    // No storage: it'll be asked for again.
+  }
+}
+
 /** Where a save is kept in this browser. */
 export function storageKey(game: GameId, id: string): string {
   return id === MAIN ? GAMES[game].key : `${GAMES[game].key}:${id}`;

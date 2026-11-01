@@ -10,6 +10,7 @@ import { robots } from './scenes/robots';
 import { stars } from './scenes/stars';
 import { style } from './scenes/style';
 import { trail } from './scenes/trail';
+import { volcano, welcomeBack } from './scenes/volcano';
 import { onCaption, unlockSpeech } from './speak';
 import { unlockSfx } from './sfx';
 import { type OwnedUnicorn, save } from './state';
@@ -75,6 +76,14 @@ play.addEventListener('click', async () => {
 
 async function loop(): Promise<void> {
   let arrival: OwnedUnicorn | undefined;
+  // Just back from a Volcano Island mission in Mecha Forge (?from=volcano).
+  const back = new URLSearchParams(location.search);
+  if (back.get('from') === 'volcano') {
+    history.replaceState(null, '', location.pathname);
+    await welcomeBack(ctx, back.get('won') === '1');
+    finishedActivity();
+    stats(ctx);
+  }
   for (;;) {
     const next = await ranch(ctx, { arrival });
     arrival = undefined;
@@ -82,6 +91,7 @@ async function loop(): Promise<void> {
     else if (next === 'race') await race(ctx);
     else if (next === 'aliens') await aliens(ctx);
     else if (next === 'robots') await robots(ctx);
+    else if (next === 'volcano') await volcano(ctx);
     else if (next === 'stars') await stars(ctx);
     else if (next === 'dance') await dance(ctx);
     else if (next === 'magic') await magic(ctx);

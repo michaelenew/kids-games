@@ -35,6 +35,8 @@ export interface Save {
   herdVersion: number;
   /** What the recognizer heard in the grown-ups' voice check, per letter. */
   voiceCheck: Record<string, string>;
+  /** Volcano Island missions won with STRIKER (the next one is the one after these). */
+  volcano?: number;
 }
 
 // The save lives under 'unicorn-rancher-v1'. A device can keep more saves,

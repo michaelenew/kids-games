@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { torpedoLauncher } from './torpedo';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type City, type CityOptions, addAlienSky, canvasTex, ribbon, seeded } from './city';
 import { coneGeo, cylGeo, glow, glowSprite, mesh, rboxGeo, sphereGeo, torusGeo } from './kit';
@@ -1530,11 +1531,29 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
 
   mergeStatic(root);
 
+  // The Torpedo Bay upgrade: two launchers by the road, beside where he fights.
+  const launchers: ReturnType<typeof torpedoLauncher>[] = [];
+  if (opts.torpedoes && pieces > 0) {
+    const spots: [number, number, number][] = opts.defend
+      ? [[0, 9, 12], [0, 9, -12]]
+      : plazas.map(([a, b], pi) => [a + (b - a) * 0.35, 10, (pi % 2 ? 1 : -1) * 9]);
+    for (const [uc, sAlong, d] of spots) {
+      const l = torpedoLauncher();
+      const p = roadSpot(uc, sAlong, d);
+      const ahead = roadSpot(uc, sAlong + 25, d * 0.3);
+      l.root.position.copy(p);
+      l.root.rotation.y = Math.atan2(ahead.x - p.x, ahead.z - p.z);
+      root.add(l.root);
+      launchers.push(l);
+    }
+  }
+
   let time = 0;
   return {
     group: root,
     smokeSpots: [],
     turrets,
+    torpedoMuzzles: launchers.flatMap((l) => l.muzzles),
     update(dt: number) {
       time += dt;
       for (const f of flickers) f.s.scale.setScalar(f.base * (0.85 + Math.sin(time * 3 + f.phase) * 0.1 + Math.random() * 0.05));
@@ -1549,6 +1568,7 @@ export function buildMoon(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): 
       // The laser beams shimmer.
       m.beam.color.setRGB(0.3, 0.94, 1).multiplyScalar(2.4 + Math.sin(time * 9) * 0.35);
       sky(dt, time);
+      for (const l of launchers) l.update(dt, time);
     },
   };
 }

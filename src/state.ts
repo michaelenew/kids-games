@@ -65,6 +65,8 @@ export interface SaveData {
   ship?: number;
   /** The Moon base: how many of its pieces he has built (see skills/area.ts). */
   base?: number;
+  /** The Moon base's Torpedo Bay upgrade is built: the base fires homing torpedoes. */
+  torpedoBay?: boolean;
   /** Which robot he picked as backup for each mission with reinforcements. */
   backups?: Record<string, BotId>;
   /** Gear and plates of the robots that joined later (RHINO the tank, and on). */

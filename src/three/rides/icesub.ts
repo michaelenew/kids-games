@@ -13,10 +13,10 @@ import type { Turret } from '../moon';
  * he builds bolts on more:
  *
  *   1. Ice drill: a big frosty drill cone at the bow, spinning.
- *   2. Sonar: a glowing dome under the bow, rings rippling out over the sea floor.
- *   3. Heated hull: orange heating strips along the hull, a shimmer of warm water.
- *   4. Searchlights: two big lamps at the bow with soft cones of light, and 2 turrets.
- *   5. Torpedo bay: torpedo tubes on both sides, and 2 more turrets.
+ *   2. Torpedo bay: torpedo tubes on both sides that fire homing torpedoes, and 2 turrets.
+ *   3. Sonar: a glowing dome under the bow, rings rippling out over the sea floor.
+ *   4. Heated hull: orange heating strips along the hull, a shimmer of warm water.
+ *   5. Searchlights: two big lamps at the bow with soft cones of light, and 2 more turrets.
  *
  * Rig space: the robot's feet at the origin on the deck (y = 0), +Z forward,
  * +X to his left. The deck is only 3 above the sea floor, so the whole hull
@@ -695,7 +695,7 @@ function searchlights(root: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
 }
 
 /** A pod of two torpedo tubes, opening forward, a torpedo in each. */
-function torpedoPod(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, y: number, z: number) {
+function torpedoPod(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, y: number, z: number, muzzles?: THREE.Object3D[]) {
   const g = new THREE.Group();
   g.position.set(x, y, z);
   parent.add(g);
@@ -707,6 +707,11 @@ function torpedoPod(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, y: n
     mesh(g, cylGeo(0.28, 0.28, 0.05, 14), m.dark, 0, ty, 2.83, { rx: Math.PI / 2, shadow: false });
     // The torpedo's nose peeking out.
     mesh(g, cg('torpNose', () => new THREE.SphereGeometry(0.26, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2)), m.yellow, 0, ty, 2.7);
+    // Where its torpedoes come out (pointing along +Z), for the engine.
+    const mouth = new THREE.Object3D();
+    mouth.position.set(0, ty, 3.1);
+    g.add(mouth);
+    muzzles?.push(mouth);
   }
   for (let k = 0; k < 3; k++) {
     const l = dynamic(mesh(g, boxGeo(0.06, 0.14, 0.3), m.red, 0.52, -0.6, -1.2 + k * 0.6, { shadow: false }));
@@ -715,10 +720,10 @@ function torpedoPod(parent: THREE.Object3D, m: Mats, anim: Anim, x: number, y: n
   return g;
 }
 
-/** Part 5: torpedo tubes on both sides, and two more turrets up front on the tanks. */
-function torpedoBay(root: THREE.Object3D, m: Mats, anim: Anim): Turret[] {
+/** Part 2: torpedo tubes on both sides that fire real torpedoes, and two turrets up front on the tanks. */
+function torpedoBay(root: THREE.Object3D, m: Mats, anim: Anim, muzzles: THREE.Object3D[]): Turret[] {
   for (const s of [-1, 1]) {
-    torpedoPod(root, m, anim, s * (TANK_X + 1.4), TANK_Y, 3.2);
+    torpedoPod(root, m, anim, s * (TANK_X + 1.4), TANK_Y, 3.2, muzzles);
     mesh(root, boxGeo(0.8, 0.3, 1.2), m.navy, s * (TANK_X + 0.9), TANK_Y + 0.6, 3.2);
   }
   return [-1, 1].map((s) => {
@@ -752,31 +757,34 @@ function animate(anim: Anim, m: Mats, dt: number, t: number) {
 }
 
 /** TRIDENT's ice sub. `parts`: how many of its parts he has built (0 to 5). */
-export function build(parts: number): Dropship & { turrets: Turret[] } {
+export function build(parts: number): Dropship & { turrets: Turret[]; torpedoMuzzles: THREE.Object3D[] } {
   const n = Math.max(0, Math.min(5, Math.floor(parts)));
   const root = new THREE.Group();
   const m = makeMats();
   const anim = newAnim();
   const turrets: Turret[] = [];
   hull(root, m, anim);
+  const torpedoMuzzles: THREE.Object3D[] = [];
   if (n >= 1) drill(root, m, anim, BOW_Z + 2.6);
-  if (n >= 2) sonar(root, m, anim, 0, -2.35, 6.2);
-  if (n >= 3) heater(root, m, anim);
-  if (n >= 4) turrets.push(...searchlights(root, m, anim));
-  if (n >= 5) turrets.push(...torpedoBay(root, m, anim));
+  if (n >= 2) turrets.push(...torpedoBay(root, m, anim, torpedoMuzzles));
+  if (n >= 3) sonar(root, m, anim, 0, -2.35, 6.2);
+  if (n >= 4) heater(root, m, anim);
+  if (n >= 5) turrets.push(...searchlights(root, m, anim));
   mergeStatic(root);
   return {
     root,
     turrets,
+    torpedoMuzzles,
     update(dt: number, t: number) {
       animate(anim, m, dt, t);
     },
   };
 }
 
-/** One part on its own, for the bay's turntable (0 drill … 4 torpedo bay), about 6 units across on y = 0. */
+/** One part on its own, for the bay's turntable (0 drill, 1 torpedo bay, 2 sonar, 3 heated hull, 4 searchlights), about 6 units across on y = 0. */
 export function partModel(part: number): THREE.Group {
-  const p = Math.max(0, Math.min(4, Math.floor(part)));
+  // The torpedo bay comes second now (he asked for torpedoes!); the drawings below are in the old order.
+  const p = [0, 4, 1, 2, 3][Math.max(0, Math.min(4, Math.floor(part)))];
   const m = makeMats();
   const anim = newAnim();
   const inner = new THREE.Group();

@@ -253,6 +253,12 @@ export class GarageScene extends Phaser.Scene {
         fill: 0x3a5a8c, edge: 0xcfe8ff, size: 24,
       });
       this.tweens.add({ targets: bb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+    } else if (basePieces(s) >= 1 && !s.torpedoBay && !fixFor) {
+      // An extra for the Moon base (he asked for it): torpedo launchers.
+      const tb = button(this, 300, 175, 420, 70, '🚀 BUILD THE TORPEDO BAY!', () => this.scene.start('TorpedoBay', {}), {
+        fill: 0x3a5a8c, edge: 0xffe28a, size: 24,
+      });
+      this.tweens.add({ targets: tb, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
     }
 
     // Engineering Zone.

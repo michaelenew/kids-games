@@ -158,6 +158,8 @@ export interface City {
   update(dt: number): void;
   /** Spots where smoke should rise (burning wrecks), for the effects system. */
   smokeSpots: THREE.Vector3[];
+  /** Torpedo tubes (their mouths, pointing out along +Z) that fire on their own (see torpedo.ts). */
+  torpedoMuzzles?: THREE.Object3D[];
 }
 
 export interface CityOptions {
@@ -172,6 +174,8 @@ export interface CityOptions {
   defend?: boolean;
   /** Space: how many parts of the starship he has built (0 to 5). */
   ship?: number;
+  /** The Moon: he built the Torpedo Bay upgrade, so the base has torpedo launchers. */
+  torpedoes?: boolean;
   /** Titan's world file: build Saturn's rings (a flight) instead of Titan's surface. */
   rings?: boolean;
 }

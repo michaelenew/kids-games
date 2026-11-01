@@ -40,7 +40,11 @@ export const GAMES: Record<GameId, GameInfo> = {
 
 export interface Group {
   blob: string;
+  /** The encryption key. */
   key: string;
+  /** The JSONBin API key the group's save is stored with, and which kind it is. */
+  api: string;
+  kind: 'access' | 'master';
 }
 
 export interface Slot {
@@ -55,6 +59,8 @@ export interface Slot {
   synced?: number;
   /** Why the last sync didn't work, if it didn't. */
   problem?: 'offline' | 'lost' | 'unreadable';
+  /** What JSONBin (or the browser) said, for the grown-ups' screen. */
+  problemText?: string;
 }
 
 interface Registry {
@@ -120,6 +126,29 @@ export function updateSlot(game: GameId, id: string, change: (s: Slot) => void):
   r.slots[game] = list;
   write(r);
   return s;
+}
+
+/**
+ * This device's JSONBin key: set by pasting it, by scanning another device's
+ * key QR code, or picked up when joining a group. Used to start new groups.
+ */
+const API_KEY = 'kids-games-jsonbin-key';
+
+export function deviceApiKey(): string {
+  try {
+    return localStorage.getItem(API_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setDeviceApiKey(key: string): void {
+  try {
+    if (key) localStorage.setItem(API_KEY, key);
+    else localStorage.removeItem(API_KEY);
+  } catch {
+    // No storage: it'll be asked for again.
+  }
 }
 
 /** Where a save is kept in this browser. */

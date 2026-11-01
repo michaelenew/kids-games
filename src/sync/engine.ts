@@ -1,9 +1,9 @@
-import { newKey, open, randomId, seal } from './crypto';
+import { fromB64, newKey, open, randomId, seal, toB64 } from './crypto';
 import { merge3, same } from './merge';
 import {
-  baseKey, deviceId, type GameId, type Group, readJson, setActive, slot, slots, storageKey, updateSlot, writeJson,
+  baseKey, deviceApiKey, deviceId, setDeviceApiKey, type GameId, type Group, readJson, setActive, slot, slots, storageKey, updateSlot, writeJson,
 } from './registry';
-import { MissingBlob, store } from './store';
+import { createWithKey, MissingBlob, storeFor } from './store';
 
 /**
  * Keeping a save the same on every device in its sync group.
@@ -17,8 +17,13 @@ import { MissingBlob, store } from './store';
  *    changes (using the base);
  *  - online copy not built on ours (two devices uploaded at once): combine
  *    the two and upload, so neither loses progress.
- * After uploading it reads back once to catch a device that uploaded at the
- * same moment.
+ * If two devices upload at the same moment, one upload replaces the other
+ * online; the device whose upload was replaced finds the online copy isn't
+ * built on its own next time it syncs, and combines the two.
+ *
+ * JSONBin's free plan counts requests, so a sync is at most one read and one
+ * write, and uploads wait until the game has been quiet for a little while
+ * (or the page is being hidden).
  */
 
 export interface CloudDoc {
@@ -37,7 +42,6 @@ export interface CloudDoc {
 export type SyncResult = 'ok' | 'offline' | 'lost' | 'unreadable' | 'none';
 
 const HISTORY = 50;
-export const timing = { verifyMs: 1500 };
 
 class SyncProblem extends Error {
   constructor(readonly kind: 'lost' | 'unreadable') {
@@ -46,7 +50,7 @@ class SyncProblem extends Error {
 }
 
 async function fetchDoc(g: Group): Promise<CloudDoc> {
-  const box = await store().read(g.blob);
+  const box = await storeFor(g.api, g.kind).read(g.blob);
   if (box === null) throw new SyncProblem('lost');
   try {
     const doc = (await open(g.key, box)) as CloudDoc;
@@ -57,14 +61,34 @@ async function fetchDoc(g: Group): Promise<CloudDoc> {
   }
 }
 
-/** The join code for a group: the blob's ID and the key. */
+/** The join code for a group: the bin's ID, the encryption key, and the JSONBin key. */
 export function joinCode(g: Group): string {
-  return `${g.blob}.${g.key}`;
+  return `${g.blob}.${g.key}.${g.kind[0]}${toB64(new TextEncoder().encode(g.api))}`;
+}
+
+/** The code for passing just the JSONBin key to another device. */
+export function keyCode(api: string): string {
+  return `key=${toB64(new TextEncoder().encode(api))}`;
+}
+
+export function parseKeyCode(text: string): string | null {
+  const m = /(?:^|[#&?])key=([A-Za-z0-9_-]+)/.exec(text.trim());
+  if (!m) return null;
+  try {
+    return new TextDecoder().decode(fromB64(m[1])) || null;
+  } catch {
+    return null;
+  }
 }
 
 export function parseJoinCode(text: string): Group | null {
-  const m = /([A-Za-z0-9-]+)\.([A-Za-z0-9_-]{43})/.exec(text.trim().replace(/^.*join=/, ''));
-  return m ? { blob: m[1], key: m[2] } : null;
+  const m = /([A-Za-z0-9-]+)\.([A-Za-z0-9_-]{43})\.([am])([A-Za-z0-9_-]+)/.exec(text.trim().replace(/^.*join=/, ''));
+  if (!m) return null;
+  try {
+    return { blob: m[1], key: m[2], kind: m[3] === 'm' ? 'master' : 'access', api: new TextDecoder().decode(fromB64(m[4])) };
+  } catch {
+    return null;
+  }
 }
 
 // --- The running game ------------------------------------------------------
@@ -83,7 +107,7 @@ export function onRemoteSave(game: GameId, id: string, fn: Adopt): void {
 }
 
 /** The game just saved: upload it soon. */
-export function noteSaved(game: GameId, id: string, delayMs = 3000): void {
+export function noteSaved(game: GameId, id: string, delayMs = 20000): void {
   const s = slot(game, id);
   if (!s?.group) return;
   const k = `${game}:${id}`;
@@ -115,54 +139,45 @@ export function syncSlot(game: GameId, id: string, opts: { keepalive?: boolean }
 async function runSync(game: GameId, id: string, opts: { keepalive?: boolean }): Promise<SyncResult> {
   const k = `${game}:${id}`;
   try {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const s = slot(game, id);
-      if (!s?.group) return 'none';
-      const doc = await fetchDoc(s.group);
+    const s = slot(game, id);
+    if (!s?.group) return 'none';
+    const doc = await fetchDoc(s.group);
 
-      const gen = gens.get(k) ?? 0;
-      const local = readJson(storageKey(game, id));
-      let next: unknown;
-      if (doc.write === s.write) {
-        if (!s.pending && local !== undefined) {
-          updateSlot(game, id, (x) => ((x.synced = Date.now()), (x.problem = undefined)));
-          return 'ok';
-        }
-        next = local ?? doc.save;
-      } else {
-        const builtOnOurs = doc.history.includes(s.write ?? '') || doc.edits - (s.edits ?? 0) > HISTORY;
-        if (builtOnOurs && (!s.pending || local === undefined)) {
-          // Someone else played on; we have nothing new. Take theirs.
-          adopt(game, id, doc.save, local);
-          updateSlot(game, id, (x) => Object.assign(x, { write: doc.write, edits: doc.edits, pending: false, synced: Date.now(), problem: undefined }));
-          writeJson(baseKey(game, id), doc.save);
-          return 'ok';
-        }
-        next = merge3(builtOnOurs ? readJson(baseKey(game, id)) : undefined, local, doc.save);
-        adopt(game, id, next, local);
+    const gen = gens.get(k) ?? 0;
+    const local = readJson(storageKey(game, id));
+    let next: unknown;
+    if (doc.write === s.write) {
+      if (!s.pending && local !== undefined) {
+        updateSlot(game, id, (x) => ((x.synced = Date.now()), (x.problem = undefined)));
+        return 'ok';
       }
-
-      const mine: CloudDoc = {
-        kg: 1, game, name: doc.name, edits: Math.max(doc.edits, s.edits ?? 0) + 1, write: randomId(),
-        history: [...doc.history, doc.write].slice(-HISTORY), by: deviceId(), at: Date.now(), save: next,
-      };
-      await store().write(s.group.blob, await seal(s.group.key, mine), opts);
-      const stillPending = (gens.get(k) ?? 0) !== gen;
-      updateSlot(game, id, (x) => Object.assign(x, { write: mine.write, edits: mine.edits, pending: stillPending, synced: Date.now(), problem: undefined }));
-      writeJson(baseKey(game, id), next);
-      if (stillPending) noteSaved(game, id);
-
-      // Did another device upload at the same moment? Then go round again.
-      if (opts.keepalive || timing.verifyMs < 0) return 'ok';
-      await new Promise((r) => setTimeout(r, timing.verifyMs));
-      const check = await fetchDoc(s.group);
-      if (check.write === mine.write || check.history.includes(mine.write)) return 'ok';
-      updateSlot(game, id, (x) => (x.pending = true));
+      next = local ?? doc.save;
+    } else {
+      const builtOnOurs = doc.history.includes(s.write ?? '') || doc.edits - (s.edits ?? 0) > HISTORY;
+      if (builtOnOurs && (!s.pending || local === undefined)) {
+        // Someone else played on; we have nothing new. Take theirs.
+        adopt(game, id, doc.save, local);
+        updateSlot(game, id, (x) => Object.assign(x, { write: doc.write, edits: doc.edits, pending: false, synced: Date.now(), problem: undefined }));
+        writeJson(baseKey(game, id), doc.save);
+        return 'ok';
+      }
+      next = merge3(builtOnOurs ? readJson(baseKey(game, id)) : undefined, local, doc.save);
+      adopt(game, id, next, local);
     }
+
+    const mine: CloudDoc = {
+      kg: 1, game, name: doc.name, edits: Math.max(doc.edits, s.edits ?? 0) + 1, write: randomId(),
+      history: [...doc.history, doc.write].slice(-HISTORY), by: deviceId(), at: Date.now(), save: next,
+    };
+    await storeFor(s.group.api, s.group.kind).write(s.group.blob, await seal(s.group.key, mine), opts);
+    const stillPending = (gens.get(k) ?? 0) !== gen;
+    updateSlot(game, id, (x) => Object.assign(x, { write: mine.write, edits: mine.edits, pending: stillPending, synced: Date.now(), problem: undefined, problemText: undefined }));
+    writeJson(baseKey(game, id), next);
+    if (stillPending) noteSaved(game, id);
     return 'ok';
   } catch (e) {
     const problem = e instanceof SyncProblem ? e.kind : e instanceof MissingBlob ? 'lost' : 'offline';
-    updateSlot(game, id, (x) => (x.problem = problem));
+    updateSlot(game, id, (x) => ((x.problem = problem), (x.problemText = problem === 'offline' ? (e as Error).message : undefined)));
     return problem;
   }
 }
@@ -187,11 +202,12 @@ export function takeChanged(): boolean {
 // --- Groups --------------------------------------------------------------------
 
 /** Start a group from one of this device's saves; this device's copy goes online first. */
-export async function startGroup(game: GameId, id: string, name: string): Promise<void> {
-  const group: Group = { blob: '', key: newKey() };
+export async function startGroup(game: GameId, id: string, name: string, api: string): Promise<void> {
+  const key = newKey();
   const save = readJson(storageKey(game, id)) ?? {};
   const doc: CloudDoc = { kg: 1, game, name, edits: 1, write: randomId(), history: [], by: deviceId(), at: Date.now(), save };
-  group.blob = await store().create(await seal(group.key, doc));
+  const made = await createWithKey(api, await seal(key, doc));
+  const group: Group = { blob: made.id, key, api, kind: made.kind };
   writeJson(baseKey(game, id), save);
   updateSlot(game, id, (x) => Object.assign(x, { name, group, write: doc.write, edits: 1, pending: false, synced: Date.now(), problem: undefined }));
 }
@@ -210,6 +226,7 @@ export interface Joined {
 export async function joinGroup(group: Group): Promise<Joined> {
   const doc = await fetchDoc(group);
   const game = doc.game;
+  if (!deviceApiKey()) setDeviceApiKey(group.api);
   const have = slots(game).find((s) => s.group?.blob === group.blob);
   if (have) {
     setActive(game, have.id);

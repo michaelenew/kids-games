@@ -1,7 +1,7 @@
 import { fromB64, newKey, open, randomId, seal, toB64 } from './crypto';
 import { merge3, same } from './merge';
 import {
-  baseKey, deviceId, type GameId, type Group, readJson, setActive, slot, slots, storageKey, updateSlot, writeJson,
+  baseKey, deviceApiKey, deviceId, setDeviceApiKey, type GameId, type Group, readJson, setActive, slot, slots, storageKey, updateSlot, writeJson,
 } from './registry';
 import { createWithKey, MissingBlob, storeFor } from './store';
 
@@ -64,6 +64,21 @@ async function fetchDoc(g: Group): Promise<CloudDoc> {
 /** The join code for a group: the bin's ID, the encryption key, and the JSONBin key. */
 export function joinCode(g: Group): string {
   return `${g.blob}.${g.key}.${g.kind[0]}${toB64(new TextEncoder().encode(g.api))}`;
+}
+
+/** The code for passing just the JSONBin key to another device. */
+export function keyCode(api: string): string {
+  return `key=${toB64(new TextEncoder().encode(api))}`;
+}
+
+export function parseKeyCode(text: string): string | null {
+  const m = /(?:^|[#&?])key=([A-Za-z0-9_-]+)/.exec(text.trim());
+  if (!m) return null;
+  try {
+    return new TextDecoder().decode(fromB64(m[1])) || null;
+  } catch {
+    return null;
+  }
 }
 
 export function parseJoinCode(text: string): Group | null {
@@ -211,6 +226,7 @@ export interface Joined {
 export async function joinGroup(group: Group): Promise<Joined> {
   const doc = await fetchDoc(group);
   const game = doc.game;
+  if (!deviceApiKey()) setDeviceApiKey(group.api);
   const have = slots(game).find((s) => s.group?.blob === group.blob);
   if (have) {
     setActive(game, have.id);

@@ -1,7 +1,7 @@
 import { canEncrypt } from './crypto';
-import { joinCode, joinGroup, leaveGroup, parseJoinCode, startGroup, syncSlot, takeChanged } from './engine';
+import { joinCode, joinGroup, keyCode, leaveGroup, parseJoinCode, parseKeyCode, startGroup, syncSlot, takeChanged } from './engine';
 import { qrSvg, scanQr } from './qr';
-import { activeId, GAMES, type GameId, readJson, setActive, type Slot, slots, storageKey, updateSlot } from './registry';
+import { activeId, deviceApiKey, GAMES, type GameId, readJson, setActive, setDeviceApiKey, type Slot, slots, storageKey, updateSlot } from './registry';
 
 /**
  * The grown-ups' "Saves & sync" screen: the saves on this device (pick which
@@ -45,23 +45,6 @@ const CSS = `
 .kgs code { word-break: break-all; font-size: 12px; background: #f3f5fa; padding: 6px 8px; border-radius: 8px; display: block; }
 `;
 
-/** The last JSONBin key used here, so a second game's group doesn't need it pasted again. */
-const KEY_STORE = 'kids-games-jsonbin-key';
-function rememberedKey(): string {
-  try {
-    return localStorage.getItem(KEY_STORE) ?? '';
-  } catch {
-    return '';
-  }
-}
-function rememberKey(k: string): void {
-  try {
-    localStorage.setItem(KEY_STORE, k);
-  } catch {
-    // Not remembered; it'll be asked for again.
-  }
-}
-
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function ago(t?: number): string {
@@ -100,6 +83,8 @@ export function openSyncPanel(opts: PanelOptions): void {
   let editing: { k: string; mode: 'start' | 'rename' } | null = null;
   /** "Stop syncing" was tapped once; a second tap does it. */
   let leaving = '';
+  /** The JSONBin key section: showing its QR code, or its paste box. */
+  let keyView: '' | 'qr' | 'edit' = '';
   let joining = opts.join ?? '';
   let scanning: AbortController | null = null;
   let busy = '';
@@ -130,8 +115,6 @@ export function openSyncPanel(opts: PanelOptions): void {
         ? `<div class="row"><input id="kgs-name" value="${esc(s.name)}" placeholder="Name">${btn('rename-ok', 'Save', 'main')}${btn('cancel-edit', 'Cancel')}</div>`
         : `<div class="note" style="margin-top:10px">Name the synced save (for example, the kid's name). Other devices see this name.</div>
            <div class="row"><input id="kgs-name" value="${esc(s.name === "This device's save" ? '' : s.name)}" placeholder="Name"></div>
-           <div class="note" style="margin-top:10px">Your JSONBin.io key: an Access Key (API Keys page) or the Master Key.</div>
-           <div class="row"><input id="kgs-api" value="${esc(rememberedKey())}" placeholder="Paste the JSONBin key here" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
            <div class="row">${btn('start-ok', 'Start syncing', 'main')}${btn('cancel-edit', 'Cancel')}</div>`;
     return `<div class="card${on ? ' on' : ''}">
       <b>${esc(s.name)}</b>${on ? '<span class="badge">Playing on this device</span>' : ''}
@@ -146,6 +129,22 @@ export function openSyncPanel(opts: PanelOptions): void {
     </div>`;
   };
 
+  const keyBlock = () => {
+    const key = deviceApiKey();
+    const b = (act: string, label: string, cls = '') => `<button class="${cls}" data-act="${act}"${busy ? ' disabled' : ''}>${label}</button>`;
+    if (keyView === 'edit' || !key) {
+      return `<div class="note">Starting a synced save needs a key from a free JSONBin.io account (API Keys page: an Access Key allowed to create, read and update bins, or the Master Key). Paste it here, or scan the key code from a device that has it. Devices that only join saves get it from the save's code.</div>
+        <div class="row"><input id="kgs-api" value="${esc(key)}" placeholder="Paste the JSONBin key here" autocomplete="off" autocapitalize="off" spellcheck="false">
+        ${b('key-save', 'Save key', 'main')}${key ? b('key-cancel', 'Cancel') : ''}</div>`;
+    }
+    const qr = keyView === 'qr'
+      ? `<div class="qr">${qrSvg(`${opts.root}#${keyCode(key)}`)}</div>
+         <div class="note">On the other device, open <b>Saves &amp; sync</b>, tap <b>Scan a code</b> and point it at this. Anyone with this code can use your JSONBin account.</div>`
+      : '';
+    return `<div class="note">This device has a key (ending …${esc(key.slice(-4))}).</div>
+      <div class="row">${b(keyView === 'qr' ? 'key-hide' : 'key-qr', keyView === 'qr' ? 'Hide QR code' : 'Show as QR code')}${b('key-edit', 'Change')}${b('key-remove', 'Remove from this device', 'danger')}</div>${qr}`;
+  };
+
   const render = () => {
     const joinBlock = scanning
       ? `<video></video><div class="row"><button data-act="cancel-scan">Cancel</button></div>`
@@ -155,25 +154,26 @@ export function openSyncPanel(opts: PanelOptions): void {
            <button data-act="join"${busy ? ' disabled' : ''}>Add</button>
          </div>`;
     root.innerHTML = `<div class="kgs-box">
-      <div class="top"><h2>Saves &amp; sync <span class="note">(grown-ups · v3)</span></h2><button data-act="close">Done</button></div>
+      <div class="top"><h2>Saves &amp; sync <span class="note">(grown-ups · v4)</span></h2><button data-act="close">Done</button></div>
       <ul class="note">
         <li>A synced save is the same save on several devices, so a kid can switch between the iPad, a phone or a computer.</li>
         <li>It's locked (encrypted) on this device before it goes online, then kept in your free <b>JSONBin.io</b> account. Without the key the stored copy is unreadable. The key goes from device to device only by QR code (or a code you copy); it is never sent online.</li>
         <li>It uploads a moment after each save, and checks for news when the game opens or you come back to it.</li>
         <li>Adding a device never replaces anything on it: the synced save is added next to the saves already there, and you can switch back here at any time.</li>
         <li>JSONBin.io is a service we don't control. If it loses the online copy, every device still has its own.</li>
-        <li><b>To start syncing</b> you need a JSONBin key, once: make a free account at jsonbin.io, open <b>API Keys</b>, and create an <b>Access Key</b> allowed to create, read and update bins (the Master Key also works). Paste it after tapping <b>Start syncing this save</b>. It's kept on this device and inside the QR code, so other devices don't need it.</li>
       </ul>
       ${canEncrypt() ? '' : '<div class="warn">Sync needs the secure (https) address of the games; it can\'t lock saves on this page.</div>'}
       ${message ? `<div class="warn">${message}</div>` : ''}
       ${busy ? `<div class="note">${esc(busy)}…</div>` : ''}
-      <h3>Add a synced save from another device</h3>
-      <div class="note">On a device that already has it, tap <b>Add another device</b> under the save to show its code.</div>
+      <h3>JSONBin key</h3>
+      ${keyBlock()}
+      <h3>Scan a code from another device</h3>
+      <div class="note">A save's code (<b>Add another device</b> under a synced save) adds that save here. A key code (<b>Show as QR code</b> above) sets this device's JSONBin key.</div>
       ${joinBlock}
       ${games.map((g) => `<h3>${GAMES[g].title}</h3>${slots(g).map((s) => card(g, s)).join('')}`).join('')}
     </div>`;
     if (scanning) void runScan(scanning);
-    if (sharing) root.querySelector('.qr')?.scrollIntoView({ block: 'center' });
+    if (sharing || keyView === 'qr') root.querySelector('.qr')?.scrollIntoView({ block: 'center' });
   };
 
   const runScan = async (ctl: AbortController) => {
@@ -204,10 +204,18 @@ export function openSyncPanel(opts: PanelOptions): void {
     render();
   };
 
-  const doJoin = () => work('Fetching the synced save', async () => {
+  const doJoin = () => work('Reading the code', async () => {
+    const key = parseJoinCode(joining) ? null : parseKeyCode(joining);
+    if (key) {
+      setDeviceApiKey(key);
+      joining = '';
+      keyView = '';
+      message = 'JSONBin key saved on this device. You can now start syncing a save here.';
+      return;
+    }
     const group = parseJoinCode(joining);
     if (!group) {
-      message = "That doesn't look like a sync code.";
+      message = "That doesn't look like a save code or a key code.";
       return;
     }
     const j = await joinGroup(group);
@@ -226,7 +234,7 @@ export function openSyncPanel(opts: PanelOptions): void {
     const s = game ? slots(game).find((x) => x.id === id) : undefined;
     const k = `${game}/${id}`;
     const field = (sel: string) => (root.querySelector(sel) as HTMLInputElement | null)?.value.trim() ?? '';
-    if (b.dataset.act !== 'leave') leaving = '';
+    if (b.dataset.act !== 'leave' && b.dataset.act !== 'key-remove') leaving = '';
     switch (b.dataset.act) {
       case 'close':
         return close();
@@ -261,18 +269,47 @@ export function openSyncPanel(opts: PanelOptions): void {
       }
       case 'start-ok': {
         const name = field('#kgs-name');
-        const api = field('#kgs-api');
+        const api = deviceApiKey();
         if (!name || !api) {
-          message = !name ? 'Give the save a name first.' : 'Paste the JSONBin key first.';
+          message = !name ? 'Give the save a name first.' : 'This device needs a JSONBin key first: paste it or scan it under <b>JSONBin key</b> above.';
           return render();
         }
         editing = null;
         return work('Locking and uploading the save', async () => {
           await startGroup(game, id, name, api);
-          rememberKey(api);
           sharing = k;
         });
       }
+      case 'key-save': {
+        const api = field('#kgs-api');
+        if (!api) return;
+        setDeviceApiKey(api);
+        keyView = '';
+        message = 'JSONBin key saved on this device.';
+        return render();
+      }
+      case 'key-edit':
+        keyView = 'edit';
+        return render();
+      case 'key-cancel':
+      case 'key-hide':
+        keyView = '';
+        return render();
+      case 'key-qr':
+        keyView = 'qr';
+        sharing = '';
+        return render();
+      case 'key-remove':
+        // Saves already syncing keep working: each carries its own copy of the key.
+        if (leaving !== 'key') {
+          leaving = 'key';
+          message = 'Tap <b>Remove from this device</b> again to remove the key. Saves already syncing keep working.';
+          return render();
+        }
+        setDeviceApiKey('');
+        keyView = '';
+        message = '';
+        return render();
       case 'share':
         sharing = `${game}/${id}`;
         return render();

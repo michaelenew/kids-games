@@ -222,3 +222,31 @@ describe('the JSONBin client', () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe('the QR code', () => {
+  it('carries the JSONBin key along with the encryption key, so joining needs nothing pasted', async () => {
+    const { default: qrcode } = await import('qrcode-generator');
+    const { default: jsQR } = await import('jsqr');
+    const group = { blob: '65f0c2a1e41b4d34e5a1b2c3', key: newKey(), api: '$2a$10$Zx8rQ1v/abcDEFghiJKLmnoPQRstuVWXyz0123456789.ABCDEFGHIJ', kind: 'access' as const };
+    const link = `https://michaelenew.github.io/kids-games/#join=${joinCode(group)}`;
+    // Draw the QR code as pixels and read it back, as the camera would.
+    const qr = qrcode(0, 'M');
+    qr.addData(link);
+    qr.make();
+    const cell = 4;
+    const margin = 4;
+    const n = qr.getModuleCount();
+    const size = (n + margin * 2) * cell;
+    const px = new Uint8ClampedArray(size * size * 4).fill(255);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const mx = Math.floor(x / cell) - margin;
+        const my = Math.floor(y / cell) - margin;
+        if (mx >= 0 && my >= 0 && mx < n && my < n && qr.isDark(my, mx)) px.fill(0, (y * size + x) * 4, (y * size + x) * 4 + 3);
+      }
+    }
+    const read = jsQR(px, size, size)?.data;
+    expect(read).toBe(link);
+    expect(parseJoinCode(read!)).toEqual(group);
+  });
+});

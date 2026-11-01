@@ -19,6 +19,8 @@ Source syllabus: "Entering 3rd Grade Math Summer Packet" (35 pages, 8 weeks).
 
 ---
 
+- **His work stays on screen.** Whenever he works something out (a subtraction, counting up, a clock sweep, counting bricks, charging cells) and a later question needs that result, the work or its result stays visible until he's answered. Hints that give an answer don't fade away while he still has to type it.
+
 ## 1. What the packet actually teaches
 
 The packet has 35 pages. Grouped by skill:

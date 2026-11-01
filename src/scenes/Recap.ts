@@ -613,7 +613,9 @@ export class RecapScene extends Phaser.Scene {
           misses++;
           sfx.buzz();
           this.tweens.add({ targets: btn, x: btn.x + 8, duration: 50, yoyo: true, repeat: 3 });
-          toast(this, W / 2, 620, st.show !== undefined ? 'Look at the line: which ten is the dot nearer?' : `Round them: ${a} is about ${ra}, ${b} is about ${rb}.`, '#ff9f9f', 24);
+          // The hint stays (it's the rounding he needs for the answer), not a toast that fades.
+          const msg = st.show !== undefined ? 'Look at the line: which ten is the dot nearer?' : `Round them: ${a} is about ${ra}, ${b} is about ${rb}.`;
+          if (!buttons.some((o) => o.name === 'hint')) buttons.push(text(this, W / 2, 610, msg, 24, '#ffd166').setName('hint'));
         }, { fill: 0x1f6feb, size: 30 });
         buttons.push(btn);
       });

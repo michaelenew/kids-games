@@ -30,6 +30,8 @@ interface GuideStep {
   answer: string;
   choices: string[];
   praise?: string;
+  /** What this step worked out, kept on screen (YOUR WORK) for the steps after it. */
+  note?: string;
 }
 
 interface Clock {
@@ -97,6 +99,11 @@ export class ControlScene extends Phaser.Scene {
     const steps = guided ? this.guideSteps(q) : [];
     const prompt = text(this, 900, 190, '', 28, '#ffffff', { wordWrap: { width: 620 } });
     this.layer.add(prompt);
+    // YOUR WORK: what each step worked out stays here (beside the keypad), so the
+    // last question never asks him to remember an answer he already found.
+    const notes: string[] = [];
+    const work = text(this, 1165, 290, '', 21, '#06d6a0', { wordWrap: { width: 205 }, align: 'center' }).setOrigin(0.5, 0);
+    this.layer.add(work);
     let buttons: Phaser.GameObjects.GameObject[] = [];
     let misses = 0;
     let pad: ReturnType<typeof numpad> | null = null;
@@ -169,13 +176,15 @@ export class ControlScene extends Phaser.Scene {
       clearButtons();
       const step = steps[i];
       const isFinal = !step;
-      if (isFinal && steps.length) clock?.arc(0, 0);
+      // The lit-up part of the clock stays for the last question: it's his work.
       flash(isFinal ? q.prompt : step.prompt);
       const answer = isFinal ? q.answer : step.answer;
       const right = () => {
         sfx.success();
         if (!isFinal) {
           toast(this, 900, 300, step.praise ?? 'Yes!', '#06d6a0', 30);
+          notes.push(step.note ?? `${answer}`);
+          work.setText(`YOUR WORK\n\n${notes.join('\n\n')}`);
           this.time.delayedCall(900, () => show(i + 1));
           return;
         }
@@ -257,6 +266,7 @@ export class ControlScene extends Phaser.Scene {
         answer: `${each}`,
         choices: mix(`${each}`, [`${n}`, `${each + 1}`]),
         praise: `Yes, ${each} in each. Now count by ${each}s, one ${box} at a time: ${seq}!`,
+        note: `${each} in each ${box}.\nCount by ${each}s: ${seq}`,
       });
       return out;
     }
@@ -276,11 +286,13 @@ export class ControlScene extends Phaser.Scene {
         answer: `${t.h}`,
         choices: mix(`${t.h}`, [`${nextH}`, `${((t.h + 10) % 12) + 1}`]),
         praise: `Yes! It's still ${t.h} until the long hand gets back to the 12.`,
+        note: `Hour: ${t.h}`,
       } : {
         prompt: `The SHORT black hand shows the hour. It points at the ${t.h} (or just past it). What hour is it?`,
         answer: `${t.h}`,
         choices: mix(`${t.h}`, [`${nextH}`, `${((t.h + 10) % 12) + 1}`]),
         praise: `Yes, ${t.h} o'clock and a bit!`,
+        note: `Hour: ${t.h}`,
       });
       if (t.m > 0) {
         out.push({
@@ -290,6 +302,7 @@ export class ControlScene extends Phaser.Scene {
           answer: `${t.m}`,
           choices: mix(`${t.m}`, [`${Math.max(1, Math.round(t.m / 5))}`, `${(t.m + 5) % 60 || 5}`, `${t.m + 10}`]),
           praise: `Yes, ${t.m} minutes!`,
+          note: `Minutes: ${t.m}`,
         });
       }
     } else if (q.kind === 'until' && q.clock2) {
@@ -305,6 +318,7 @@ export class ControlScene extends Phaser.Scene {
           answer: `${toTop}`,
           choices: mix(`${toTop}`, [`${toTop + 5}`, `${t.m}`, `${toTop - 5}`]),
           praise: `Yes, ${toTop} minutes!`,
+          note: `${clockText(t.h, t.m)} to ${clockText(top.h, 0)}: ${toTop} min`,
         });
         if (land.m > 0) {
           out.push({
@@ -314,12 +328,14 @@ export class ControlScene extends Phaser.Scene {
             answer: `${land.m}`,
             choices: mix(`${land.m}`, [`${land.m + 5}`, `${60 - land.m}`, `${land.m + 10}`]),
             praise: `Yes, ${land.m} more!`,
+            note: `${clockText(top.h, 0)} to ${clockText(land.h, land.m)}: ${land.m} min`,
           });
           out.push({
             prompt: `Add them up: ${toTop} + ${land.m} = ?`,
             answer: `${total}`,
             choices: mix(`${total}`, [`${total + 10}`, `${total - 5}`, `${total + 5}`]),
             praise: `Yes, ${total} minutes!`,
+            note: `${toTop} + ${land.m} = ${total} min`,
           });
         }
       } else {
@@ -331,6 +347,7 @@ export class ControlScene extends Phaser.Scene {
           answer: `${total}`,
           choices: mix(`${total}`, [`${total + 5}`, `${total / 5}`, `${total - 5}`]),
           praise: `Yes, ${total} minutes!`,
+          note: `${clockText(t.h, t.m)} to ${clockText(land.h, land.m)}: ${total} min`,
         });
       }
     } else if (q.kind === 'ends' && q.clock2) {
@@ -346,12 +363,14 @@ export class ControlScene extends Phaser.Scene {
           answer: `${rest}`,
           choices: mix(`${rest}`, [`${rest + 10}`, `${rest + 5}`, `${dur}`]),
           praise: `Yes! So it's ${clockText(top.h, 0)} plus ${rest} more minutes.`,
+          note: `${clockText(t.h, t.m)} to ${clockText(top.h, 0)}: ${toTop} min\n${dur} − ${toTop} = ${rest} more min\nSo: ${clockText(top.h, 0)} + ${rest} min`,
         });
       } else {
         out.push({
           prompt: `It's ${t.m} minutes past ${t.h} now. Add the ${dur} minutes: ${t.m} + ${dur} = ?`,
           answer: `${t.m + dur}`,
           choices: mix(`${t.m + dur}`, [`${t.m + dur + 10}`, `${t.m + dur - 5}`, `${dur}`]),
+          note: `${t.m} + ${dur} = ${t.m + dur} minutes past ${t.h}`,
         });
       }
     }

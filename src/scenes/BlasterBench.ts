@@ -296,7 +296,7 @@ export class BlasterBench extends BenchScene {
       this.showTargetMarker();
       this.say(`Look for the yellow arrow on the ruler. That's ${formatInches(p.target)} inches.`);
     }
-    this.time.delayedCall(1800, () => this.socket.clear());
+    // The socket outline stays: it's what this try showed him, and he cuts again to match it.
   }
 
   /** The finished blaster powers up and fires a bolt across the bench. */

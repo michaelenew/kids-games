@@ -79,6 +79,8 @@ export class ArmorForge extends Phaser.Scene {
   /** This job introduces something new, so it's guided whatever the counts say. */
   private forceGuide = false;
   /** Repairs are subtraction problems (from Egypt on). */
+  /** The repair card's question line; it shows his worked answer once he has it. */
+  private repairAsk: Phaser.GameObjects.Text | null = null;
   private subtracting = false;
   private camHome: THREE.Vector3 | null = null;
   private camTarget: THREE.Vector3 | null = null;
@@ -259,6 +261,7 @@ export class ArmorForge extends Phaser.Scene {
 
   private startJob() {
     this.layer.removeAll(true);
+    this.repairAsk = null;
     // Pieces from the last job (e.g. ones now sitting in a repaired plate).
     for (const list of this.trayPieces) list.forEach((img) => img.destroy());
     this.spent.forEach((img) => img.destroy());
@@ -335,7 +338,7 @@ export class ArmorForge extends Phaser.Scene {
       recordSkill('written', solo);
       paperDone('subtract', solo, showMe);
       this.busy = false;
-      toast(this, (LEFT + RIGHT) / 2, 318, `Now build ${formatNumber(plate.max - plate.hp)} with the pieces!`, '#06d6a0', 28);
+      this.pinWorked(plate.max, plate.hp, 'sub');
     };
     // Paper mode: past the boxes, it's the problem on a page (see skills/paper.ts).
     const step = paperStep('subtract');
@@ -365,6 +368,15 @@ export class ArmorForge extends Phaser.Scene {
     }] : [])], go, area);
   }
 
+  /** His worked answer stays on the card while he builds it (never just a toast that fades). */
+  private pinWorked(max: number, hp: number, how: 'sub' | 'up') {
+    const n = formatNumber(max - hp);
+    const line = how === 'sub'
+      ? `${formatNumber(max)} − ${formatNumber(hp)} = ${n}.  Build ${n} with the pieces!`
+      : `${formatNumber(hp)} up to ${formatNumber(max)} is ${n}.  Build ${n} with the pieces!`;
+    this.repairAsk?.setText(line).setColor('#06d6a0').setFontSize(26);
+  }
+
   private countUpFlow() {
     const plate = rig().armor![this.job.region]!;
     const area = { x: (LEFT + RIGHT) / 2, y: 515, w: RIGHT - LEFT, h: 390 };
@@ -375,7 +387,7 @@ export class ArmorForge extends Phaser.Scene {
         from: plate.hp, to: plate.max, guided: true, area, title: 'COUNT UP: MISSING POINTS',
         onDone: () => {
           this.busy = false;
-          toast(this, (LEFT + RIGHT) / 2, 318, `Now build ${formatNumber(plate.max - plate.hp)} with the pieces!`, '#06d6a0', 28);
+          this.pinWorked(plate.max, plate.hp, 'up');
         },
       });
     };
@@ -426,6 +438,7 @@ export class ArmorForge extends Phaser.Scene {
       // Just the question here; the count-up box below says what to do step by step.
       const tip = 'How many points are missing?';
       const ask = text(this, cx, 270, tip, 24, '#ffffff');
+      this.repairAsk = ask;
       this.layer.add([card, title, full, left, minus, ask]);
     } else {
       // Early on: the missing amount is shown; he builds it from pieces.

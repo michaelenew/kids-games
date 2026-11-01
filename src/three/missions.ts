@@ -270,13 +270,13 @@ const SOLAR: Mission[] = [
   // Europa: TRIDENT's ice sub, under the ice of Jupiter's moon.
   rideMission({ id: 'europa-dive', title: 'Invasion 66: Under the Ice', blurb: 'Drill through the ice of Europa!', seed: 661, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 1, dmg: 1.09,
     say: 'There\'s a whole ocean under Europa\'s ice! TRIDENT\'s sub just drilled through. Dive!', banners: ['ICE OCEAN!', 'DEEP DIVERS!'] }),
-  rideMission({ id: 'europa-vents', title: 'Invasion 67: Hot Vents', blurb: 'Hot vents on the sea floor!', seed: 673, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 2, dmg: 0.68,
+  rideMission({ id: 'europa-vents', title: 'Invasion 67: Hot Vents', blurb: 'Hot vents on the sea floor!', seed: 673, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 2, dmg: 1.67,
     say: 'Hot water vents keep this ocean warm. And the aliens are using them!', banners: ['THE VENTS!', 'BUBBLE STORM!'] }),
-  rideMission({ id: 'europa-caves', title: 'Invasion 68: Ice Caves', blurb: 'Through the ice caves!', seed: 677, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 3, dmg: 0.277,
+  rideMission({ id: 'europa-caves', title: 'Invasion 68: Ice Caves', blurb: 'Through the ice caves!', seed: 677, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 3, dmg: 0.56,
     say: 'Ice caves, glowing blue. Keep your eyes open!', banners: ['ICE CAVES!', 'CAVE CRAWLERS!'] }),
-  rideMission({ id: 'europa-glow', title: 'Invasion 69: The Glow Reef', blurb: 'A glowing reef. Backup coming!', seed: 683, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 4, dmg: 0.375, reinforce: true,
+  rideMission({ id: 'europa-glow', title: 'Invasion 69: The Glow Reef', blurb: 'A glowing reef. Backup coming!', seed: 683, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 4, dmg: 0.51, reinforce: true,
     say: 'A reef that glows in the dark... and it\'s swarming!', banners: ['GLOW REEF!', 'REEF SWARM!'] }),
-  rideMission({ id: 'europa-depths', title: 'Invasion 70: Europa\'s Deep', blurb: 'The bottom of Europa\'s ocean. Boss!', seed: 691, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 5, dmg: 0.33, boss: 'ICE KRAKEN!',
+  rideMission({ id: 'europa-depths', title: 'Invasion 70: Europa\'s Deep', blurb: 'The bottom of Europa\'s ocean. Boss!', seed: 691, env: 'europa', ride: 'icesub', y: 3, mix: 'ground', tier: 5, dmg: 0.44, boss: 'ICE KRAKEN!',
     say: 'All the way down. Something huge is waiting at the bottom!', banners: ['DEEP GUARDS!', 'THE ABYSS!'] }),
   // Titan: ASTRO joins. TITAN's hovercraft on the methane lakes, and a chase through Saturn's rings.
   footMission({ id: 'titan-land', title: 'Invasion 71: TITAN on Titan', blurb: 'TITAN lands on Saturn\'s moon Titan!', seed: 701, env: 'titan', bot: 'astro', swapFrom: 'titan', tier: 1, dmg: 3,

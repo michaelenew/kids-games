@@ -123,6 +123,7 @@ export class InvasionScene extends Phaser.Scene {
       swapDodge: dodgeOf(ender),
       allyLook: this.mission.steps.some((st) => st.kind === 'reinforce') ? lookFromSave(s, allyFor(this.bot, this.mission.id, s)) : undefined,
       baseLevel: s.base ?? 0,
+      torpedoes: !!s.torpedoBay,
       // The vehicle he rides: the starship, or whichever one this set's bay built.
       shipLevel: this.mission.ride && this.mission.ride !== 'starship' ? (s.rides?.[this.mission.ride] ?? 0) : (s.ship ?? 0),
     }, {

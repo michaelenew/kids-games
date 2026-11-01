@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { RobotLook } from '../art';
 import { engineSound, sfx } from '../audio';
 import type { Line } from '../ui/widgets';
+import { torpedo } from './torpedo';
 import { type AlienModel, type AlienState, type BossModel, hiveWalker, krawler, plasmaBolt, raider, skimmer } from './aliens';
 import { skyTexture } from './backdrop';
 import { type City, buildCity } from './city';
@@ -64,6 +65,11 @@ const BASE_HP = 100;
 const BITE = 3;
 /** What one shot from a Moon base turret does. */
 const TURRET_DAMAGE = 2;
+/** Torpedoes: seconds between shots from each tube, and what one does to its alien, the boss, and anything close by. */
+const TORPEDO_EVERY = 5;
+const TORPEDO_DAMAGE = 8;
+const TORPEDO_BOSS_DAMAGE = 4;
+const TORPEDO_SPLASH = 3;
 /** The jet is drawn a bit bigger in missions so its gear reads from behind. */
 const JET_SCALE = 1.3;
 
@@ -163,6 +169,8 @@ export interface InvasionOptions {
   allyLook?: RobotLook;
   /** The Moon: how many pieces of the base he has built (more pieces, more turrets). */
   baseLevel?: number;
+  /** The Moon base has its Torpedo Bay upgrade. */
+  torpedoes?: boolean;
   /** Space: how many parts of the starship he has built. */
   shipLevel?: number;
   enemyHp: number;
@@ -241,7 +249,7 @@ export class Invasion {
     const volcano = mission.env === 'volcano';
     const moon = mission.env === 'moon';
     const space = mission.env === 'space';
-    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas, base: opts.baseLevel, defend: mission.defend, ship: opts.shipLevel };
+    const where = { seed: mission.seed, highway: mission.highway, plazas: mission.plazas, base: opts.baseLevel, defend: mission.defend, ship: opts.shipLevel, torpedoes: opts.torpedoes };
     const moonBase = moon ? buildMoon(this.curve, where) : null;
     this.city = moonBase ?? (desert ? buildDesert(this.curve, where) : jungle ? buildJungle(this.curve, where)
       : canyon ? buildCanyon(this.curve, where) : arctic ? buildArctic(this.curve, where)
@@ -249,6 +257,7 @@ export class Invasion {
           : space ? buildSpace(this.curve, where) : isWorld(mission.env) ? WORLDS[mission.env].build(this.curve, where) : buildCity(this.curve, where));
     // The Moon base's turrets shoot alongside him.
     this.turrets = (moonBase?.turrets ?? []).map((t) => ({ ...t, cooldown: Math.random() }));
+    this.addLaunchers(this.city.torpedoMuzzles);
     this.root.add(this.city.group);
     this.root.add(this.rig);
 
@@ -273,6 +282,7 @@ export class Invasion {
         const ss = mission.ride ? RIDES[mission.ride].build(opts.shipLevel ?? 0) : starship(opts.shipLevel ?? 0);
         this.ship = ss;
         this.turrets.push(...ss.turrets.map((t) => ({ ...t, cooldown: Math.random() })));
+        this.addLaunchers((ss as { torpedoMuzzles?: THREE.Object3D[] }).torpedoMuzzles);
       } else {
         this.ship = dropship();
       }
@@ -619,6 +629,109 @@ export class Invasion {
       this.fx.tracer(muzzle, near.at, 0x4cf0ff, 0.07);
       this.fx.flash(muzzle, 0x9fefff, 1.2, 0.08);
       this.damageEnemy(near.e, TURRET_DAMAGE, near.at);
+    }
+  }
+
+  // ---- Torpedoes (the Moon base's Torpedo Bay, TRIDENT's ice sub) -------------
+
+  /** Torpedo tubes: every few seconds one fires a torpedo that homes in on an alien. */
+  private launchers: { muzzle: THREE.Object3D; cooldown: number }[] = [];
+  private torps: { obj: THREE.Group; flame: THREE.Object3D | undefined; vel: THREE.Vector3; t: number; target: Enemy | 'boss' | null; trail: number }[] = [];
+
+  private addLaunchers(muzzles: THREE.Object3D[] | undefined) {
+    // The tubes take turns, so a volley ripples out rather than all at once.
+    (muzzles ?? []).forEach((m, i) => this.launchers.push({ muzzle: m, cooldown: 1.5 + i * 0.9 }));
+  }
+
+  private bossAim(): THREE.Vector3 | null {
+    const b = this.boss;
+    if (!b || b.dying !== 0) return null;
+    const i = b.podHp.findIndex((h) => h > 0);
+    return model3dWorld(i >= 0 ? b.model.pods[i] : b.model.core);
+  }
+
+  private updateTorpedoes(dt: number) {
+    for (const l of this.launchers) {
+      l.cooldown -= dt;
+      if (l.cooldown > 0) continue;
+      const from = model3dWorld(l.muzzle);
+      if (from.distanceTo(this.rig.position) > 110) {
+        l.cooldown = 0.5;
+        continue;
+      }
+      // The toughest alien in range (elites first), or the boss.
+      const near = this.enemies
+        .filter((e) => !this.project(this.enemyCenter(e)).behind && this.enemyCenter(e).distanceTo(from) < 95)
+        .sort((p, q) => q.hp - p.hp)[0];
+      const target: Enemy | 'boss' | null = near ?? (this.bossAim() ? 'boss' : null);
+      if (!target) {
+        l.cooldown = 0.4;
+        continue;
+      }
+      l.cooldown = TORPEDO_EVERY * (0.85 + Math.random() * 0.3);
+      const obj = torpedo();
+      // Bigger than life, so he can follow it.
+      obj.scale.setScalar(1.8);
+      obj.position.copy(from);
+      const dir = l.muzzle.getWorldDirection(new THREE.Vector3());
+      obj.lookAt(from.clone().add(dir));
+      this.root.add(obj);
+      this.torps.push({ obj, flame: obj.getObjectByName('flame'), vel: dir.multiplyScalar(16), t: 0, target, trail: 0 });
+      this.fx.flash(from, 0xbff6ff, 2.2, 0.12);
+      this.fx.smoke(from, 1.2, 3, 0x9aa4b4);
+      sfx.whoosh();
+    }
+    const water = this.mission.env === 'ocean' || this.mission.env === 'europa';
+    for (const tp of [...this.torps]) {
+      tp.t += dt;
+      let aim: THREE.Vector3 | null = null;
+      if (tp.target === 'boss') aim = this.bossAim();
+      else if (tp.target && this.enemies.includes(tp.target)) aim = this.enemyCenter(tp.target);
+      else {
+        // Its alien is gone: find another one, or keep going straight.
+        const next = this.enemies.find((e) => !this.project(this.enemyCenter(e)).behind);
+        tp.target = next ?? null;
+      }
+      if (aim && tp.t > 0.25) {
+        const want = aim.clone().sub(tp.obj.position).normalize().multiplyScalar(30 + tp.t * 8);
+        tp.vel.lerp(want, Math.min(1, dt * 5));
+      }
+      tp.obj.position.addScaledVector(tp.vel, dt);
+      tp.obj.lookAt(tp.obj.position.clone().add(tp.vel));
+      if (tp.flame) tp.flame.scale.set(1, 1, 0.8 + Math.random() * 0.5);
+      tp.trail -= dt;
+      if (tp.trail <= 0) {
+        tp.trail = 0.04;
+        const back = tp.obj.position.clone().addScaledVector(tp.vel.clone().normalize(), -1);
+        if (water) this.fx.spark(back, 0xdff8ff, 2, 1.5);
+        else this.fx.smoke(back, 0.5, 1, 0x8a90a0);
+      }
+      const hit = aim && tp.obj.position.distanceTo(aim) < 1.8;
+      if (hit || tp.t > 4) this.blowTorpedo(tp, hit ? tp.target : null);
+    }
+  }
+
+  private blowTorpedo(tp: Invasion['torps'][number], target: Enemy | 'boss' | null) {
+    const at = tp.obj.position.clone();
+    tp.obj.removeFromParent();
+    this.torps = this.torps.filter((x) => x !== tp);
+    this.fx.explosion(at, 2.2, [0x5a6676, 0xd8dee8]);
+    this.fx.ring(at, 0x9ff3ff, 5);
+    this.fx.flash(at, 0xffe0a0, 4, 0.18);
+    sfx.boom(0.7);
+    this.shake = Math.max(this.shake, 0.4);
+    if (target === 'boss') {
+      const b = this.boss;
+      if (b && b.dying === 0) {
+        const i = b.podHp.findIndex((h) => h > 0);
+        this.damageBoss(i >= 0 ? 'pod' : 'core', i, TORPEDO_BOSS_DAMAGE, at);
+      }
+    } else if (target && this.enemies.includes(target)) {
+      this.damageEnemy(target, TORPEDO_DAMAGE, at);
+    }
+    // The blast catches anything close by.
+    for (const e of [...this.enemies]) {
+      if (e !== target && this.enemyCenter(e).distanceTo(at) < 5) this.damageEnemy(e, TORPEDO_SPLASH, at);
     }
   }
 
@@ -1534,6 +1647,7 @@ export class Invasion {
     this.updateDrones(dt);
     this.updateAlly(dt);
     this.updateTurrets(dt);
+    this.updateTorpedoes(dt);
     this.city.update(dt);
     this.smokeTimer -= dt;
     if (this.smokeTimer <= 0) {

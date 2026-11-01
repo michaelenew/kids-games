@@ -303,10 +303,25 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
     }
   };
   let misses = 0;
+  // What's already written above each column: a digit that's borrowed from and then
+  // borrows itself (5 becomes 4, then the 4 becomes 14) gets a second number. On paper
+  // you cross out the first small one and write the new one above it, so do that here.
+  const aboveWritten = new Map<number, Phaser.GameObjects.Text[]>();
   const writeAt = (w: Write) => {
     const z = zones.find((zz) => zz.slot.place === w.slot.place && zz.slot.row === w.slot.row)!;
     z.g.clear();
-    const t = printed(z.x, z.y, String(w.value), w.slot.row === 'above' ? '#c1121f' : DONE, w.slot.row === 'above' ? 28 : 44);
+    let y = z.y;
+    if (w.slot.row === 'above') {
+      const before = aboveWritten.get(w.slot.place) ?? [];
+      const last = before[before.length - 1];
+      if (last) {
+        last.setColor('#9a9aa8');
+        crosses.lineStyle(3, 0xc1121f, 1).lineBetween(last.x - last.width / 2 - 3, last.y + 9, last.x + last.width / 2 + 3, last.y - 9);
+      }
+      y = z.y - before.length * 28;
+    }
+    const t = printed(z.x, y, String(w.value), w.slot.row === 'above' ? '#c1121f' : DONE, w.slot.row === 'above' ? 28 : 44);
+    if (w.slot.row === 'above') aboveWritten.set(w.slot.place, [...(aboveWritten.get(w.slot.place) ?? []), t]);
     t.setScale(1.5);
     scene.tweens.add({ targets: t, scale: 1, duration: 220, ease: 'Back.easeOut' });
     // A borrow crosses out the printed digit under it.

@@ -45,6 +45,23 @@ const CSS = `
 .kgs code { word-break: break-all; font-size: 12px; background: #f3f5fa; padding: 6px 8px; border-radius: 8px; display: block; }
 `;
 
+/** The last JSONBin key used here, so a second game's group doesn't need it pasted again. */
+const KEY_STORE = 'kids-games-jsonbin-key';
+function rememberedKey(): string {
+  try {
+    return localStorage.getItem(KEY_STORE) ?? '';
+  } catch {
+    return '';
+  }
+}
+function rememberKey(k: string): void {
+  try {
+    localStorage.setItem(KEY_STORE, k);
+  } catch {
+    // Not remembered; it'll be asked for again.
+  }
+}
+
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function ago(t?: number): string {
@@ -61,7 +78,7 @@ function status(s: Slot): string {
   if (s.problem === 'lost') return '<span class="bad">The online copy is gone (deleted or expired). This device\'s copy is fine: stop syncing it, then start a new group.</span>';
   if (s.problem === 'unreadable') return '<span class="bad">The online copy can\'t be unlocked (it was changed by someone without the key). Nothing here was changed.</span>';
   const when = s.synced ? `last checked ${ago(s.synced)}` : '';
-  if (s.problem === 'offline') return `Synced save · couldn't reach the internet${when ? `, ${when}` : ''}. It will catch up.`;
+  if (s.problem === 'offline') return `Synced save · last sync didn't work (${esc(s.problemText ?? 'no internet?')})${when ? `; ${when}` : ''}. It will try again.`;
   return `Synced save · ${s.pending ? 'changes waiting to upload' : 'up to date'}${when ? `, ${when}` : ''}.`;
 }
 
@@ -128,10 +145,11 @@ export function openSyncPanel(opts: PanelOptions): void {
       <div class="top"><h2>Saves &amp; sync <span class="note">(grown-ups)</span></h2><button data-act="close">Done</button></div>
       <ul class="note">
         <li>A synced save is the same save on several devices, so a kid can switch between the iPad, a phone or a computer.</li>
-        <li>It's locked (encrypted) on this device before it goes online, then kept at <b>jsonblob.com</b>, a free public storage site. Without the key the stored copy is unreadable. The key goes from device to device only by QR code (or a code you copy); it is never sent online.</li>
+        <li>It's locked (encrypted) on this device before it goes online, then kept in your free <b>JSONBin.io</b> account. Without the key the stored copy is unreadable. The key goes from device to device only by QR code (or a code you copy); it is never sent online.</li>
         <li>It uploads a moment after each save, and checks for news when the game opens or you come back to it.</li>
         <li>Adding a device never replaces anything on it: the synced save is added next to the saves already there, and you can switch back here at any time.</li>
-        <li>jsonblob.com is a free service we don't control. If it loses the online copy, every device still has its own.</li>
+        <li>JSONBin.io is a service we don't control. If it loses the online copy, every device still has its own.</li>
+        <li><b>To start syncing</b> you need a JSONBin key, once: make a free account at jsonbin.io, open <b>API Keys</b>, and create an <b>Access Key</b> allowed to create, read and update bins (the Master Key also works). Paste it when asked. It's kept on this device and inside the QR code, so other devices don't need it.</li>
       </ul>
       ${canEncrypt() ? '' : '<div class="warn">Sync needs the secure (https) address of the games; it can\'t lock saves on this page.</div>'}
       ${message ? `<div class="warn">${message}</div>` : ''}
@@ -218,7 +236,13 @@ export function openSyncPanel(opts: PanelOptions): void {
       case 'start': {
         const name = prompt("Name the synced save (for example, the kid's name). Other devices will see this name.", s?.name === "This device's save" ? '' : s?.name)?.trim();
         if (!name) return;
-        return work('Locking and uploading the save', () => startGroup(game, id, name).then(() => void (sharing = `${game}/${id}`)));
+        const api = prompt('Paste your JSONBin.io key (API Keys → Access Key, or the Master Key):', rememberedKey())?.trim();
+        if (!api) return;
+        return work('Locking and uploading the save', async () => {
+          await startGroup(game, id, name, api);
+          rememberKey(api);
+          sharing = `${game}/${id}`;
+        });
       }
       case 'share':
         sharing = `${game}/${id}`;

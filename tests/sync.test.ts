@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { newKey, open, seal } from '../src/sync/crypto';
-import { joinCode, joinGroup, leaveGroup, noteSaved, parseJoinCode, startGroup, syncSlot, timing } from '../src/sync/engine';
+import { joinCode, joinGroup, leaveGroup, noteSaved, parseJoinCode, startGroup, syncSlot } from '../src/sync/engine';
 import { merge3 } from '../src/sync/merge';
 import { activeId, MAIN, readJson, slot, slots, storageKey } from '../src/sync/registry';
-import { type BlobStore, setStore } from '../src/sync/store';
+import { type BlobStore, createWithKey, jsonBin, setStore } from '../src/sync/store';
 
 /** A browser's storage. Each simulated device gets its own. */
 function storage(): Storage {
@@ -46,7 +46,6 @@ const get = (id: string) => readJson(mechaKey(id)) as Record<string, any>;
 
 beforeEach(() => {
   setStore(fakeStore);
-  timing.verifyMs = 0;
 });
 
 describe('locking saves', () => {
@@ -61,7 +60,7 @@ describe('locking saves', () => {
   });
 
   it('join codes survive a link', () => {
-    const g = { blob: '0a1b-22', key: newKey() };
+    const g = { blob: '65f0c2a1e41b4d34e5a1b2c3', key: newKey(), api: '$2a$10$abc.DEF/ghi', kind: 'master' as const };
     expect(parseJoinCode(`https://x.github.io/kids-games/#join=${joinCode(g)}`)).toEqual(g);
     expect(parseJoinCode(joinCode(g))).toEqual(g);
     expect(parseJoinCode('hello')).toBeNull();
@@ -90,7 +89,7 @@ describe('sync groups', () => {
   it('joining adds the save next to the ones already there, and never touches them', async () => {
     on(ipad);
     put(MAIN, { v: 1, scrap: 50, levelsDone: ['m1', 'secret-mission'] });
-    await startGroup('mecha', MAIN, 'Sam');
+    await startGroup('mecha', MAIN, 'Sam', 'jsonbin-key');
     const group = slot('mecha', MAIN)!.group!;
 
     on(phone);
@@ -112,7 +111,7 @@ describe('sync groups', () => {
   it('progress made on one device shows up on the other', async () => {
     on(ipad);
     put(MAIN, { v: 1, scrap: 0, levelsDone: [] });
-    await startGroup('mecha', MAIN, 'Ada');
+    await startGroup('mecha', MAIN, 'Ada', 'jsonbin-key');
     const group = slot('mecha', MAIN)!.group!;
     on(phone);
     const { id } = await joinGroup(group);
@@ -130,7 +129,7 @@ describe('sync groups', () => {
   it('two devices playing at once both keep their progress', async () => {
     on(ipad);
     put(MAIN, { v: 1, scrap: 10, levelsDone: [], seen: [] });
-    await startGroup('mecha', MAIN, 'Ada');
+    await startGroup('mecha', MAIN, 'Ada', 'jsonbin-key');
     const group = slot('mecha', MAIN)!.group!;
     on(phone);
     const { id } = await joinGroup(group);
@@ -156,7 +155,7 @@ describe('sync groups', () => {
   it('an upload lost to another device at the same moment is combined, not dropped', async () => {
     on(ipad);
     put(MAIN, { v: 1, levelsDone: [] });
-    await startGroup('mecha', MAIN, 'Ada');
+    await startGroup('mecha', MAIN, 'Ada', 'jsonbin-key');
     const group = slot('mecha', MAIN)!.group!;
     on(phone);
     const { id } = await joinGroup(group);
@@ -185,7 +184,7 @@ describe('sync groups', () => {
   it('a missing or tampered online copy never changes the save here', async () => {
     on(ipad);
     put(MAIN, { v: 1, scrap: 3 });
-    await startGroup('mecha', MAIN, 'Ada');
+    await startGroup('mecha', MAIN, 'Ada', 'jsonbin-key');
     const group = slot('mecha', MAIN)!.group!;
     blobs.set(group.blob, JSON.stringify(await seal(newKey(), { evil: true })));
     expect(await syncSlot('mecha', MAIN)).toBe('unreadable');
@@ -195,5 +194,59 @@ describe('sync groups', () => {
     leaveGroup('mecha', MAIN);
     expect(slot('mecha', MAIN)!.group).toBeUndefined();
     expect(get(MAIN)).toEqual({ v: 1, scrap: 3 });
+  });
+});
+
+describe('the JSONBin client', () => {
+  it('makes private bins, tries a pasted key as an access key then a master key, and reads the ID', async () => {
+    setStore(null);
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      const h = init.headers as Record<string, string>;
+      if (h['X-Access-Key']) return new Response(JSON.stringify({ message: 'Invalid X-Access-Key' }), { status: 401 });
+      if (init.method === 'POST') return new Response(JSON.stringify({ record: {}, metadata: { id: 'bin123', private: true } }));
+      if (init.method === 'PUT') return new Response('{}');
+      return new Response(JSON.stringify({ kg: 1 }));
+    });
+    const made = await createWithKey('$2a$10$master', { kg: 1 });
+    expect(made).toEqual({ id: 'bin123', kind: 'master' });
+    expect(calls[1].url).toBe('https://api.jsonbin.io/v3/b');
+    expect((calls[1].init.headers as Record<string, string>)['X-Bin-Private']).toBe('true');
+    const bin = jsonBin('$2a$10$master', 'master');
+    expect(await bin.read('bin123')).toEqual({ kg: 1 });
+    expect(calls[2].url).toBe('https://api.jsonbin.io/v3/b/bin123/latest');
+    await bin.write('bin123', { kg: 1 });
+    expect(calls[3].init.method).toBe('PUT');
+    await expect(jsonBin('k', 'access').read('x')).rejects.toThrow('JSONBin read failed (401: Invalid X-Access-Key)');
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('the QR code', () => {
+  it('carries the JSONBin key along with the encryption key, so joining needs nothing pasted', async () => {
+    const { default: qrcode } = await import('qrcode-generator');
+    const { default: jsQR } = await import('jsqr');
+    const group = { blob: '65f0c2a1e41b4d34e5a1b2c3', key: newKey(), api: '$2a$10$Zx8rQ1v/abcDEFghiJKLmnoPQRstuVWXyz0123456789.ABCDEFGHIJ', kind: 'access' as const };
+    const link = `https://michaelenew.github.io/kids-games/#join=${joinCode(group)}`;
+    // Draw the QR code as pixels and read it back, as the camera would.
+    const qr = qrcode(0, 'M');
+    qr.addData(link);
+    qr.make();
+    const cell = 4;
+    const margin = 4;
+    const n = qr.getModuleCount();
+    const size = (n + margin * 2) * cell;
+    const px = new Uint8ClampedArray(size * size * 4).fill(255);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const mx = Math.floor(x / cell) - margin;
+        const my = Math.floor(y / cell) - margin;
+        if (mx >= 0 && my >= 0 && mx < n && my < n && qr.isDark(my, mx)) px.fill(0, (y * size + x) * 4, (y * size + x) * 4 + 3);
+      }
+    }
+    const read = jsQR(px, size, size)?.data;
+    expect(read).toBe(link);
+    expect(parseJoinCode(read!)).toEqual(group);
   });
 });

@@ -7,6 +7,7 @@ import {
   gadgetInfo, gadgetOf, setGadget, wallStage, wantsRecap, writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
+import { backToRanch } from '../guest';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { nextPiece } from '../skills/area';
 import { nextShipPart } from '../skills/compare';
@@ -74,9 +75,12 @@ export class InvasionScene extends Phaser.Scene {
 
   /** A patrol alert: a past mission replayed for fun (and scrap), with whichever robot he sent. */
   private alert = false;
+  /** A guest visit from Unicorn Rancher (see guest.ts): can't be lost, ends back at her ranch. */
+  private guest = false;
   private alertBot?: BotId;
 
-  init(data: { missionId?: string; shield?: number; alert?: boolean; bot?: BotId }) {
+  init(data: { missionId?: string; shield?: number; alert?: boolean; bot?: BotId; guest?: boolean }) {
+    this.guest = !!data.guest;
     this.mission = missionById(data.missionId ?? 'inv-drop');
     this.alert = !!data.alert;
     this.alertBot = data.alert ? data.bot : undefined;
@@ -101,7 +105,7 @@ export class InvasionScene extends Phaser.Scene {
     this.tune = start.tune;
     // The very first mission is the story opener: he can't lose it.
     const opener = this.mission.id === 'inv-drop' && !s.levelsDone.includes('inv-drop');
-    this.mercies = opener ? 99 : this.tune.mercies;
+    this.mercies = opener || this.guest ? 99 : this.tune.mercies;
     // Playing a mission counts as action, so the math between missions starts over.
     actionDone(s);
     const hasSwap = isHandOver(this.mission.id);
@@ -794,10 +798,14 @@ export class InvasionScene extends Phaser.Scene {
     else sfx.alarm();
     this.time.delayedCall(700, () => {
       panel(this, W / 2, H / 2, 700, 380).setDepth(60);
-      text(this, W / 2, H / 2 - 120, won ? 'ALERT CLEARED!' : 'RETREAT!', 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
-      text(this, W / 2, H / 2 - 30, won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!', 30, '#ffffff').setDepth(61);
+      const title = this.guest ? (won ? 'VOLCANO SAVED!' : 'GOOD TRY!') : won ? 'ALERT CLEARED!' : 'RETREAT!';
+      text(this, W / 2, H / 2 - 120, title, 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
+      const line = this.guest ? `Score ${this.score.toLocaleString()}` : won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!';
+      text(this, W / 2, H / 2 - 30, line, 30, '#ffffff').setDepth(61);
       this.gadgetNote(H / 2 + 20);
-      const b = button(this, W / 2, H / 2 + 100, 320, 84, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
+      const b = this.guest
+        ? button(this, W / 2, H / 2 + 100, 420, 84, 'Back to the unicorns!', () => backToRanch(won), { fill: 0xc77dff, edge: 0xffd6f0 }).setDepth(62)
+        : button(this, W / 2, H / 2 + 100, 320, 84, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);
       this.tweens.add({ targets: b, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });
     });
   }
@@ -854,6 +862,8 @@ export class InvasionScene extends Phaser.Scene {
       this.game3d.paused = false;
     };
     items.push(button(this, W / 2, H / 2 - 10, 300, 80, 'Keep playing', resume, { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(73));
-    items.push(button(this, W / 2, H / 2 + 100, 300, 80, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 }).setDepth(73));
+    items.push(this.guest
+      ? button(this, W / 2, H / 2 + 100, 380, 80, 'Back to the unicorns', () => backToRanch(false), { fill: 0x3d4458 }).setDepth(73)
+      : button(this, W / 2, H / 2 + 100, 300, 80, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x3d4458 }).setDepth(73));
   }
 }

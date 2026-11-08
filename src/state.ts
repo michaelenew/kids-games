@@ -1,5 +1,7 @@
 import { leaveSyncGroup, noteSaved, onRemoteSave, saveKey } from './sync/game';
 import { type PaperKind, type PaperProgress, type PaperStep, afterProblem as afterPaperProblem, stepOf as stepOfPaper } from './skills/paper';
+import { GUEST, GUEST_KEY } from './guest';
+
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
 /** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot), RHINO (the tank) and TRIDENT (the submarine). */
@@ -132,6 +134,8 @@ export function inPreview(): boolean {
 }
 
 function storeKey(): string {
+  // A guest visit from Unicorn Rancher plays on its own save (see guest.ts).
+  if (GUEST) return GUEST_KEY;
   return inPreview() ? PREVIEW_KEY : saveKey('mecha');
 }
 
@@ -201,7 +205,7 @@ function load(): SaveData {
 export function persist(): void {
   try {
     localStorage.setItem(storeKey(), JSON.stringify(save()));
-    if (!inPreview()) noteSaved('mecha');
+    if (!inPreview() && !GUEST) noteSaved('mecha');
   } catch {
     // Private mode or full storage: the game still works, it just won't remember.
   }
@@ -210,7 +214,7 @@ export function persist(): void {
 // Another device played on this save (it's in a sync group): take its
 // progress in place, so screens holding the save see it.
 onRemoteSave('mecha', (data) => {
-  if (!current || inPreview()) return;
+  if (!current || inPreview() || GUEST) return;
   const next = fromStored(data as Partial<SaveData>);
   for (const k of Object.keys(current)) delete (current as unknown as Record<string, unknown>)[k];
   Object.assign(current, next);
@@ -218,7 +222,7 @@ onRemoteSave('mecha', (data) => {
 
 /** Start over. A synced save stops syncing first, so other devices keep it. */
 export function resetSave(): void {
-  if (!inPreview()) leaveSyncGroup('mecha');
+  if (!inPreview() && !GUEST) leaveSyncGroup('mecha');
   current = freshSave();
   persist();
 }

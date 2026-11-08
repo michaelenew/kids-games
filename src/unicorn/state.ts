@@ -37,6 +37,8 @@ export interface Save {
   voiceCheck: Record<string, string>;
   /** Volcano Island missions won with STRIKER (the next one is the one after these). */
   volcano?: number;
+  /** Deep sea missions won with TRIDENT. */
+  deep?: number;
 }
 
 // The save lives under 'unicorn-rancher-v1'. A device can keep more saves,

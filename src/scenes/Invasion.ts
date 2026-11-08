@@ -7,7 +7,7 @@ import {
   gadgetInfo, gadgetOf, setGadget, wallStage, wantsRecap, writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
-import { backToRanch } from '../guest';
+import { GUEST_PLACE, GUEST_PLACES, backToRanch } from '../guest';
 import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
 import { nextPiece } from '../skills/area';
 import { nextShipPart } from '../skills/compare';
@@ -798,7 +798,7 @@ export class InvasionScene extends Phaser.Scene {
     else sfx.alarm();
     this.time.delayedCall(700, () => {
       panel(this, W / 2, H / 2, 700, 380).setDepth(60);
-      const title = this.guest ? (won ? 'VOLCANO SAVED!' : 'GOOD TRY!') : won ? 'ALERT CLEARED!' : 'RETREAT!';
+      const title = this.guest ? (won ? GUEST_PLACES[GUEST_PLACE].saved : 'GOOD TRY!') : won ? 'ALERT CLEARED!' : 'RETREAT!';
       text(this, W / 2, H / 2 - 120, title, 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
       const line = this.guest ? `Score ${this.score.toLocaleString()}` : won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!';
       text(this, W / 2, H / 2 - 30, line, 30, '#ffffff').setDepth(61);

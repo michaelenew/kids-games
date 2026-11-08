@@ -8,40 +8,70 @@ import { Unicorn } from '../three/unicorn';
 import { buildRanch } from './ranch';
 
 /**
- * Volcano Island: her brother's Mecha Forge, but just the fun part. She
- * flies STRIKER, the yellow fighter jet, through a Volcano Island mission;
- * her unicorns wait at the ranch and cheer when she comes back. The mission
- * itself runs in the Mecha Forge page as a guest visit (src/guest.ts), on its
- * own save, so her brother's game is never touched.
+ * Away missions: her brother's Mecha Forge, but just the fun part. She flies
+ * STRIKER, the yellow fighter jet, over Volcano Island, or dives TRIDENT, the
+ * submarine robot, into the Deep, while her unicorns wait at the ranch and
+ * cheer when she comes back. The mission itself runs in the Mecha Forge page
+ * as a guest visit (src/guest.ts), on its own save, so her brother's game is
+ * never touched.
  */
 
-/** The volcano missions she plays in turn (each win moves to the next). */
-export const VOLCANO_MISSIONS = ['vol-ash', 'vol-lava', 'vol-forge', 'vol-core'];
+export type Away = 'volcano' | 'deep';
 
-/** Off to the volcano: the unicorns line up to wave goodbye, then the page changes. */
-export async function volcano(ctx: Ctx): Promise<void> {
+const PLACES: Record<Away, {
+  /** Mecha Forge missions, in the order she plays them (each win moves on). */
+  missions: string[];
+  sky: [number, number, number, number];
+  hello: string;
+  won: string;
+  medal: string;
+}> = {
+  volcano: {
+    missions: ['vol-ash', 'vol-lava', 'vol-forge', 'vol-core'],
+    sky: [0x5c2a1a, 0xff8c42, 0xffd8a8, 0xffc8a0],
+    hello: "Oh no! Aliens are attacking Volcano Island! STRIKER the jet needs a pilot. That's you!",
+    won: 'You saved Volcano Island! Your unicorns waited for you, and they are so proud!',
+    medal: '🏅 Volcano hero!',
+  },
+  deep: {
+    missions: ['sea-kelp', 'sea-wreck', 'sea-reef', 'sea-deep'],
+    sky: [0x0b3d6e, 0x4dabf7, 0xc5f6fa, 0xa5d8ff],
+    hello: "Oh no! Aliens are hiding at the bottom of the ocean! TRIDENT the submarine needs a pilot. That's you!",
+    won: 'You saved the ocean! Your unicorns waited for you, and they are so proud!',
+    medal: '🏅 Ocean hero!',
+  },
+};
+
+/** How many of this place's missions she's won (the next one is the one after these). */
+function wins(place: Away): number {
+  const sv = save();
+  return (place === 'volcano' ? sv.volcano : sv.deep) ?? 0;
+}
+
+/** Off on an away mission: the unicorns line up to wave goodbye, then the page changes. */
+export async function goAway(ctx: Ctx, place: Away): Promise<void> {
   const { stage } = ctx;
+  const p = PLACES[place];
   freshPlace(ctx);
   buildRanch(ctx);
-  stage.setSky(0x5c2a1a, 0xff8c42, 0xffd8a8, 0xffc8a0, 70, 260);
-  const sv = save();
+  stage.setSky(...p.sky, 70, 260);
   const crew = waveCrew(ctx);
-  await say('Oh no! Aliens are attacking Volcano Island! STRIKER the jet needs a pilot. That\'s you!');
+  await say(p.hello);
   sfx.neigh();
   crew.forEach((u, i) => setTimeout(() => void u.rear(), i * 200));
   await say('Your unicorns will wait right here at the ranch. Bye bye! Good luck!');
   await seconds(ctx, 0.6);
-  const mission = VOLCANO_MISSIONS[(sv.volcano ?? 0) % VOLCANO_MISSIONS.length];
+  const mission = p.missions[wins(place) % p.missions.length];
   window.location.href = `../mecha-forge/?guest=unicorn&mission=${mission}`;
   // The page is leaving; never come back to the ranch loop from here.
   await new Promise(() => {});
 }
 
 /**
- * Back from the volcano: the unicorns gallop up to say hello. A win gets a
- * medal, and the next time she goes it's the next volcano mission.
+ * Back from an away mission: the unicorns gallop up to say hello. A win gets
+ * a medal, and next time she goes it's that place's next mission.
  */
-export async function welcomeBack(ctx: Ctx, won: boolean): Promise<void> {
+export async function welcomeBack(ctx: Ctx, place: Away, won: boolean): Promise<void> {
   const { ui } = ctx;
   const fx = freshPlace(ctx);
   buildRanch(ctx);
@@ -49,18 +79,16 @@ export async function welcomeBack(ctx: Ctx, won: boolean): Promise<void> {
   const crew = waveCrew(ctx);
   // They gallop in from the paddock.
   const ends = crew.map((u) => u.holder.position.clone());
-  crew.forEach((u) => {
-    u.holder.position.z -= 10;
-    u.gait = 'gallop';
-  });
+  crew.forEach((u) => (u.gait = 'gallop'));
   await tween(ctx, 1.8, (k) => crew.forEach((u, i) => u.holder.position.lerpVectors(ends[i].clone().setZ(ends[i].z - 10), ends[i], k)));
   crew.forEach((u) => (u.gait = 'idle'));
   if (won) {
-    sv.volcano = (sv.volcano ?? 0) + 1;
+    if (place === 'volcano') sv.volcano = wins(place) + 1;
+    else sv.deep = wins(place) + 1;
     sv.ribbons[0]++;
     persist();
     sfx.fanfare();
-    ui.toast('🏅 Volcano hero!', 3000);
+    ui.toast(PLACES[place].medal, 3000);
     fx.confetti(new THREE.Vector3(0, 7, 4), 200, 12);
     for (let i = 0; i < 5; i++) setTimeout(() => fx.firework(new THREE.Vector3((Math.random() - 0.5) * 20, 12 + Math.random() * 6, -6)), i * 300);
   }
@@ -71,7 +99,7 @@ export async function welcomeBack(ctx: Ctx, won: boolean): Promise<void> {
   sfx.neigh();
   fx.rainbowRings(new THREE.Vector3(0, 0.2, 4), 6);
   fx.sparkles(new THREE.Vector3(0, 2, 4), { count: 80, colors: RAINBOW });
-  await say(won ? 'You saved Volcano Island! Your unicorns waited for you, and they are so proud!' : 'Welcome back! Your unicorns missed you!');
+  await say(won ? PLACES[place].won : 'Welcome back! Your unicorns missed you!');
   await seconds(ctx, 1);
 }
 

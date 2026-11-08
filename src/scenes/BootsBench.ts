@@ -56,7 +56,7 @@ export class BootsBench extends BenchScene {
   // ---- Marks I and II: fill the spring to an exact pressure --------------
 
   private startPuzzle() {
-    this.problem = this.mark === 1 ? makePairProblem(Math.random) : makeChainProblem(Math.random);
+    this.problem = this.keepProblem(() => (this.mark === 1 ? makePairProblem(Math.random) : makeChainProblem(Math.random)));
     this.chosen = [];
     this.chosenIdx = [];
     this.used = this.problem.cells.map(() => false);
@@ -348,7 +348,7 @@ export class BootsBench extends BenchScene {
 
   private startFact() {
     // From the starship on, multiplication facts join the drill.
-    this.fact = makeQuickFact(Math.random, save().levelsDone.includes('space-launch'));
+    this.fact = this.keepProblem(() => makeQuickFact(Math.random, save().levelsDone.includes('space-launch')));
     this.answer = '';
     this.drawFactSpring();
     const f = this.fact;
@@ -424,6 +424,8 @@ export class BootsBench extends BenchScene {
       this.time.delayedCall(1500, () => {
         this.misses = 0;
         this.clearLayer();
+        // A different fact this time (not the kept one he just saw the answer to).
+        this.forgetProblem();
         this.startProblem();
       });
     } else {

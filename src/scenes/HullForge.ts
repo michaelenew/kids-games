@@ -12,6 +12,7 @@ import { numpad } from '../ui/numpad';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
+import { keepEach, wipDrop } from '../wip';
 
 /**
  * TRIDENT's hull bay, where dividing comes in. Its armor is rows of hull
@@ -111,7 +112,8 @@ export class HullForge extends Phaser.Scene {
 
     const d = rig(s);
     const todo = REGIONS.filter((r) => (d.armor?.[r]?.mark ?? 0) < this.mark);
-    this.jobs = todo.map((region) => ({ region, ...hullTarget(Math.random, this.mark, region, REGIONS.indexOf(region)), misses: 0 }));
+    // Work in progress (see wip.ts): each panel keeps its numbers until it's built.
+    this.jobs = keepEach(`forge:hull:${this.mark}`, todo, (region) => ({ region: region as Region, ...hullTarget(Math.random, this.mark, region as Region, REGIONS.indexOf(region as Region)), misses: 0 }));
     text(this, CX, 46, `TRIDENT HULL BAY · MARK ${ROMAN[this.mark]}`, 38, '#7ff7ff').setStroke('#000000', 8);
     if (!this.jobs.length) {
       this.allDone();
@@ -418,6 +420,7 @@ export class HullForge extends Phaser.Scene {
   }
 
   private allDone() {
+    wipDrop(`forge:hull:${this.mark}`);
     const s = save();
     this.layer?.removeAll(true);
     this.work?.removeAll(true);

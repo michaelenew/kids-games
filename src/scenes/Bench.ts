@@ -8,6 +8,7 @@ import {
 } from '../state';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 import { type HowTo, howTo, needsIntro } from '../ui/howto';
+import { wipDrop, wipGet, wipPut } from '../wip';
 
 export type BenchMark = 1 | 2 | 3;
 
@@ -107,6 +108,12 @@ export abstract class BenchScene extends Phaser.Scene {
     }
 
     this.input.keyboard?.on('keydown-ESC', () => this.exit());
+    // Back after quitting in the middle: carry on from the problem he was on.
+    const had = wipGet<{ index: number }>(this.wipSlot);
+    if (had && had.index > 0 && had.index < this.jobTotal) {
+      this.index = had.index;
+      for (let i = 0; i < this.index; i++) this.pips[i]?.setFillStyle(0x06d6a0);
+    }
     this.startProblem();
   }
 
@@ -150,11 +157,34 @@ export abstract class BenchScene extends Phaser.Scene {
     this.layer.removeAll(true);
   }
 
+  /** Work in progress (see wip.ts): this upgrade's problems, kept until it's built. */
+  private get wipSlot() {
+    return `bench:${activeBot()}:${this.gear}:${this.mark}:${this.practice ? 'practice' : 'build'}:${this.gadget ?? ''}`;
+  }
+
+  /**
+   * The problem for this turn: the one he was on before quitting, if there was
+   * one, or a fresh one (kept from now on, so it comes back the same).
+   */
+  protected keepProblem<T>(fresh: () => T): T {
+    const had = wipGet<{ index: number; problem?: T }>(this.wipSlot);
+    if (had && had.index === this.index && had.problem !== undefined) return had.problem;
+    const problem = fresh();
+    wipPut(this.wipSlot, { index: this.index, problem });
+    return problem;
+  }
+
+  /** Throw away the kept problem for this turn, so the next `keepProblem` makes a new one. */
+  protected forgetProblem() {
+    wipPut(this.wipSlot, { index: this.index });
+  }
+
   /** Call once per problem when it is solved. `firstTry` feeds the progress tracker. */
   protected solved() {
     recordSkill(`${this.gear}-${this.mark}`, this.misses === 0);
     this.pips[this.index]?.setFillStyle(0x06d6a0);
     this.index++;
+    wipPut(this.wipSlot, { index: this.index });
     this.misses = 0;
     if (this.index >= this.jobTotal) {
       this.timerRunning = false;
@@ -186,6 +216,7 @@ export abstract class BenchScene extends Phaser.Scene {
   }
 
   private complete() {
+    wipDrop(this.wipSlot);
     this.clearLayer();
     const s = save();
     const before = lookFromSave(s);

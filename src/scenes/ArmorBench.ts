@@ -39,7 +39,7 @@ export class ArmorBench extends BenchScene {
   }
 
   protected startProblem() {
-    this.problem = makeArmorProblem(Math.random, this.mark, this.index);
+    this.problem = this.keepProblem(() => makeArmorProblem(Math.random, this.mark, this.index));
     this.counts = [0, 0, 0, 0];
     this.stacks = [];
     this.countTexts = [];

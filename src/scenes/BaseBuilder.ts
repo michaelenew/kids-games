@@ -9,6 +9,7 @@ import { getStage, px2w, py2w } from '../three/stage';
 import { howTo, needsIntro } from '../ui/howto';
 import { numpad } from '../ui/numpad';
 import { button, dialog, panel, sparks, text, toast } from '../ui/widgets';
+import { keepValue, wipDrop, wipPut } from '../wip';
 
 /**
  * The Moon base's Base Builder, where area and perimeter come in. The base
@@ -89,7 +90,10 @@ export class BaseBuilder extends Phaser.Scene {
       this.status();
       return;
     }
-    this.jobs = pieceJobs(next);
+    // Work in progress (see wip.ts): back after quitting, the same problems, from where he was.
+    const kept = keepValue(`base:${next}`, () => ({ jobs: pieceJobs(next), index: 0 }));
+    this.jobs = kept.jobs;
+    this.jobIndex = Math.min(kept.index, this.jobs.length - 1);
     text(this, CX, 46, `MOON BASE · ${BASE_PIECES[next].name.toUpperCase()}`, 36, '#bfe6ff').setStroke('#000000', 8);
     this.jobs.forEach((_, i) => {
       const x = CX + (i - (this.jobs.length - 1) / 2) * 110;
@@ -609,11 +613,14 @@ export class BaseBuilder extends Phaser.Scene {
 
   private nextJob() {
     this.jobIndex++;
-    if (this.jobIndex < this.jobs.length) this.startJob();
-    else this.pieceDone();
+    if (this.jobIndex < this.jobs.length) {
+      wipPut(`base:${this.piece}`, { jobs: this.jobs, index: this.jobIndex });
+      this.startJob();
+    } else this.pieceDone();
   }
 
   private pieceDone() {
+    wipDrop(`base:${this.piece}`);
     const s = save();
     this.layer?.removeAll(true);
     this.work?.removeAll(true);

@@ -66,7 +66,7 @@ export class BlasterBench extends BenchScene {
   }
 
   protected startProblem() {
-    this.problem = makeBarrelProblem(Math.random, this.mark);
+    this.problem = this.keepProblem(() => makeBarrelProblem(Math.random, this.mark));
     this.busy = false;
     const p = this.problem;
     // Start the cutter somewhere that isn't the answer.

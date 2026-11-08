@@ -4,6 +4,7 @@ import { COINS, type Coin, coinsTotal, makePriceProblem, moneyText, type PricePr
 import { type GearId, activeBot, bumpGuide, gearInfo, guideCount, recordSkill } from '../state';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
+import { keepValue, wipDrop } from '../wip';
 
 /**
  * The junk trader sells the power core every upgrade needs. He only takes
@@ -59,7 +60,8 @@ export class TraderScene extends Phaser.Scene {
   create() {
     getStage(this.game.canvas).clear();
     this.makeCoinTextures();
-    this.problem = makePriceProblem(Math.random, this.job.mark, guideCount('money'));
+    // Work in progress (see wip.ts): the same price if he comes back before paying.
+    this.problem = keepValue(`trader:${this.job.mark}`, () => makePriceProblem(Math.random, this.job.mark, guideCount('money')));
     this.add.rectangle(W / 2, H / 2, W, H, 0x2a1d14, 1);
     // A cluttered junk stall.
     const g = this.add.graphics();
@@ -216,6 +218,7 @@ export class TraderScene extends Phaser.Scene {
       this.busy = true;
       recordSkill('money', this.misses === 0);
       bumpGuide('money');
+      wipDrop(`trader:${this.job.mark}`);
       sfx.success();
       sparks(this, 1040, 230, 0xffd166, 30);
       toast(this, 640, 330, `Exactly ${moneyText(total)}! The core is yours!`, '#06d6a0', 36);

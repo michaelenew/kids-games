@@ -3,6 +3,7 @@ import { sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
 import { type CountStep, type LongColumn, columnParts, countUp, jumpKind, longAddition } from '../skills/steps';
 import { button, text, toast } from './widgets';
+import { wipDrop, wipGet, wipPut } from '../wip';
 
 /**
  * "Count up" for subtraction, as a number line: from the small number to the
@@ -224,7 +225,10 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
   };
   /** True once the jumps are stacked up for long addition (the number line is hidden). */
   let stacked = false;
+  // Work in progress (see wip.ts): how many jumps he's hopped, kept until it's finished.
+  const slot = `countup:${o.from}:${o.to}`;
   const finish = (solo: boolean) => {
+    wipDrop(slot);
     // Answered: nothing more to type while the hops play.
     onEnter = () => {};
     sfx.success();
@@ -365,6 +369,17 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
 
   const guidedRun = () => {
     let i = 0;
+    // Back after quitting in the middle: the jumps he'd hopped are back on the line.
+    const had = Math.min(steps.length, wipGet<number>(slot) ?? 0);
+    if (had > 0) {
+      for (; i < had; i++) {
+        stopLabels[i + 1].setAlpha(1).setColor('#9ad1ff');
+        showJump(i, `+${F(steps[i].gap)}`, '#06d6a0');
+      }
+      hopped = had;
+      drawLine(hopped);
+      hopper.setPosition(stopX(had), lineY - 8);
+    }
     const ask = () => {
       clearPad();
       if (i >= steps.length) {
@@ -397,6 +412,7 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
           stopLabels[i + 1].setColor('#9ad1ff');
           showJump(i, `+${F(st.gap)}`, '#06d6a0');
           i++;
+          wipPut(slot, i);
           scene.time.delayedCall(700, ask);
         });
       };
@@ -404,7 +420,7 @@ export function countUpPanel(scene: Phaser.Scene, o: CountUpOptions): void {
     ask();
   };
 
-  if (o.guided) {
+  if (o.guided || (wipGet<number>(slot) ?? 0) > 0) {
     guidedRun();
     return;
   }

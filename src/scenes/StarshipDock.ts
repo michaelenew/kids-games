@@ -9,6 +9,7 @@ import { getStage, px2w, py2w } from '../three/stage';
 import { starshipPieceModel } from '../three/starship';
 import { howTo, needsIntro } from '../ui/howto';
 import { button, dialog, panel, sparks, text, toast } from '../ui/widgets';
+import { keepValue, wipDrop, wipPut } from '../wip';
 
 /**
  * The Starship Dock, where comparing numbers (<, >, =) comes in. The Moon
@@ -80,7 +81,10 @@ export class StarshipDock extends Phaser.Scene {
       this.status();
       return;
     }
-    this.jobs = partJobs(next);
+    // Work in progress (see wip.ts): back after quitting, the same problems, from where he was.
+    const kept = keepValue(`dock:${next}`, () => ({ jobs: partJobs(next), index: 0 }));
+    this.jobs = kept.jobs;
+    this.jobIndex = Math.min(kept.index, this.jobs.length - 1);
     text(this, CX, 46, `STARSHIP DOCK · ${SHIP_PARTS[next].name.toUpperCase()}`, 36, '#9ff0ff').setStroke('#000000', 8);
     this.jobs.forEach((_, i) => {
       const x = CX + (i - (this.jobs.length - 1) / 2) * 100;
@@ -333,11 +337,14 @@ export class StarshipDock extends Phaser.Scene {
 
   private nextJob() {
     this.jobIndex++;
-    if (this.jobIndex < this.jobs.length) this.startJob();
-    else this.partDone();
+    if (this.jobIndex < this.jobs.length) {
+      wipPut(`dock:${this.part}`, { jobs: this.jobs, index: this.jobIndex });
+      this.startJob();
+    } else this.partDone();
   }
 
   private partDone() {
+    wipDrop(`dock:${this.part}`);
     const s = save();
     this.layer?.removeAll(true);
     this.work?.removeAll(true);

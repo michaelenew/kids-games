@@ -9,6 +9,7 @@ import { formatNumber } from '../skills/placeValue';
 import { numpad } from './numpad';
 import { type Area, columnPaper, groupsPaper, scratchButtons, sheet } from './paper';
 import { button, text, toast } from './widgets';
+import { wipDrop, wipGet, wipPut } from '../wip';
 
 /**
  * The screens for the vehicle bays' problems (see skills/jobs.ts). Each one
@@ -212,12 +213,18 @@ function storyScreen(scene: Phaser.Scene, j: StoryJob, o: JobOptions, onDone = (
   sh.add(scene.add.text(sh.page.left + 20, sh.page.top + 74, j.text, {
     fontFamily: 'Arial', fontSize: '24px', color: '#1d2b53', wordWrap: { width: sh.page.w - 40 }, lineSpacing: 6,
   }));
-  const done = (solo: boolean) => scene.time.delayedCall(1700, () => { sh.destroy(); onDone(solo); });
+  // Work in progress (see wip.ts): which step he's on, kept until it's done.
+  const slot = `story:${j.text}`;
+  const done = (solo: boolean) => {
+    wipDrop(slot);
+    scene.time.delayedCall(1700, () => { sh.destroy(); onDone(solo); });
+  };
   const steps = () => {
-    let i = 0;
+    let i = Math.min(j.steps.length - 1, wipGet<number>(slot) ?? 0);
     o.say('TWO STEPS', 'Do the first step, then the second. Use the page if it helps!');
     sh.draw(true);
-    sh.setPrompt(j.steps[0].q);
+    // Back after quitting in the middle: the step he'd finished shows with its answer.
+    sh.setPrompt(i > 0 ? `✓ ${j.steps[i - 1].answer}.  ${j.steps[i].q}` : j.steps[0].q);
     sh.onEnter((v) => {
       if (v !== j.steps[i].answer) {
         sh.wrong('Not quite. Read that step again.');
@@ -226,6 +233,7 @@ function storyScreen(scene: Phaser.Scene, j: StoryJob, o: JobOptions, onDone = (
       sfx.success();
       sh.clear();
       i++;
+      if (i < j.steps.length) wipPut(slot, i);
       if (i < j.steps.length) {
         sh.setPrompt(`✓ ${j.steps[i - 1].answer}.  ${j.steps[i].q}`);
         return;
@@ -234,7 +242,7 @@ function storyScreen(scene: Phaser.Scene, j: StoryJob, o: JobOptions, onDone = (
       done(false);
     });
   };
-  if (o.help === 'guided') {
+  if (o.help === 'guided' || (wipGet<number>(slot) ?? 0) > 0) {
     steps();
     return;
   }

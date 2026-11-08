@@ -115,6 +115,7 @@ See [GAME_DESIGN.md](GAME_DESIGN.md) for the full plan and the syllabus mapping.
 - **Time challenges** (Mark III) get 30 seconds longer after each time-out, so he can't get stuck.
 - **Progress for grown-ups:** Garage → ⚙ → "Grown-ups: progress" shows first-try accuracy for each skill.
 - **Preview ahead (grown-ups):** Garage → ⚙ → "Grown-ups: preview ahead" plays on a copy of his save, with a red PREVIEW banner at the top. Settings then has +50 scrap and Skip mission to jump ahead, and "End preview" throws the copy away and goes back to his real save, untouched.
+- **Half-done work is kept** (`src/wip.ts`). If the game closes in the middle of a problem, coming back gives the same problems from where he was: the benches, forges, Base Builder, Starship Dock, vehicle bays, Torpedo Bay, Mission Control and the junk trader keep their numbers and his place in the set, and the long problems keep their steps (the column page's writes, the boxed subtraction's columns, the count-up hops, and two-step story problems). It's kept on this device only, beside the save (`…~wip`), never synced, and each problem's entry is dropped once it's finished. Start over clears it.
 - **Saves automatically** in the browser. Saves from before STRIKER keep everything, but Egypt starts again at mission 6 (the old Egypt missions were replaced), so he sees the jet take over.
 
 ## More robots

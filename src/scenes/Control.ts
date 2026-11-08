@@ -38,6 +38,15 @@ interface Clock {
   set(h: number, m: number): void;
   /** Light up `span` minutes of the face from minute `fromMin` (0 clears it). */
   arc(fromMin: number, span: number): void;
+  /** A permanent pin on the rim at a time (START, END), with its label outside. */
+  mark(at: { h: number; m: number }, label: string, color: number): void;
+  /**
+   * Let him turn the long hand himself, by touching and dragging, from `start`
+   * (the short hand follows). The part he's swept from START lights up with the
+   * 5s counted, and a readout says how many minutes it is. `trip`: for "when
+   * does it end" questions, the readout cheers when he's gone that far.
+   */
+  drag(start: { h: number; m: number }, trip?: number): void;
 }
 
 export class ControlScene extends Phaser.Scene {
@@ -92,7 +101,14 @@ export class ControlScene extends Phaser.Scene {
     let clock: Clock | null = null;
     if (q.kind === 'day') this.drawWeek();
     else if (q.groups) this.drawGroups(q.groups, guideCount('time-groups') < 2);
-    else if (q.clock) clock = this.drawClock(300, 380, 190, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
+    else if (q.clock) clock = this.drawClock(300, 365, 176, q.clock.h, q.clock.m, q.kind === 'read' ? '' : 'NOW');
+    // "Minutes between" questions: START (and END, when it's given) are pinned on the
+    // rim for good, and he can drag the long hand from one to the other himself.
+    if (clock && q.clock && q.clock2 && (q.kind === 'until' || q.kind === 'ends')) {
+      clock.mark(q.clock, 'START', 0x06d6a0);
+      if (q.kind === 'until') clock.mark(q.clock2, 'END', 0xef476f);
+      clock.drag(q.clock, q.kind === 'ends' ? q.minutes : undefined);
+    }
     // The first few times for each kind, walk him through it step by step
     // (clock reading three times: the whole first visit).
     const guided = guideCount(`time-${q.kind}`) < (q.kind === 'read' ? 3 : 2);
@@ -148,7 +164,7 @@ export class ControlScene extends Phaser.Scene {
     // During a walk-through, one button replays the last thing the clock showed.
     // Later (no walk-through) the questions are plain word problems.
     if (clock && steps.some((st) => st.sweep)) {
-      this.layer.add(button(this, 330, 668, 280, 58, '↻ Watch again', () => replay && playSweep(replay, 0), { fill: 0x3d4458, size: 24 }));
+      this.layer.add(button(this, 340, 690, 260, 50, '↻ Watch again', () => replay && playSweep(replay, 0), { fill: 0x3d4458, size: 24 }));
     }
 
     const show = (i: number) => {
@@ -440,6 +456,9 @@ export class ControlScene extends Phaser.Scene {
       }
     };
     set(h, m);
+    // Pins go under the hands (so the hands are never hidden) but over the face.
+    const pins = this.add.graphics();
+    this.layer.add(pins);
     this.layer.add(hands);
     // Up in the corner, clear of the minute counts around the rim. While the
     // hands move it shows the time they're at.
@@ -448,7 +467,79 @@ export class ControlScene extends Phaser.Scene {
       this.layer.add(lt);
       labelText = lt;
     }
-    return { set, arc };
+    const css = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
+    const mark = (at: { h: number; m: number }, name: string, color: number) => {
+      const a = angle(at.m);
+      const cos = Math.cos(a);
+      const sin = Math.sin(a);
+      // A thick colored notch across the rim, and a dot at its outer end.
+      pins.lineStyle(9, color, 1).lineBetween(cx + cos * (r - 30), cy + sin * (r - 30), cx + cos * (r + 16), cy + sin * (r + 16));
+      pins.fillStyle(color, 1).fillCircle(cx + cos * (r + 18), cy + sin * (r + 18), 9);
+      pins.lineStyle(3, 0xffffff, 1).strokeCircle(cx + cos * (r + 18), cy + sin * (r + 18), 9);
+      // Its name and time just outside, a bit further out than the 5s counts.
+      // Further out than the 5s counts (at r + 40), so a count landing on START or END doesn't cover it.
+      const tag = text(this, cx + cos * (r + 96), cy + sin * (r + 78), `${name}\n${clockText(at.h, at.m)}`, 19, css(color));
+      tag.setStroke('#000000', 5);
+      this.layer.add(tag);
+      tags.push(tag);
+    };
+    const tags: Phaser.GameObjects.Text[] = [];
+
+    const drag = (start: { h: number; m: number }, trip?: number) => {
+      const startAbs = (start.h % 12) * 60 + start.m;
+      let cur = startAbs;
+      let dragging = false;
+      // Under the clock, unless a START/END tag sits there: then over it.
+      const spots = [cy + r + 82, cy - r - 70];
+      const y = spots.find((yy) => !tags.some((t) => Math.abs(t.y - yy) < 50 && Math.abs(t.x - cx) < 170)) ?? spots[0];
+      const readout = text(this, cx + 40, y, '✋ Drag the long red hand!', 28, '#9ad1ff');
+      readout.setStroke('#000000', 5);
+      this.layer.add(readout);
+      const show = () => {
+        const whole = Math.round(cur);
+        const span = whole - startAbs;
+        set(Math.floor(whole / 60) % 12 || 12, whole % 60);
+        arc(start.m, span);
+        if (span <= 0) readout.setText('✋ Drag the long red hand!').setColor('#9ad1ff');
+        else if (trip !== undefined && span === trip) readout.setText(`${span} minutes: the trip is done!`).setColor('#06d6a0');
+        else readout.setText(`${span} minute${span === 1 ? '' : 's'} from START`).setColor('#ffd166');
+      };
+      const fingerMin = (p: Phaser.Input.Pointer) => {
+        const a = Math.atan2(p.y - cy, p.x - cx) + Math.PI / 2;
+        return (((a / (Math.PI * 2)) * 60) % 60 + 60) % 60;
+      };
+      const follow = (p: Phaser.Input.Pointer) => {
+        // The hand turns to point at his finger; going past the 12 moves on to the next hour.
+        let d = fingerMin(p) - (cur % 60);
+        if (d > 30) d -= 60;
+        if (d < -30) d += 60;
+        cur = Phaser.Math.Clamp(cur + d, startAbs, startAbs + 180);
+        show();
+      };
+      const zone = this.add.zone(cx, cy, (r + 30) * 2, (r + 30) * 2)
+        .setInteractive(new Phaser.Geom.Circle(r + 30, r + 30, r + 30), Phaser.Geom.Circle.Contains);
+      this.layer.add(zone);
+      zone.on('pointerdown', (p: Phaser.Input.Pointer) => {
+        dragging = true;
+        follow(p);
+      });
+      const move = (p: Phaser.Input.Pointer) => {
+        if (dragging && p.isDown) follow(p);
+      };
+      const up = () => {
+        if (!dragging) return;
+        dragging = false;
+        cur = Math.round(cur);
+        show();
+      };
+      this.input.on('pointermove', move);
+      this.input.on('pointerup', up);
+      zone.once('destroy', () => {
+        this.input.off('pointermove', move);
+        this.input.off('pointerup', up);
+      });
+    };
+    return { set, arc, mark, drag };
   }
 
   /** The week as a strip of days, for "what day is it in 3 days". */

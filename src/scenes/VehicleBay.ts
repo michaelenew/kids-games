@@ -9,6 +9,7 @@ import { Showcase } from '../three/showcase';
 import { getStage, px2w, py2w } from '../three/stage';
 import { type Help, runJob } from '../ui/jobs';
 import { button, dialog, panel, text } from '../ui/widgets';
+import { keepValue, newSeed, seededRandom, wipDrop, wipPut } from '../wip';
 import { launchMission, readyThenGo } from './launch';
 
 /**
@@ -37,6 +38,7 @@ export class VehicleBay extends Phaser.Scene {
   private then?: string;
   private part = 0;
   private jobIndex = 0;
+  private seeds: number[] = [];
   private pips: Phaser.GameObjects.Arc[] = [];
   private stepLabel!: Phaser.GameObjects.Text;
   private task!: Phaser.GameObjects.Text;
@@ -65,6 +67,11 @@ export class VehicleBay extends Phaser.Scene {
       return;
     }
     const part = this.bay.parts[next];
+    // Work in progress (see wip.ts): back after quitting, he carries on at the same job,
+    // and every job keeps its numbers (a seed for each).
+    const kept = keepValue(this.wipSlot(next), () => ({ index: 0, seeds: part.jobs.map(() => newSeed()) }));
+    this.jobIndex = Math.min(kept.index, part.jobs.length - 1);
+    this.seeds = kept.seeds;
     text(this, CX, 46, `${this.bay.title} · ${part.name.toUpperCase()}`, 34, this.bay.color).setStroke('#000000', 8);
     part.jobs.forEach((_, i) => {
       const x = CX + (i - (part.jobs.length - 1) / 2) * 100;
@@ -130,6 +137,7 @@ export class VehicleBay extends Phaser.Scene {
     const help: Help = kind === 'mixed' ? 'solo'
       : once ? (guideCount(`job-${kind}`) < 1 ? 'guided' : 'solo')
         : part.level >= 3 ? 'solo' : guideCount(`job-${kind}`) < 2 ? 'guided' : 'solo';
+    const rng = seededRandom(this.seeds[this.jobIndex] ?? newSeed());
     runJob(this, kind, {
       area: AREA, help, level: part.level,
       say: (l, t, c) => this.say(l, t, c),
@@ -137,13 +145,20 @@ export class VehicleBay extends Phaser.Scene {
         recordSkill(skill, solo);
         bumpGuide(`job-${kind}`);
         this.jobIndex++;
-        if (this.jobIndex < part.jobs.length) this.startJob();
-        else this.partDone();
+        if (this.jobIndex < part.jobs.length) {
+          wipPut(this.wipSlot(this.part), { index: this.jobIndex, seeds: this.seeds });
+          this.startJob();
+        } else this.partDone();
       },
-    });
+    }, rng);
+  }
+
+  private wipSlot(part: number) {
+    return `bay:${this.bay.id}:${part}`;
   }
 
   private partDone() {
+    wipDrop(this.wipSlot(this.part));
     const s = save();
     this.pips.forEach((p) => p.setFillStyle(0x06d6a0));
     s.rides = { ...(s.rides ?? {}), [this.bay.ride]: Math.max(bayParts(this.bay, s), this.part + 1) };

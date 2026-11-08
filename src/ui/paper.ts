@@ -3,6 +3,7 @@ import { sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
 import { type PaperStep, type Slot, type Write, addWrites, checkWrite, columnSum, subtractWrites } from '../skills/paper';
 import { guideCount, bumpGuide } from '../state';
+import { wipDrop, wipGet, wipPut } from '../wip';
 import { button, text, toast } from './widgets';
 
 /**
@@ -172,6 +173,9 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
   const nums = o.c !== undefined ? [o.a, o.b, o.c] : [o.a, o.b];
   const answer = o.kind === 'subtract' ? o.a - o.b : nums.reduce((t, n) => t + n, 0);
   const writes: Write[] = o.kind === 'subtract' ? subtractWrites(o.a, o.b) : addWrites(...nums);
+  // Work in progress (see wip.ts): the writes he's made, in order, kept until it's done.
+  const slot = `paper:${o.kind}:${nums.join(',')}`;
+  const order: number[] = [];
   const places = Math.max(...nums.map((n) => String(n).length)) + (o.kind === 'add' ? 1 : 0);
   const three = nums.length === 3;
 
@@ -202,6 +206,7 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
   const finish = (showMe: boolean) => {
     if (finished) return;
     finished = true;
+    wipDrop(slot);
     sfx.success();
     sh.setPrompt(`${nums.map(formatNumber).join(o.kind === 'subtract' ? ' − ' : ' + ')} = ${formatNumber(answer)}`, DONE);
     scene.time.delayedCall(1700, () => {
@@ -338,6 +343,8 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
     const r = checkWrite(writes, done, picked.slot, v);
     if (r.ok) {
       done.add(r.index);
+      order.push(r.index);
+      wipPut(slot, order);
       writeAt(writes[r.index]);
       sfx.tick();
       picked = null;
@@ -371,6 +378,14 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
       : due.why === 'carry' ? 'How many tens are in that column\'s sum?'
         : due.why === 'borrowed' ? 'It gets 10 more: a 1 in front of it.' : 'It gives away 1: one less than before.');
   });
+  // Back after quitting in the middle: what he'd already written goes back on the page.
+  for (const i of wipGet<number[]>(slot) ?? []) {
+    if (i >= 0 && i < writes.length && !done.has(i)) {
+      done.add(i);
+      order.push(i);
+      writeAt(writes[i]);
+    }
+  }
   say();
 }
 

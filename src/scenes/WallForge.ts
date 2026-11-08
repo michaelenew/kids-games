@@ -14,6 +14,7 @@ import { numpad } from '../ui/numpad';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
+import { keepEach, wipDrop } from '../wip';
 
 /**
  * TITAN's wall yard: its armor is brick walls, and walls are built in rows.
@@ -127,9 +128,10 @@ export class WallForge extends Phaser.Scene {
     const d = rig(s);
     if (this.mode === 'build') {
       const todo = REGIONS.filter((r) => (d.armor?.[r]?.mark ?? 0) < this.mark);
-      this.jobs = todo.map((region) => {
-        const { rows, cols } = wallTarget(Math.random, this.mark, region, REGIONS.indexOf(region));
-        return { region, rows, cols, full: rows, extra: 0, misses: 0 };
+      // Work in progress (see wip.ts): each wall keeps its size until it's built.
+      this.jobs = keepEach(`forge:wall:${this.bot}:${this.mark}`, todo, (region) => {
+        const { rows, cols } = wallTarget(Math.random, this.mark, region as Region, REGIONS.indexOf(region as Region));
+        return { region: region as Region, rows, cols, full: rows, extra: 0, misses: 0 };
       });
       text(this, CX, 46, `${botName(this.bot)} ${this.W.yard} · MARK ${ROMAN[this.mark]}`, 38, this.W.title).setStroke('#000000', 8);
     } else {
@@ -548,6 +550,7 @@ export class WallForge extends Phaser.Scene {
   }
 
   private allDone() {
+    if (this.mode === 'build') wipDrop(`forge:wall:${this.bot}:${this.mark}`);
     const s = save();
     this.layer?.removeAll(true);
     this.wall?.removeAll(true);

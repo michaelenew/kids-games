@@ -3,6 +3,7 @@ import { sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
 import { type SubColumn, writtenSubtraction } from '../skills/steps';
 import { button, text, toast } from './widgets';
+import { wipDrop, wipGet, wipPut } from '../wip';
 
 /**
  * Written (column) subtraction, like the packet's: the full amount on top,
@@ -152,7 +153,10 @@ export function writtenSubtractPanel(scene: Phaser.Scene, o: WrittenOptions): vo
     toast(scene, cx, top + h - 18, msg, '#ff9f9f', 21).setDepth(960);
     scene.time.delayedCall(600, clearPad);
   };
+  // Work in progress (see wip.ts): how many columns he's done, kept until it's finished.
+  const slot = `written:${o.top}:${o.bottom}`;
   const finish = (solo: boolean) => {
+    wipDrop(slot);
     sfx.success();
     highlight(null);
     cols.forEach((c) => {
@@ -169,6 +173,12 @@ export function writtenSubtractPanel(scene: Phaser.Scene, o: WrittenOptions): vo
   const guidedRun = () => {
     let i = 0;
     const stepCount = cols.length;
+    // Back after quitting in the middle: the columns he'd done (and their borrows) are written back in.
+    const had = Math.min(cols.length, wipGet<number>(slot) ?? 0);
+    for (; i < had; i++) {
+      showBorrow(cols[i]);
+      answerText[cols[i].place].setText(String(cols[i].result));
+    }
     const ask = () => {
       clearPad();
       if (i >= cols.length) {
@@ -191,6 +201,7 @@ export function writtenSubtractPanel(scene: Phaser.Scene, o: WrittenOptions): vo
           answerText[c.place].setText(String(c.result)).setScale(1.6);
           scene.tweens.add({ targets: answerText[c.place], scale: 1, duration: 260, ease: 'Back.easeOut' });
           i++;
+          wipPut(slot, i);
           scene.time.delayedCall(1100, ask);
         };
       };
@@ -216,7 +227,7 @@ export function writtenSubtractPanel(scene: Phaser.Scene, o: WrittenOptions): vo
     ask();
   };
 
-  if (o.guided) {
+  if (o.guided || (wipGet<number>(slot) ?? 0) > 0) {
     guidedRun();
     return;
   }

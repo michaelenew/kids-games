@@ -19,6 +19,7 @@ import { type PatchPiece, PlatePatch } from '../three/patch';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
+import { keepEach, wipDrop } from '../wip';
 
 /**
  * The armor forge. Two jobs:
@@ -141,11 +142,12 @@ export class ArmorForge extends Phaser.Scene {
     if (this.mode === 'build') {
       // Plates already built at this mark (e.g. before leaving the forge) are skipped.
       const todo = REGIONS.filter((r) => (rig(s).armor?.[r]?.mark ?? 0) < this.mark);
-      this.jobs = todo.map((region) => {
-        const i = REGIONS.indexOf(region);
-        const target = plateTarget(Math.random, this.mark, region);
+      // Work in progress (see wip.ts): each plate keeps its number until it's built.
+      this.jobs = keepEach(`forge:armor:${activeBot()}:${this.mark}`, todo, (region) => {
+        const i = REGIONS.indexOf(region as Region);
+        const target = plateTarget(Math.random, this.mark, region as Region);
         const format = this.mark === 1 ? 'digits' : this.mark === 2 ? (i % 2 ? 'words' : 'digits') : (['digits', 'expanded', 'words'] as const)[i % 3];
-        return { region, target, spec: specText(target, format), format, misses: 0 };
+        return { region: region as Region, target, spec: specText(target, format), format, misses: 0 };
       });
       this.places = this.mark === 3 ? [0, 1, 2, 3] : [1, 2, 3];
       const who = activeBot() !== 'bolt' ? `${botName(activeBot())} ` : '';
@@ -862,6 +864,7 @@ export class ArmorForge extends Phaser.Scene {
   }
 
   private allDone() {
+    if (this.mode === 'build') wipDrop(`forge:armor:${activeBot()}:${this.mark}`);
     const s = save();
     this.layer?.removeAll(true);
     this.spent.forEach((img) => img.destroy());

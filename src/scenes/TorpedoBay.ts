@@ -7,6 +7,7 @@ import { getStage, px2w, py2w } from '../three/stage';
 import { torpedoLauncher } from '../three/torpedo';
 import { groupsPaper } from '../ui/paper';
 import { button, dialog, panel, text } from '../ui/widgets';
+import { keepValue, wipDrop, wipPut } from '../wip';
 
 /**
  * The Moon base's Torpedo Bay: an extra he asked for. Loading the launchers is
@@ -54,8 +55,10 @@ export class TorpedoBay extends Phaser.Scene {
   create() {
     const s = save();
     music('calm');
-    this.jobs = loads();
-    this.index = 0;
+    // Work in progress (see wip.ts): back after quitting, the same loads, from where he was.
+    const kept = keepValue('torpedo', () => ({ jobs: loads(), index: 0 }));
+    this.jobs = kept.jobs;
+    this.index = Math.min(kept.index, this.jobs.length - 1);
     this.pips = [];
     this.showLauncher();
     button(this, 95, 46, 160, 60, '◀ Garage', () => this.scene.start('Garage'), { size: 24, fill: 0x3d4458 });
@@ -115,6 +118,7 @@ export class TorpedoBay extends Phaser.Scene {
         recordSkill(j.kind === 'multiply' ? 'multiply' : 'divide', r.solo);
         paperDone(j.kind, r.solo, r.showMe);
         this.index++;
+        if (this.index < this.jobs.length) wipPut('torpedo', { jobs: this.jobs, index: this.index });
         if (this.index < this.jobs.length) this.startJob();
         else this.built();
       },
@@ -122,6 +126,7 @@ export class TorpedoBay extends Phaser.Scene {
   }
 
   private built() {
+    wipDrop('torpedo');
     const s = save();
     s.torpedoBay = true;
     persist();

@@ -12,6 +12,7 @@ import { numpad } from '../ui/numpad';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
+import { keepEach, wipDrop } from '../wip';
 
 /**
  * PHANTOM's cloak bay, where fractions come in. Its armor is cloak cells:
@@ -130,7 +131,8 @@ export class CellForge extends Phaser.Scene {
       });
     } else {
       const todo = REGIONS.filter((r) => (d.armor?.[r]?.mark ?? 0) < this.mark);
-      this.jobs = todo.map((region) => ({ region, task: fractionTask(Math.random, this.mark, REGIONS.indexOf(region)), misses: 0 }));
+      // Work in progress (see wip.ts): each cell keeps its fraction until it's built.
+      this.jobs = keepEach(`forge:cell:${this.mark}`, todo, (region) => ({ region: region as Region, task: fractionTask(Math.random, this.mark, REGIONS.indexOf(region as Region)), misses: 0 }));
     }
     const title = this.mode === 'repair' ? 'PHANTOM CLOAK BAY · RECHARGE' : `PHANTOM CLOAK BAY · MARK ${ROMAN[this.mark]}`;
     text(this, CX, 46, title, 36, '#c9a6ff').setStroke('#000000', 8);
@@ -688,6 +690,7 @@ export class CellForge extends Phaser.Scene {
   }
 
   private allDone() {
+    if (this.mode !== 'repair') wipDrop(`forge:cell:${this.mark}`);
     const s = save();
     this.layer?.removeAll(true);
     this.work?.removeAll(true);

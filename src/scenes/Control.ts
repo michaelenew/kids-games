@@ -6,6 +6,7 @@ import { missionById } from '../three/missions';
 import { getStage } from '../three/stage';
 import { numpad } from '../ui/numpad';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
+import { keepValue, wipDrop, wipPut } from '../wip';
 
 /**
  * Mission control, before every arcade mission: Commander Volt's clock
@@ -86,7 +87,16 @@ export class ControlScene extends Phaser.Scene {
     // each visit (the first visit reads three clocks: :20, :40, :55).
     // In the canyon, every other visit is a supply drop instead (equal groups: multiplying).
     this.supply = titanUnlocked() && guideCount('control-cyn') % 2 === 0;
-    this.questions = this.supply ? [makeGroups(Math.random, guideCount('time-groups'))] : controlQuestions(Math.random, guideCount('control'));
+    // Work in progress (see wip.ts): back after quitting, the same questions, from where he was.
+    const kept = keepValue(`control:${this.missionId}`, () => ({
+      questions: this.supply ? [makeGroups(Math.random, guideCount('time-groups'))] : controlQuestions(Math.random, guideCount('control')),
+      index: 0,
+      shield: 0,
+    }));
+    this.questions = kept.questions;
+    this.index = kept.index;
+    this.shield = kept.shield;
+    this.shieldText.setText(`SHIELD +${this.shield}`);
     mathDone('control');
     this.ask();
   }
@@ -212,6 +222,7 @@ export class ControlScene extends Phaser.Scene {
         this.tweens.add({ targets: this.shieldText, scale: 1.3, duration: 150, yoyo: true });
         toast(this, 900, 300, `Right! Shield +${SHIELD_PER_ANSWER}`, '#06d6a0', 34);
         this.index++;
+        wipPut(`control:${this.missionId}`, { questions: this.questions, index: this.index, shield: this.shield });
         this.time.delayedCall(1100, () => this.ask());
       };
       const wrong = () => {
@@ -220,6 +231,7 @@ export class ControlScene extends Phaser.Scene {
         if (isFinal && !guided && misses >= 2) {
           toast(this, 900, 300, `It's ${q.answer}.`, '#ffd166', 34);
           this.index++;
+        wipPut(`control:${this.missionId}`, { questions: this.questions, index: this.index, shield: this.shield });
           this.time.delayedCall(1800, () => this.ask());
           return;
         }
@@ -583,6 +595,7 @@ export class ControlScene extends Phaser.Scene {
   }
 
   private launch() {
+    wipDrop(`control:${this.missionId}`);
     this.layer.removeAll(true);
     if (titanUnlocked()) bumpGuide('control-cyn');
     if (!this.supply) bumpGuide('control');

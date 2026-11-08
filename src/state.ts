@@ -135,6 +135,14 @@ function storeKey(): string {
   return inPreview() ? PREVIEW_KEY : saveKey('mecha');
 }
 
+/**
+ * Where work in progress is kept (see wip.ts): beside the save, on this device
+ * only. Sync never uploads it (it only sends the save itself, when told it changed).
+ */
+export function wipKey(): string {
+  return `${storeKey()}~wip`;
+}
+
 /** Start playing on a copy of the save. */
 export function startPreview(): void {
   persist();
@@ -219,6 +227,12 @@ onRemoteSave('mecha', (data) => {
 /** Start over. A synced save stops syncing first, so other devices keep it. */
 export function resetSave(): void {
   if (!inPreview()) leaveSyncGroup('mecha');
+  // Half-done problems belong to the old game.
+  try {
+    localStorage.removeItem(wipKey());
+  } catch {
+    // Nothing to clear.
+  }
   current = freshSave();
   persist();
 }

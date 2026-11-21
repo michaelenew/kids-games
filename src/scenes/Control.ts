@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
-import { DAYS, addMinutes, clockText, controlQuestions, makeGroups, type TimeQuestion, typedAnswer } from '../skills/time';
-import { bumpGuide, guideCount, mathDone, recordSkill, titanUnlocked } from '../state';
+import { DAYS, addMinutes, clockText, makeGroups, rampClockQuestion, type TimeQuestion, typedAnswer } from '../skills/time';
+import { bumpGuide, guideCount, mathDone, rampDone, rampOf, recordSkill, titanUnlocked } from '../state';
 import { missionById } from '../three/missions';
 import { getStage } from '../three/stage';
 import { numpad } from '../ui/numpad';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 import { keepValue, wipDrop, wipPut } from '../wip';
+import { rungInfo } from '../skills/ramp';
 
 /**
  * Mission control, before every arcade mission: Commander Volt's clock
@@ -89,7 +90,9 @@ export class ControlScene extends Phaser.Scene {
     this.supply = titanUnlocked() && guideCount('control-cyn') % 2 === 0;
     // Work in progress (see wip.ts): back after quitting, the same questions, from where he was.
     const kept = keepValue(`control:${this.missionId}`, () => ({
-      questions: this.supply ? [makeGroups(Math.random, guideCount('time-groups'))] : controlQuestions(Math.random, guideCount('control')),
+      // The clock follows its difficulty ramp (skills/ramp.ts).
+      questions: this.supply ? [makeGroups(Math.random, guideCount('time-groups'))]
+        : [rampClockQuestion(Math.random, guideCount('control'), rampOf('clock').rung, rungInfo('clock', rampOf('clock')).cross)],
       index: 0,
       shield: 0,
     }));
@@ -119,12 +122,40 @@ export class ControlScene extends Phaser.Scene {
       if (q.kind === 'until') clock.mark(q.clock2, 'END', 0xef476f);
       clock.drag(q.clock, q.kind === 'ends' ? q.minutes : undefined);
     }
-    // The first few times for each kind, walk him through it step by step
-    // (clock reading three times: the whole first visit).
-    const guided = guideCount(`time-${q.kind}`) < (q.kind === 'read' ? 3 : 2);
-    const steps = guided ? this.guideSteps(q) : [];
-    const prompt = text(this, 900, 190, '', 28, '#ffffff', { wordWrap: { width: 620 } });
-    this.layer.add(prompt);
+    // Walked through step by step on the clock ramp's breakdown rung (skills/ramp.ts);
+    // supply drops (equal groups) the first couple of times.
+    const clockRung = rungInfo('clock', rampOf('clock'));
+    const guided = q.groups ? guideCount('time-groups') < 2 : clockRung.breakdown && this.guideSteps(q).length > 0;
+    let steps = guided ? this.guideSteps(q) : [];
+    /** It got broken into steps after he missed it twice. */
+    let fellBack = false;
+    // The whole question stays in a card at the top. The step he's on (in a walk-through)
+    // goes in its own orange box under it; on the last question the card itself lights up.
+    const card = this.add.graphics();
+    const qText = text(this, 905, 116, q.prompt, 20, '#ffffff', { wordWrap: { width: 610 } }).setOrigin(0.5, 0);
+    const cardBottom = qText.y + qText.height + 10;
+    const stepG = this.add.graphics();
+    const prompt = text(this, 905, cardBottom + 12, '', 19, '#ffd166', { wordWrap: { width: 620 } }).setOrigin(0.5, 0);
+    this.layer.add([card, qText, stepG, prompt]);
+    const drawCard = (lit: boolean) => {
+      card.clear();
+      card.fillStyle(0x10203a, 0.95).fillRoundedRect(590, qText.y - 12, 630, cardBottom - qText.y + 12, 14);
+      card.lineStyle(lit ? 4 : 2, lit ? 0xf77f00 : 0x4cc9f0, lit ? 1 : 0.6).strokeRoundedRect(590, qText.y - 12, 630, cardBottom - qText.y + 12, 14);
+    };
+    const showStep = (msg: string | null) => {
+      stepG.clear();
+      if (msg === null) {
+        prompt.setText('');
+        drawCard(true);
+        return;
+      }
+      drawCard(false);
+      prompt.setText(msg).setAlpha(0);
+      stepG.fillStyle(0x2a1d05, 0.95).fillRoundedRect(588, prompt.y - 6, 634, prompt.height + 12, 12);
+      stepG.lineStyle(4, 0xf77f00, 1).strokeRoundedRect(588, prompt.y - 6, 634, prompt.height + 12, 12);
+      this.tweens.add({ targets: prompt, alpha: 1, duration: 250 });
+    };
+    drawCard(true);
     // YOUR WORK: what each step worked out stays here (beside the keypad), so the
     // last question never asks him to remember an answer he already found.
     const notes: string[] = [];
@@ -139,9 +170,14 @@ export class ControlScene extends Phaser.Scene {
       pad?.destroy();
       pad = null;
     };
-    const flash = (msg: string) => {
-      prompt.setText(msg).setAlpha(0).setScale(0.9);
-      this.tweens.add({ targets: prompt, alpha: 1, scale: 1, duration: 300, ease: 'Back.easeOut' });
+    /** A big notice when the question turns into steps, so the change can't be missed. */
+    const banner = (t: string) => {
+      const bx = this.add.rectangle(W / 2, 360, 900, 110, 0xf77f00, 0.97).setStrokeStyle(5, 0xffffff).setDepth(900);
+      const bt = text(this, W / 2, 360, t, 40, '#ffffff').setStroke('#000000', 6).setDepth(901);
+      for (const o of [bx, bt]) o.setScale(0.6);
+      this.tweens.add({ targets: [bx, bt], scale: 1, duration: 260, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: [bx, bt], alpha: 0, delay: 1700, duration: 400, onComplete: () => { bx.destroy(); bt.destroy(); } });
+      sfx.transform();
     };
 
     // The hands moving, with the swept part of the clock lit up and the
@@ -173,9 +209,13 @@ export class ControlScene extends Phaser.Scene {
     };
     // During a walk-through, one button replays the last thing the clock showed.
     // Later (no walk-through) the questions are plain word problems.
-    if (clock && steps.some((st) => st.sweep)) {
+    let watchBtn = false;
+    const addWatch = () => {
+      if (watchBtn || !clock || !steps.some((st) => st.sweep)) return;
+      watchBtn = true;
       this.layer.add(button(this, 340, 690, 260, 50, '↻ Watch again', () => replay && playSweep(replay, 0), { fill: 0x3d4458, size: 24 }));
-    }
+    };
+    addWatch();
 
     const show = (i: number) => {
       clearButtons();
@@ -183,7 +223,7 @@ export class ControlScene extends Phaser.Scene {
       if (step?.intro) {
         // First just the words, then Next, then the clock shows it, then the question.
         clock?.arc(0, 0);
-        flash(step.intro);
+        showStep(`STEP ${i + 1} of ${steps.length}\n${step.intro}`);
         const next = button(this, 900, 470, 260, 80, 'Next ▶', () => {
           clearButtons();
           if (step.sweep) {
@@ -203,7 +243,7 @@ export class ControlScene extends Phaser.Scene {
       const step = steps[i];
       const isFinal = !step;
       // The lit-up part of the clock stays for the last question: it's his work.
-      flash(isFinal ? q.prompt : step.prompt);
+      showStep(isFinal ? null : `STEP ${i + 1} of ${steps.length}\n${step.prompt}`);
       const answer = isFinal ? q.answer : step.answer;
       const right = () => {
         sfx.success();
@@ -215,6 +255,8 @@ export class ControlScene extends Phaser.Scene {
           return;
         }
         recordSkill(q.kind === 'groups' ? 'multiply' : 'time', misses === 0);
+        // The ramp: right on his own, or through the steps with at most one slip.
+        if (!q.groups) rampDone('clock', !fellBack && misses <= (guided ? 1 : 0));
         if (guided) bumpGuide(`time-${q.kind}`);
         sparks(this, 900, 420, 0x06d6a0, 24);
         this.shield += SHIELD_PER_ANSWER;
@@ -228,7 +270,20 @@ export class ControlScene extends Phaser.Scene {
       const wrong = () => {
         misses++;
         sfx.buzz();
-        if (isFinal && !guided && misses >= 2) {
+        if (isFinal && !guided && !fellBack && misses >= 2 && !q.groups && this.guideSteps(q).length) {
+          // Missed twice: break it into steps (big and clear), then ask it again at the end.
+          fellBack = true;
+          steps = this.guideSteps(q);
+          clearButtons();
+          banner('Let\'s break it into steps!');
+          this.time.delayedCall(2100, () => {
+            addWatch();
+            show(0);
+          });
+          return;
+        }
+        if (isFinal && (!guided || fellBack) && misses >= (fellBack ? 4 : 2)) {
+          if (!q.groups) rampDone('clock', false);
           toast(this, 900, 300, `It's ${q.answer}.`, '#ffd166', 34);
           this.index++;
         wipPut(`control:${this.missionId}`, { questions: this.questions, index: this.index, shield: this.shield });

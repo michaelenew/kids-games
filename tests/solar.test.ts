@@ -74,13 +74,24 @@ describe('the new ideas', () => {
     expect(simpler(3)).toBeNull();
   });
 
-  it('word problems: two steps that lead to the answer', () => {
-    for (let lvl = 1; lvl <= 5; lvl++) {
+  it('word problems: one step on level 0, two steps (each sentence tied to its step) after', () => {
+    for (let lvl = 0; lvl <= 5; lvl++) {
       for (let n = 0; n < 20; n++) {
         const j = storyJob(rng(n * 7 + lvl), lvl);
-        expect(j.steps).toHaveLength(2);
-        expect(j.steps[1].answer).toBe(j.answer);
+        expect(j.steps).toHaveLength(lvl === 0 ? 1 : 2);
+        expect(j.steps[j.steps.length - 1].answer).toBe(j.answer);
         expect(j.answer).toBeGreaterThan(0);
+        for (const st of j.steps) expect(Number.isInteger(st.answer)).toBe(true);
+        // A step that uses an earlier one starts from that step's answer.
+        j.steps.forEach((st) => {
+          if (st.from !== undefined) expect(st.fromSide === 'b' ? st.b : st.a).toBe(j.steps[st.from].answer);
+        });
+        // Every step has its sentences, and the question comes last.
+        j.steps.forEach((_, i) => expect(j.sentences.some((x) => x.step === i)).toBe(true));
+        expect(j.sentences[j.sentences.length - 1].step).toBe(-1);
+        expect(j.text).toBe(j.sentences.map((x) => x.text).join(' '));
+        // The numbers in the story are the numbers in the steps.
+        if (lvl === 0) expect(j.text).toContain(String(j.steps[0].b));
       }
     }
   });

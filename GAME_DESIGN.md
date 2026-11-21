@@ -19,6 +19,8 @@ Source syllabus: "Entering 3rd Grade Math Summer Packet" (35 pages, 8 weeks).
 
 ---
 
+- **A difficulty ramp keeps him winning** (adding and subtracting in columns, word problems, the clock): easy first, then the harder version broken into steps, then the harder version on his own; up after three right in a row, down after two struggles in a row. Every save starts at the bottom.
+- **Breakdowns are visually clear:** the whole problem stays at the top, the part being solved is highlighted, each step has its own box, finished steps stay on screen, and switching to steps is announced with a big banner.
 - **His work stays on screen.** Whenever he works something out (a subtraction, counting up, a clock sweep, counting bricks, charging cells) and a later question needs that result, the work or its result stays visible until he's answered. Hints that give an answer don't fade away while he still has to type it.
 
 ## 1. What the packet actually teaches

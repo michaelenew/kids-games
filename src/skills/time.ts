@@ -178,6 +178,22 @@ export function controlQuestions(rng: Rng, visit: number): TimeQuestion[] {
 }
 
 /**
+ * Mission control's question, set by the clock's difficulty ramp (skills/ramp.ts):
+ * reading the clock, "how many minutes until", and "when does it end" take turns
+ * (`visit`). On the first rung everything stays inside one hour (5-minute steps);
+ * from the next rung on they cross the hour (the 12); on the top rung the clock is
+ * read to the minute, and days of the week join in.
+ */
+export function rampClockQuestion(rng: Rng, visit: number, rung: number, cross: boolean): TimeQuestion {
+  const top = rung >= 2;
+  const turn = visit % (top ? 4 : 3);
+  if (turn === 0) return makeReadClock(rng, top ? 1 : 5);
+  if (turn === 1) return makeUntil(rng, 5, cross);
+  if (turn === 2) return makeEnds(rng, 5, cross);
+  return makeDay(rng);
+}
+
+/**
  * The mission-control question before an Egypt mission (index 0 is the first
  * Egypt mission): read the clock, then minutes until, then when a trip ends.
  */

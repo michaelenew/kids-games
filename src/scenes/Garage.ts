@@ -4,11 +4,12 @@ import { LEVELS } from '../levels';
 import {
   BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName,
   botsUnlocked, endPreview, gearInfo, alertQueue, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
-  paperStep, startPreview, takeFreshAlert,
+  paperStep, rampOf, startPreview, takeFreshAlert,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
 import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
 import { PAPER_KINDS, PAPER_NAMES } from '../skills/paper';
+import { CLOCK_RUNGS, COLUMN_RUNGS, RAMP_NAMES, STORY_RUNGS } from '../skills/ramp';
 import { SHIP_PARTS, nextShipPart, partsNeeded, shipParts } from '../skills/compare';
 import { bayFor, bayParts, bayPartsNeeded, readyBay } from '../skills/bays';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
@@ -431,6 +432,13 @@ export class GarageScene extends Phaser.Scene {
     const STEP = ['', 'boxes', 'tap where it goes', 'blank scratch page'];
     const paperLine = PAPER_KINDS.map((k) => `${PAPER_NAMES[k].split(' ')[0]}: ${STEP[paperStep(k, s)]}`).join('   ·   ');
     items.push(text(this, W / 2, 600, `Paper mode  ${paperLine}`, 16, '#e0aaff').setDepth(52));
+    // The difficulty ramp (skills/ramp.ts): which rung each kind is on.
+    const rampLine = (['column', 'story', 'clock'] as const).map((k) => {
+      const r = rampOf(k, s);
+      const info = k === 'column' ? COLUMN_RUNGS : k === 'story' ? STORY_RUNGS : CLOCK_RUNGS;
+      return `${RAMP_NAMES[k]}: ${r.rung + 1}/${info.length} (${info[r.rung].name})`;
+    }).join('   ·   ');
+    items.push(text(this, W / 2, 622, `Ramp  ${rampLine}`, 13, '#9ff0e3', { wordWrap: { width: 1180 } }).setDepth(52));
     const gap = Math.min(31, 410 / (Object.keys(SKILL_LABELS).length - 1));
     Object.entries(SKILL_LABELS).forEach(([key, label], i) => {
       const st = s.skills[key];

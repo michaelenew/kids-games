@@ -10,6 +10,9 @@ import { numpad } from './numpad';
 import { type Area, columnPaper, groupsPaper, scratchButtons, sheet } from './paper';
 import { button, text, toast } from './widgets';
 import { wipDrop, wipGet, wipPut } from '../wip';
+import { columnPair, rungInfo } from '../skills/ramp';
+import { rampOf } from '../state';
+import { writtenSubtractPanel } from './written';
 
 /**
  * The screens for the vehicle bays' problems (see skills/jobs.ts). Each one
@@ -210,62 +213,174 @@ function fracDiffScreen(scene: Phaser.Scene, j: FracDiffJob, o: JobOptions) {
 /** A word problem on a page: walked through one step at a time, or (solo) just the story and a scratch page. */
 function storyScreen(scene: Phaser.Scene, j: StoryJob, o: JobOptions, onDone = (solo: boolean) => o.onDone(solo, 'wordproblems')) {
   const sh = sheet(scene, o.area, 'SHIP\'S LOG');
-  sh.add(scene.add.text(sh.page.left + 20, sh.page.top + 74, j.text, {
-    fontFamily: 'Arial', fontSize: '24px', color: '#1d2b53', wordWrap: { width: sh.page.w - 40 }, lineSpacing: 6,
-  }));
+  const { page } = sh;
+  const x0 = page.left + 16;
+  const wrapW = page.w - 32;
+  // The whole word problem stays at the top, a sentence to a line. The sentences the
+  // step he's on uses get lit up behind them.
+  const glow = sh.add(scene.add.graphics());
+  let y = page.top + 70;
+  const lines = j.sentences.map((sen) => {
+    const t = sh.add(scene.add.text(x0, y, sen.text, {
+      fontFamily: 'Arial', fontSize: '20px', color: '#1d2b53', fontStyle: sen.step < 0 ? 'bold' : 'normal', wordWrap: { width: wrapW }, lineSpacing: 2,
+    }));
+    y += t.height + 4;
+    return { t, step: sen.step };
+  });
+  const lightUp = (step: number | null) => {
+    glow.clear();
+    for (const l of lines) {
+      if (step === null || l.step !== step) continue;
+      glow.fillStyle(0xffd166, 0.75).fillRoundedRect(l.t.x - 6, l.t.y - 2, Math.min(wrapW + 10, l.t.width + 12), l.t.height + 4, 6);
+    }
+  };
+  // Below it, the work: one box per step (or the answer box), each kept on the page once done.
+  const workTop = y + 10;
+  const rule = sh.add(scene.add.graphics());
+  rule.lineStyle(2, 0x9aa6bf, 1).lineBetween(x0, workTop - 4, x0 + wrapW, workTop - 4);
+  const BOX_H = 74;
+  const ops = (st: StoryJob['steps'][number]) => `${formatNumber(st.a)} ${st.op} ${formatNumber(st.b)}`;
+  /** A step's box: what it works out, and its sum with a slot for the answer. */
+  const stepBox = (i: number, total: number) => {
+    const st = j.steps[i];
+    const by = workTop + i * (BOX_H + 6);
+    const g = sh.add(scene.add.graphics());
+    sh.add(scene.add.text(x0 + 10, by + 6, `${total > 1 ? `STEP ${i + 1}: ` : ''}${st.label}`, {
+      fontFamily: 'Arial', fontSize: '16px', fontStyle: 'bold', color: '#7a4b00',
+    }));
+    // His earlier result shows in green: it's his own number, carried down.
+    const mine = (side: 'a' | 'b') => (st.from !== undefined && (st.fromSide ?? 'a') === side ? '#0a7d55' : '#1d2b53');
+    const font = { fontFamily: 'Arial', fontSize: '30px', fontStyle: 'bold' };
+    // Until the earlier step is solved, its number waits as a "?" (it's that step's answer).
+    const hidden = (side: 'a' | 'b') => st.from !== undefined && (st.fromSide ?? 'a') === side;
+    const show = (side: 'a' | 'b', v: number) => (hidden(side) ? '?' : formatNumber(v));
+    // Laid out wide enough for the real number, so nothing moves when it shows up.
+    const aText = sh.add(scene.add.text(x0 + 18, by + 30, formatNumber(st.a), { ...font, color: mine('a') }));
+    const opText = sh.add(scene.add.text(aText.x + aText.width + 8, by + 30, st.op, { ...font, color: '#1d2b53' }));
+    const bText = sh.add(scene.add.text(opText.x + opText.width + 8, by + 30, formatNumber(st.b), { ...font, color: mine('b') }));
+    const rest = sh.add(scene.add.text(bText.x + bText.width + 8, by + 30, '=', { ...font, color: '#1d2b53' }));
+    aText.setText(show('a', st.a));
+    bText.setText(show('b', st.b));
+    const reveal = () => {
+      for (const [t, side, v] of [[aText, 'a', st.a], [bText, 'b', st.b]] as const) {
+        if (!hidden(side)) continue;
+        t.setText(formatNumber(v)).setScale(1.4);
+        scene.tweens.add({ targets: t, scale: 1, duration: 250, ease: 'Back.easeOut' });
+      }
+    };
+    const slotX = rest.x + rest.width + 12;
+    const slot = sh.add(scene.add.text(slotX + 34, by + 47, '?', {
+      fontFamily: 'Arial', fontSize: '30px', fontStyle: 'bold', color: '#c1121f',
+    }).setOrigin(0.5));
+    const draw = (state: 'now' | 'done' | 'later') => {
+      g.clear();
+      const fill = state === 'now' ? 0xfff4d6 : state === 'done' ? 0xe3f7ee : 0xf1f1f1;
+      const edge = state === 'now' ? 0xf77f00 : state === 'done' ? 0x06d6a0 : 0xc9d6ea;
+      g.fillStyle(fill, 1).fillRoundedRect(x0, by, wrapW, BOX_H, 10);
+      g.lineStyle(state === 'now' ? 4 : 2, edge, 1).strokeRoundedRect(x0, by, wrapW, BOX_H, 10);
+      g.lineStyle(3, state === 'done' ? 0x06d6a0 : 0xf77f00, 1).strokeRoundedRect(slotX, by + 27, 68, 40, 8);
+    };
+    draw('later');
+    return {
+      reveal,
+      now: () => draw('now'),
+      done: () => {
+        draw('done');
+        slot.setText(formatNumber(st.answer)).setColor('#0a7d55').setScale(1.4);
+        scene.tweens.add({ targets: slot, scale: 1, duration: 250, ease: 'Back.easeOut' });
+      },
+    };
+  };
+  const finalLine = (yy: number) => {
+    sh.add(scene.add.text(x0 + wrapW / 2, yy, `ANSWER: ${formatNumber(j.answer)} ${j.unit}`, {
+      fontFamily: 'Arial', fontSize: '30px', fontStyle: 'bold', color: GOOD,
+    }).setOrigin(0.5).setStroke('#0b3d2c', 2));
+  };
+
   // Work in progress (see wip.ts): which step he's on, kept until it's done.
   const slot = `story:${j.text}`;
   const done = (solo: boolean) => {
     wipDrop(slot);
-    scene.time.delayedCall(1700, () => { sh.destroy(); onDone(solo); });
+    scene.time.delayedCall(2000, () => { sh.destroy(); onDone(solo); });
   };
-  const steps = () => {
-    let i = Math.min(j.steps.length - 1, wipGet<number>(slot) ?? 0);
-    o.say('TWO STEPS', 'Do the first step, then the second. Use the page if it helps!');
-    sh.draw(true);
-    // Back after quitting in the middle: the step he'd finished shows with its answer.
-    sh.setPrompt(i > 0 ? `✓ ${j.steps[i - 1].answer}.  ${j.steps[i].q}` : j.steps[0].q);
+
+  let answerBox: Phaser.GameObjects.GameObject[] = [];
+  const steps = (announce: boolean) => {
+    answerBox.forEach((ob) => ob.destroy());
+    answerBox = [];
+    const n = j.steps.length;
+    const boxes = j.steps.map((_, i) => stepBox(i, n));
+    let i = Math.min(n - 1, wipGet<number>(slot) ?? 0);
+    // On a breakdown rung, getting through the steps with at most one slip counts as a win.
+    let slips = 0;
+    const finished = (k: number) => {
+      boxes[k].done();
+      j.steps.forEach((st, m) => st.from === k && boxes[m].reveal());
+    };
+    for (let k = 0; k < i; k++) finished(k);
+    o.say(n > 1 ? `${n} STEPS` : 'ONE STEP', n > 1 ? 'Solve the step in the orange box. The yellow part of the story tells you what it\'s about.' : 'Solve the sum in the orange box.');
+    if (announce) sh.banner(n > 1 ? `Let's break it into ${n} steps!` : 'Let\'s write it as a sum!');
+    const ask = () => {
+      boxes[i].now();
+      lightUp(j.steps[i] ? i : null);
+      sh.setPrompt(n > 1 ? `STEP ${i + 1} of ${n}: ${j.steps[i].label}. Type the answer for the orange box.` : 'Type the answer for the orange box.', '#7a4b00');
+    };
+    ask();
     sh.onEnter((v) => {
       if (v !== j.steps[i].answer) {
-        sh.wrong('Not quite. Read that step again.');
+        slips++;
+        sh.wrong(`Not quite. Work out ${ops(j.steps[i])} on the page.`);
         return;
       }
       sfx.success();
       sh.clear();
+      finished(i);
       i++;
-      if (i < j.steps.length) wipPut(slot, i);
-      if (i < j.steps.length) {
-        sh.setPrompt(`✓ ${j.steps[i - 1].answer}.  ${j.steps[i].q}`);
+      if (i < n) {
+        wipPut(slot, i);
+        ask();
         return;
       }
-      sh.setPrompt(`Answer: ${formatNumber(j.answer)}!`, GOOD);
-      done(false);
+      lightUp(null);
+      sh.setPrompt('All done!', GOOD);
+      finalLine(workTop + n * (BOX_H + 6) + 28);
+      done(!announce && o.help === 'guided' && slips <= 1);
     });
   };
   if (o.help === 'guided' || (wipGet<number>(slot) ?? 0) > 0) {
-    steps();
+    sh.draw(true);
+    steps(false);
     return;
   }
-  o.say('READ IT CAREFULLY', 'Work it out on the page (there may be more than one step!), then type the answer.');
+  // On his own: the whole problem, one answer box, and the page to work on.
+  o.say('READ IT CAREFULLY', j.steps.length > 1 ? 'There are two steps hiding in it! Work it out on the page, then type the answer.' : 'Work it out on the page, then type the answer.');
   sh.draw(true);
-  sh.setPrompt('What\'s the answer?');
+  sh.setPrompt('Type the answer to the whole problem.', '#7a4b00');
+  const ag = sh.add(scene.add.graphics());
+  ag.fillStyle(0xfff4d6, 1).fillRoundedRect(x0, workTop, wrapW, 60, 10);
+  ag.lineStyle(4, 0xf77f00, 1).strokeRoundedRect(x0, workTop, wrapW, 60, 10);
+  const at = sh.add(scene.add.text(x0 + wrapW / 2, workTop + 30, `ANSWER: ? ${j.unit}`, {
+    fontFamily: 'Arial', fontSize: '28px', fontStyle: 'bold', color: '#1d2b53',
+  }).setOrigin(0.5));
+  answerBox = [ag, at];
   let misses = 0;
   sh.onEnter((v) => {
     if (v === j.answer) {
       sfx.success();
-      sh.setPrompt(`Answer: ${formatNumber(j.answer)}!`, GOOD);
+      at.setText(`ANSWER: ${formatNumber(j.answer)} ${j.unit}`).setColor(GOOD);
+      sh.setPrompt('Right!', GOOD);
       done(misses === 0);
       return;
     }
     misses++;
     if (misses >= 2) {
       sh.wrong('Let\'s break it into steps.');
-      scene.time.delayedCall(900, steps);
+      scene.time.delayedCall(700, () => steps(true));
       return;
     }
-    sh.wrong('Not quite. What happens first? Then what?');
+    sh.wrong(j.steps.length > 1 ? 'Not quite. What happens first? Then what?' : 'Not quite. Adding or taking away?');
   });
-  scratchButtons(scene, sh, o.area, () => steps());
+  scratchButtons(scene, sh, o.area, () => steps(true));
 }
 
 // ---- Picture graphs ------------------------------------------------------------------
@@ -546,6 +661,9 @@ function add3Screen(scene: Phaser.Scene, j: Add3Job, o: JobOptions) {
   });
 }
 
+/** The three-number adding level for each column rung (skills/ramp.ts): small sums first. */
+export const ADD3_LEVEL = [1, 2, 3, 3, 4, 4];
+
 /** Run one problem of a kind. */
 export function runJob(scene: Phaser.Scene, kind: JobKind, o: JobOptions, rng: () => number = Math.random): void {
   if (kind === 'mixed') {
@@ -575,13 +693,24 @@ function mixedJob(scene: Phaser.Scene, o: JobOptions, rng: () => number) {
   const int = (lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
   switch (r) {
     case 0: {
-      const a = int(300, 999);
-      const b = int(100, a - 50);
+      // The difficulty ramp (skills/ramp.ts) sets the numbers and whether it's broken down.
+      const ramp = rampOf('column');
+      const rung = rungInfo('column', ramp);
+      const { a, b } = columnPair(rng, 'subtract', rung);
+      if (rung.breakdown) {
+        o.say('SUBTRACT', 'One column at a time.');
+        writtenSubtractPanel(scene, { top: a, bottom: b, guided: true, area: o.area, title: 'TEST SHEET', onDone: (ok) => o.onDone(ok, 'written') });
+        return;
+      }
       o.say('SUBTRACT', 'Work it out on the page.');
-      columnPaper(scene, { kind: 'subtract', a, b, step: 3, area: o.area, title: 'TEST SHEET', onDone: (x) => o.onDone(x.solo, 'written') });
+      columnPaper(scene, { kind: 'subtract', a, b, step: ramp.rung === 0 ? 2 : 3, area: o.area, title: 'TEST SHEET', onDone: (x) => o.onDone(x.solo && !x.showMe, 'written') });
       return;
     }
-    case 1: return add3Screen(scene, add3Job(rng, 4), solo);
+    case 1: {
+      const ramp = rampOf('column');
+      const rung = rungInfo('column', ramp);
+      return add3Screen(scene, add3Job(rng, ADD3_LEVEL[ramp.rung]), { ...o, help: rung.breakdown ? 'guided' : 'solo', level: ADD3_LEVEL[ramp.rung] });
+    }
     case 2: {
       const g = int(3, 6);
       const e = [2, 3, 4, 5, 10][int(0, 4)];
@@ -596,7 +725,11 @@ function mixedJob(scene: Phaser.Scene, o: JobOptions, rng: () => number) {
       groupsPaper(scene, { kind: 'divide', groups: g, each: e, step: 3, area: o.area, title: 'TEST SHEET', question: `${g * e} ÷ ${g} = ?`, onDone: (x) => o.onDone(x.solo, 'divide') });
       return;
     }
-    case 4: return storyScreen(scene, storyJob(rng, 5), solo);
+    case 4: {
+      const ramp = rampOf('story');
+      const rung = rungInfo('story', ramp);
+      return storyScreen(scene, storyJob(rng, ramp.rung === 0 ? 0 : 5), { ...o, help: rung.breakdown ? 'guided' : 'solo', level: 5 });
+    }
     case 5: return graphScreen(scene, graphJob(rng, 4), solo);
     case 6: return evenOddScreen(scene, evenOddJob(rng, 4), solo);
     case 7: return timesScreen(scene, timesJob(rng, 4), solo);

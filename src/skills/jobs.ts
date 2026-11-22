@@ -57,72 +57,141 @@ export function fracDiffJob(rng: Rng): FracDiffJob {
 
 // ---- Multi-step word problems -----------------------------------------------------
 
-export interface StoryStep { q: string; answer: number }
-export interface StoryJob { kind: 'story'; text: string; steps: StoryStep[]; answer: number }
+export type StoryOp = '+' | '−' | '×' | '÷';
+/**
+ * One step: `a op b = answer`. `from`: `a` is the answer to that earlier step
+ * (so it's shown as his own result, not a new number). `label` says what the
+ * step works out, in words.
+ */
+export interface StoryStep { label: string; a: number; op: StoryOp; b: number; answer: number; from?: number; fromSide?: 'a' | 'b' }
+/**
+ * A word problem in sentences. Each sentence belongs to the step that uses it
+ * (0, 1), or to none (-1: the question at the end), so the screen can light up
+ * the part being solved. `text` is the whole problem as one string.
+ */
+export interface StorySentence { text: string; step: number }
+export interface StoryJob { kind: 'story'; sentences: StorySentence[]; text: string; steps: StoryStep[]; answer: number; unit: string }
 
+const story = (sentences: StorySentence[], steps: StoryStep[], unit: string): StoryJob => ({
+  kind: 'story', sentences, text: sentences.map((x) => x.text).join(' '), steps, answer: steps[steps.length - 1].answer, unit,
+});
+const st = (label: string, a: number, op: StoryOp, b: number, from?: number, fromSide: 'a' | 'b' = 'a'): StoryStep => ({
+  label, a, op, b, from, fromSide: from === undefined ? undefined : fromSide,
+  answer: op === '+' ? a + b : op === '−' ? a - b : op === '×' ? a * b : a / b,
+});
+
+/**
+ * Word problems. `level` 0 is the easy kind (two numbers, one step); 1 to 5
+ * are two steps with three numbers, the templates getting harder with the level.
+ */
 export function storyJob(rng: Rng, level: number): StoryJob {
+  if (level <= 0) {
+    // Two numbers, one step: adding or taking away, small numbers.
+    switch (int(rng, 0, 3)) {
+      case 0: {
+        const a = int(rng, 12, 45);
+        const b = int(rng, 11, 40);
+        return story([
+          { text: `TITAN's ship mined ${a} tons of ore on Monday.`, step: 0 },
+          { text: `On Tuesday it mined ${b} more tons.`, step: 0 },
+          { text: 'How many tons did it mine in all?', step: -1 },
+        ], [st('Both days together', a, '+', b)], 'tons');
+      }
+      case 1: {
+        const a = int(rng, 30, 90);
+        const b = int(rng, 10, a - 10);
+        return story([
+          { text: `The ship had ${a} fuel cells.`, step: 0 },
+          { text: `It used ${b} of them to fly past a big asteroid.`, step: 0 },
+          { text: 'How many fuel cells are left?', step: -1 },
+        ], [st('What\'s left', a, '−', b)], 'fuel cells');
+      }
+      case 2: {
+        const a = int(rng, 15, 50);
+        const b = int(rng, 12, 45);
+        return story([
+          { text: `TITAN grabbed ${a} crystals from one asteroid`, step: 0 },
+          { text: `and ${b} crystals from another.`, step: 0 },
+          { text: 'How many crystals is that?', step: -1 },
+        ], [st('Both asteroids together', a, '+', b)], 'crystals');
+      }
+      default: {
+        const a = int(rng, 40, 95);
+        const b = int(rng, 11, a - 15);
+        return story([
+          { text: `There were ${a} space rocks in the way.`, step: 0 },
+          { text: `TITAN's lasers blasted ${b} of them.`, step: 0 },
+          { text: 'How many rocks are still in the way?', step: -1 },
+        ], [st('Rocks still there', a, '−', b)], 'rocks');
+      }
+    }
+  }
   const kind = level <= 1 ? 0 : level === 2 ? pick(rng, [0, 1]) : level === 3 ? pick(rng, [1, 2]) : level === 4 ? pick(rng, [2, 3, 4]) : pick(rng, [3, 4, 5]);
   switch (kind) {
     case 0: {
       const a = int(rng, 40, 90);
       const b = int(rng, 10, a - 10);
       const c = int(rng, 10, 40);
-      return {
-        kind: 'story', answer: a - b + c,
-        text: `TITAN's ship mined ${a} tons of ore. It dropped off ${b} tons at the base, then mined ${c} more. How much ore is on the ship now?`,
-        steps: [{ q: `First, after dropping some off: ${a} − ${b} = ?`, answer: a - b }, { q: `Then it mined more: ${a - b} + ${c} = ?`, answer: a - b + c }],
-      };
+      return story([
+        { text: `TITAN's ship mined ${a} tons of ore.`, step: 0 },
+        { text: `It dropped off ${b} tons at the base,`, step: 0 },
+        { text: `then mined ${c} more.`, step: 1 },
+        { text: 'How much ore is on the ship now?', step: -1 },
+      ], [st('After dropping some off', a, '−', b), st('After mining more', a - b, '+', c, 0)], 'tons');
     }
     case 1: {
       const a = int(rng, 20, 45);
       const b = int(rng, 20, 45);
       const h = int(rng, a + b + 10, 150);
-      return {
-        kind: 'story', answer: h - a - b,
-        text: `The hold has room for ${h} crystals. TITAN grabbed ${a} from one asteroid and ${b} from another. How many more crystals can still fit?`,
-        steps: [{ q: `How many did it grab altogether? ${a} + ${b} = ?`, answer: a + b }, { q: `How much room is left? ${h} − ${a + b} = ?`, answer: h - a - b }],
-      };
+      return story([
+        { text: `The hold has room for ${h} crystals.`, step: 1 },
+        { text: `TITAN grabbed ${a} from one asteroid`, step: 0 },
+        { text: `and ${b} from another.`, step: 0 },
+        { text: 'How many more crystals can still fit?', step: -1 },
+      ], [st('Grabbed altogether', a, '+', b), st('Room left', h, '−', a + b, 0, 'b')], 'crystals');
     }
     case 2: {
       const have = int(rng, 30, 70);
       const lost = int(rng, 5, 20);
       const want = int(rng, have + 10, 120);
-      return {
-        kind: 'story', answer: want - (have - lost),
-        text: `The ship needs ${want} fuel cells to fly home. It had ${have}, but ${lost} cracked in a meteor storm. How many more fuel cells does it need?`,
-        steps: [{ q: 'How many good ones are left?', answer: have - lost }, { q: `How many more to get to ${want}?`, answer: want - (have - lost) }],
-      };
+      return story([
+        { text: `The ship needs ${want} fuel cells to fly home.`, step: 1 },
+        { text: `It had ${have},`, step: 0 },
+        { text: `but ${lost} cracked in a meteor storm.`, step: 0 },
+        { text: 'How many more fuel cells does it need?', step: -1 },
+      ], [st('Good ones left', have, '−', lost), st(`More to get to ${want}`, want, '−', have - lost, 0, 'b')], 'fuel cells');
     }
     case 3: {
       const n = int(rng, 3, 6);
       const k = pick(rng, [2, 5, 10]);
       const m = int(rng, 4, 19);
-      return {
-        kind: 'story', answer: n * k + m,
-        text: `${n} asteroids each gave ${k} gold nuggets. Then TITAN found ${m} more in a crater. How many gold nuggets is that?`,
-        steps: [{ q: `${n} asteroids with ${k} each: ${n} × ${k} = ?`, answer: n * k }, { q: `Plus the ${m} more: ${n * k} + ${m} = ?`, answer: n * k + m }],
-      };
+      return story([
+        { text: `${n} asteroids each gave ${k} gold nuggets.`, step: 0 },
+        { text: `Then TITAN found ${m} more in a crater.`, step: 1 },
+        { text: 'How many gold nuggets is that?', step: -1 },
+      ], [st(`${n} asteroids with ${k} each`, n, '×', k), st(`Plus the ${m} more`, n * k, '+', m, 0)], 'nuggets');
     }
     case 4: {
       const n = pick(rng, [2, 3, 4, 5]);
       const each = int(rng, 3, 9);
       const extra = int(rng, 5, 25);
       const total = n * each;
-      return {
-        kind: 'story', answer: each + extra,
-        text: `${total} ice blocks are shared equally into ${n} storage bins. Then ${extra} more blocks go into the first bin. How many blocks are in the first bin now?`,
-        steps: [{ q: `Shared equally: ${total} ÷ ${n} = ?`, answer: each }, { q: `Plus the ${extra} more: ${each} + ${extra} = ?`, answer: each + extra }],
-      };
+      return story([
+        { text: `${total} ice blocks are shared equally into ${n} storage bins.`, step: 0 },
+        { text: `Then ${extra} more blocks go into the first bin.`, step: 1 },
+        { text: 'How many blocks are in the first bin now?', step: -1 },
+      ], [st('Shared equally', total, '÷', n), st(`Plus the ${extra} more`, each, '+', extra, 0)], 'blocks');
     }
     default: {
       const a = int(rng, 25, 60);
       const b = int(rng, 25, 60);
       const c = int(rng, 10, 30);
-      return {
-        kind: 'story', answer: a + b - c,
-        text: `Monday the ship mined ${a} tons. Tuesday it mined ${b} tons. On the way home, ${c} tons fell out of a crack in the hold. How many tons made it home?`,
-        steps: [{ q: 'How much did it mine on both days?', answer: a + b }, { q: `After ${c} fell out?`, answer: a + b - c }],
-      };
+      return story([
+        { text: `Monday the ship mined ${a} tons.`, step: 0 },
+        { text: `Tuesday it mined ${b} tons.`, step: 0 },
+        { text: `On the way home, ${c} tons fell out of a crack in the hold.`, step: 1 },
+        { text: 'How many tons made it home?', step: -1 },
+      ], [st('Mined on both days', a, '+', b), st(`After ${c} fell out`, a + b, '−', c, 0)], 'tons');
     }
   }
 }

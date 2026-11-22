@@ -2,12 +2,13 @@ import Phaser from 'phaser';
 import * as THREE from 'three';
 import { music, sfx } from '../audio';
 import { type BaySet, bayById, bayParts, nextBayPart } from '../skills/bays';
-import { bumpGuide, guideCount, persist, recordSkill, save } from '../state';
+import { bumpGuide, guideCount, persist, rampDone, rampOf, recordSkill, save } from '../state';
 import { missionById } from '../three/missions';
 import { RIDES } from '../three/rides';
 import { Showcase } from '../three/showcase';
 import { getStage, px2w, py2w } from '../three/stage';
-import { type Help, runJob } from '../ui/jobs';
+import { ADD3_LEVEL, type Help, runJob } from '../ui/jobs';
+import { rungInfo } from '../skills/ramp';
 import { button, dialog, panel, text } from '../ui/widgets';
 import { keepValue, newSeed, seededRandom, wipDrop, wipPut } from '../wip';
 import { launchMission, readyThenGo } from './launch';
@@ -134,15 +135,29 @@ export class VehicleBay extends Phaser.Scene {
     const kind = part.jobs[this.jobIndex];
     this.pips.forEach((p, i) => p.setFillStyle(i < this.jobIndex ? 0x06d6a0 : i === this.jobIndex ? 0xffd166 : 0x3d4458));
     const once = kind === 'ruler8' || kind === 'fracdiff';
-    const help: Help = kind === 'mixed' ? 'solo'
+    let help: Help = kind === 'mixed' ? 'solo'
       : once ? (guideCount(`job-${kind}`) < 1 ? 'guided' : 'solo')
         : part.level >= 3 ? 'solo' : guideCount(`job-${kind}`) < 2 ? 'guided' : 'solo';
+    let level = part.level;
+    // Adding three numbers and word problems follow the difficulty ramp (skills/ramp.ts):
+    // the numbers, the number of steps, and whether it's broken down.
+    if (kind === 'add3') {
+      const ramp = rampOf('column');
+      help = rungInfo('column', ramp).breakdown ? 'guided' : 'solo';
+      level = ADD3_LEVEL[ramp.rung];
+    } else if (kind === 'story') {
+      const ramp = rampOf('story');
+      help = rungInfo('story', ramp).breakdown ? 'guided' : 'solo';
+      level = ramp.rung === 0 ? 0 : part.level;
+    }
     const rng = seededRandom(this.seeds[this.jobIndex] ?? newSeed());
     runJob(this, kind, {
-      area: AREA, help, level: part.level,
+      area: AREA, help, level,
       say: (l, t, c) => this.say(l, t, c),
       onDone: (solo, skill) => {
         recordSkill(skill, solo);
+        const rampKind = skill === 'wordproblems' ? 'story' : skill === 'add3' || skill === 'written' ? 'column' : null;
+        if (rampKind) rampDone(rampKind, solo);
         bumpGuide(`job-${kind}`);
         this.jobIndex++;
         if (this.jobIndex < part.jobs.length) {

@@ -132,8 +132,23 @@ export function sheet(scene: Phaser.Scene, area: Area, title: string) {
   scene.input.on('pointermove', moveH);
   scene.input.on('pointerup', upH);
 
+  /**
+   * A big notice across the page when what he's asked for changes ("Let's break
+   * it into 2 steps!"), so it can't be missed. It shows for a moment, then fades.
+   */
+  const banner = (t: string, color = 0xf77f00) => {
+    const w = page.w - 24;
+    const bx = add(scene.add.rectangle(page.left + page.w / 2, page.top + page.h / 2, w, 92, color, 0.96).setStrokeStyle(4, 0xffffff), DEPTH + 20);
+    const bt = add(scene.add.text(page.left + page.w / 2, page.top + page.h / 2, t, {
+      fontFamily: 'Arial', fontSize: '30px', fontStyle: 'bold', color: '#ffffff', align: 'center', wordWrap: { width: w - 24 },
+    }).setOrigin(0.5).setStroke('#000000', 5), DEPTH + 21);
+    for (const o of [bx, bt]) o.setScale(0.6);
+    scene.tweens.add({ targets: [bx, bt], scale: 1, duration: 260, ease: 'Back.easeOut' });
+    scene.tweens.add({ targets: [bx, bt], alpha: 0, delay: 1900, duration: 400, onComplete: () => { bx.destroy(); bt.destroy(); } });
+    sfx.transform();
+  };
   return {
-    items, add, page, prompt, padX, top, left,
+    items, add, page, prompt, padX, top, left, banner,
     setPrompt: (t: string, color = INK) => prompt.setText(t).setColor(color),
     onEnter: (fn: (v: number) => void) => (onEnter = fn),
     clear, wrong, destroy, ink,
@@ -230,8 +245,8 @@ export function columnPaper(scene: Phaser.Scene, o: ColumnOptions): void {
       misses++;
       if (misses >= 2) {
         solo = false;
-        sh.wrong('Let\'s do it on the page together.');
-        scene.time.delayedCall(900, () => {
+        sh.banner('Let\'s do it on the page together, one number at a time!');
+        scene.time.delayedCall(2200, () => {
           sh.destroy();
           columnPaper(scene, { ...o, step: 2, onDone: (r) => o.onDone({ solo: false, showMe: r.showMe }) });
         });
@@ -435,8 +450,8 @@ export function groupsPaper(scene: Phaser.Scene, o: GroupsOptions): void {
       misses++;
       if (misses >= 2) {
         solo = false;
-        sh.wrong('Let\'s draw it together.');
-        scene.time.delayedCall(900, () => {
+        sh.banner('Let\'s draw it together!');
+        scene.time.delayedCall(2200, () => {
           sh.destroy();
           groupsPaper(scene, { ...o, step: 2, onDone: (r) => o.onDone({ solo: false, showMe: r.showMe }) });
         });

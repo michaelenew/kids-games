@@ -1,4 +1,5 @@
 import { leaveSyncGroup, noteSaved, onRemoteSave, saveKey } from './sync/game';
+import { type RampKind, type RampState, afterRamp, rampRung } from './skills/ramp';
 import { type PaperKind, type PaperProgress, type PaperStep, afterProblem as afterPaperProblem, stepOf as stepOfPaper } from './skills/paper';
 import { GUEST, GUEST_KEY } from './guest';
 
@@ -61,6 +62,11 @@ export interface SaveData {
   picks?: Record<string, BotId>;
   /** Paper mode: how far each kind of problem has moved from boxes toward a blank page (see skills/paper.ts). */
   paper?: Partial<Record<PaperKind, PaperProgress>>;
+  /**
+   * The difficulty ramp (see skills/ramp.ts) for adding and subtracting in
+   * columns, word problems and the clock. Missing means the bottom rung.
+   */
+  ramp?: Partial<Record<RampKind, RampState>>;
   /** The solar system's vehicles: how many parts of each he has built in its bay (see skills/bays.ts). */
   rides?: Partial<Record<import('./three/rides').RideKind, number>>;
   /** The starship: how many of its parts he has built at the Starship Dock (see skills/compare.ts). */
@@ -664,8 +670,10 @@ export function canyonUnlocked(s: SaveData = save()): boolean {
  */
 export function writtenStage(s: SaveData = save()): 0 | 1 | null {
   if (!amazonUnlocked(s)) return null;
-  const n = s.guide?.written ?? 0;
-  return n < 2 ? 0 : n < 5 ? 1 : null;
+  // Set by the difficulty ramp (skills/ramp.ts): no borrowing on the first rung,
+  // simple borrowing (not across a zero) on the next few, then anything.
+  const rung = rampRung(s.ramp?.column, 'column');
+  return rung === 0 ? 0 : rung <= 3 ? 1 : null;
 }
 
 /** TITAN's wall repairs: whole rows only for the first two, then rows plus loose bricks. */
@@ -727,6 +735,17 @@ export function paperStep(kind: PaperKind, s: SaveData = save()): PaperStep {
 }
 
 /** One problem of this kind finished: move its step along. */
+/** Which rung of the difficulty ramp a kind of problem is on (see skills/ramp.ts). */
+export function rampOf(kind: RampKind, s: SaveData = save()): RampState {
+  return { rung: rampRung(s.ramp?.[kind], kind), streak: s.ramp?.[kind]?.streak ?? 0, struggles: s.ramp?.[kind]?.struggles ?? 0 };
+}
+
+/** One problem of this kind finished: right (without the breakdown) or not. Moves the ramp. */
+export function rampDone(kind: RampKind, right: boolean, s: SaveData = save()): void {
+  s.ramp = { ...(s.ramp ?? {}), [kind]: afterRamp(s.ramp?.[kind], kind, right) };
+  persist();
+}
+
 export function paperDone(kind: PaperKind, solo: boolean, showMe = false, s: SaveData = save()): void {
   s.paper = { ...(s.paper ?? {}), [kind]: afterPaperProblem(s.paper?.[kind], kind, s.levelsDone, solo, showMe) };
   persist();

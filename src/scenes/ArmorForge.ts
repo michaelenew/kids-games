@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
 import { onUpgradeBuilt, upgradeRequired } from '../assist';
-import { REGIONS, type Region, armorMark, lookFromSave, plateTarget, regionName, repairsNeeded } from '../armor';
+import { REGIONS, type Region, armorMark, lookFromSave, plateTarget, regionName, repairsNeeded, shapeHp } from '../armor';
 import { music, sfx } from '../audio';
 import { type PlaceCounts, type SpecFormat, countsValue, formatNumber, specText, toCounts } from '../skills/placeValue';
 import {
   BUILD_COST, actionDone, activeBot, botColor, amazonUnlocked, botName, bumpGuide, egyptUnlocked, guideCount, mathDone, paperDone, paperStep, persist, recordSkill, rig, save,
+  rampDone, rampOf, writtenStage,
 } from '../state';
 import { Jet } from '../three/jet';
 import { launchMission } from './launch';
@@ -20,6 +21,7 @@ import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
 import { H, W, button, dialog, panel, sparks, text, toast } from '../ui/widgets';
 import { keepEach, wipDrop } from '../wip';
+import { rungInfo } from '../skills/ramp';
 
 /**
  * The armor forge. Two jobs:
@@ -157,6 +159,19 @@ export class ArmorForge extends Phaser.Scene {
         return;
       }
     } else {
+      // The difficulty ramp may have moved down since the damage was taken: a repair is
+      // never harder than his rung allows (it only ever gets easier: less to repair).
+      const allowed = writtenStage(s);
+      if (allowed !== null) {
+        for (const p of Object.values(rig(s).armor ?? {})) {
+          if (!p || p.hp >= p.max || p.rows || p.parts) continue;
+          if (borrowKind(p.max, p.hp) > allowed) {
+            const v = shapeHp(p.max, p.hp, allowed);
+            if (v > p.hp || borrowKind(p.max, v) <= allowed) p.hp = Math.min(p.max, v);
+          }
+        }
+        persist();
+      }
       this.jobs = repairsNeeded(rig(s).armor ?? {}).map(({ region, missing }) => ({ region, target: missing, spec: formatNumber(missing), format: 'digits' as SpecFormat, misses: 0 }));
       this.places = [1, 2, 3];
       text(this, (LEFT + RIGHT) / 2, 46, activeBot() !== 'bolt' ? `${botName(activeBot())} REPAIR BAY` : 'REPAIR BAY', 44, '#ffd166').setStroke('#000000', 8);
@@ -339,18 +354,23 @@ export class ArmorForge extends Phaser.Scene {
       bumpGuide(`written-${kind}`);
       recordSkill('written', solo);
       paperDone('subtract', solo, showMe);
+      rampDone('column', solo && !showMe);
       this.busy = false;
       this.pinWorked(plate.max, plate.hp, 'sub');
     };
-    // Paper mode: past the boxes, it's the problem on a page (see skills/paper.ts).
-    const step = paperStep('subtract');
-    const go = () => (step >= 2
+    // The difficulty ramp (skills/ramp.ts) decides how it's shown: broken down column by
+    // column (with each borrow explained), or on the page (paper mode, skills/paper.ts).
+    // The first rung is never harder than tapping where each number goes.
+    const rung = rungInfo('column', rampOf('column'));
+    const paper = paperStep('subtract');
+    const step = rampOf('column').rung === 0 ? Math.min(paper, 2) as 1 | 2 : paper;
+    const go = () => (!rung.breakdown && step >= 2
       ? columnPaper(this, {
         kind: 'subtract', a: plate.max, b: plate.hp, step, area, title: 'MISSING POINTS: TAKE AWAY',
         onDone: (r) => done(r.solo, r.showMe),
       })
       : writtenSubtractPanel(this, {
-        top: plate.max, bottom: plate.hp, guided, area, title: 'MISSING POINTS: TAKE AWAY',
+        top: plate.max, bottom: plate.hp, guided: rung.breakdown || guided, area, title: 'MISSING POINTS: TAKE AWAY',
         onDone: (solo) => done(solo),
       }));
     howTo(this, [{

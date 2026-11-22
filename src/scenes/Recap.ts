@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { sfx } from '../audio';
 import { hitBars, makeGraphQuestion, pickAddPair, type Bar } from '../skills/recap';
 import { addColumns } from '../skills/steps';
-import { bumpGuide, guideCount, mathDone, paperDone, paperStep, persist, recordSkill, save } from '../state';
+import { bumpGuide, guideCount, mathDone, paperDone, paperStep, persist, rampDone, rampOf, recordSkill, save } from '../state';
+import { rungInfo } from '../skills/ramp';
 import { columnPaper } from '../ui/paper';
 import { isWorld } from '../three/worlds';
 import { getStage } from '../three/stage';
@@ -100,7 +101,8 @@ export class RecapScene extends Phaser.Scene {
 
   /** Two of his hits that are two-digit numbers: no carrying the first time, carrying after. */
   private twoHits(): [number, number] | null {
-    return pickAddPair(this.hits.map((h) => h.amount), guideCount('add') > 0);
+    // The difficulty ramp (skills/ramp.ts): no carrying on its first rung.
+    return pickAddPair(this.hits.map((h) => h.amount), rungInfo('column', rampOf('column')).regroup);
   }
 
   // ---- Adding two hits ----------------------------------------------------------
@@ -108,18 +110,23 @@ export class RecapScene extends Phaser.Scene {
   private addition(a: number, b: number) {
     const sum = a + b;
     const cols = addColumns(a, b).slice(0, 3);
-    const n = guideCount('add');
-    const level = n < 3 ? 'walk' : n < 6 ? 'boxes' : 'plain';
+    // The difficulty ramp (skills/ramp.ts): a breakdown rung walks him through each column;
+    // otherwise it's on the page (the first rung never harder than tapping where each number goes).
+    const ramp = rampOf('column');
+    const rung = rungInfo('column', ramp);
+    const level = rung.breakdown ? 'walk' : ramp.rung === 0 ? 'boxes' : 'plain';
     this.add.text(W / 2, 100, `Two of the hits you took: ${a} and ${b}. How much damage is that altogether?`, {
       fontFamily: 'Arial', fontSize: '24px', color: '#ffffff', align: 'center', wordWrap: { width: 1100 },
     }).setOrigin(0.5);
     // Paper mode: past the boxes, it's the sum printed on a page (see skills/paper.ts).
-    const step = paperStep('add');
-    if (step >= 2) {
+    const paper = paperStep('add');
+    const step = ramp.rung === 0 ? Math.min(paper, 2) as 1 | 2 : paper;
+    if (step >= 2 && !rung.breakdown) {
       columnPaper(this, {
         kind: 'add', a, b, step, area: { x: W / 2, y: 420, w: 1000, h: 440 }, title: 'ADD THE TWO HITS',
         onDone: (r) => {
           recordSkill('addition', r.solo);
+          rampDone('column', r.solo && !r.showMe);
           bumpGuide('add');
           paperDone('add', r.solo, r.showMe);
           this.reward(W / 2, 420);
@@ -176,6 +183,7 @@ export class RecapScene extends Phaser.Scene {
     const done = () => {
       highlight(null);
       recordSkill('addition', misses === 0);
+      rampDone('column', misses === 0);
       paperDone('add', misses === 0);
       bumpGuide('add');
       pad.destroy();

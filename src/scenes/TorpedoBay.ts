@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
 import { music, sfx } from '../audio';
-import { paperDone, paperStep, persist, recordSkill, save } from '../state';
+import { paperDone, paperStep, persist, recordSkill, save, setOver, setTotal } from '../state';
 import { Showcase } from '../three/showcase';
 import { getStage, px2w, py2w } from '../three/stage';
 import { torpedoLauncher } from '../three/torpedo';
@@ -45,6 +45,7 @@ function loads(): Load[] {
 export class TorpedoBay extends Phaser.Scene {
   private jobs: Load[] = [];
   private index = 0;
+  private total = 0;
   private pips: Phaser.GameObjects.Arc[] = [];
   private task!: Phaser.GameObjects.Text;
 
@@ -59,6 +60,8 @@ export class TorpedoBay extends Phaser.Scene {
     const kept = keepValue('torpedo', () => ({ jobs: loads(), index: 0 }));
     this.jobs = kept.jobs;
     this.index = Math.min(kept.index, this.jobs.length - 1);
+    // How many of the loads to ask this time (fewer when he's struggling: skills/stamina.ts).
+    this.total = setTotal(this.jobs.length, this.index);
     this.pips = [];
     this.showLauncher();
     button(this, 95, 46, 160, 60, '◀ Garage', () => this.scene.start('Garage'), { size: 24, fill: 0x3d4458 });
@@ -70,8 +73,8 @@ export class TorpedoBay extends Phaser.Scene {
       return;
     }
     text(this, CX, 46, 'MOON BASE · TORPEDO BAY', 36, '#bfe6ff').setStroke('#000000', 8);
-    this.jobs.forEach((_, i) => {
-      this.pips.push(this.add.circle(CX + (i - (this.jobs.length - 1) / 2) * 100, 92, 10, 0x3d4458).setStrokeStyle(2, 0xffffff, 0.6));
+    Array.from({ length: this.total }).forEach((_, i) => {
+      this.pips.push(this.add.circle(CX + (i - (this.total - 1) / 2) * 100, 92, 10, 0x3d4458).setStrokeStyle(2, 0xffffff, 0.6));
     });
     const card = this.add.graphics();
     card.fillStyle(0x10203a, 0.96).fillRoundedRect(LEFT, 112, RIGHT - LEFT, 110, 16);
@@ -118,8 +121,9 @@ export class TorpedoBay extends Phaser.Scene {
         recordSkill(j.kind === 'multiply' ? 'multiply' : 'divide', r.solo);
         paperDone(j.kind, r.solo, r.showMe);
         this.index++;
-        if (this.index < this.jobs.length) wipPut('torpedo', { jobs: this.jobs, index: this.index });
-        if (this.index < this.jobs.length) this.startJob();
+        const more = !setOver(this.index, this.total);
+        if (more) wipPut('torpedo', { jobs: this.jobs, index: this.index });
+        if (more) this.startJob();
         else this.built();
       },
     });

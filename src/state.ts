@@ -1,4 +1,5 @@
 import { leaveSyncGroup, noteSaved, onRemoteSave, saveKey } from './sync/game';
+import { type Stamina, afterAnswer, setOver as setOverFor, setTotal as setTotalFor } from './skills/stamina';
 import { type RampKind, type RampState, afterRamp, rampRung } from './skills/ramp';
 import { type PaperKind, type PaperProgress, type PaperStep, afterProblem as afterPaperProblem, stepOf as stepOfPaper } from './skills/paper';
 import { GUEST, GUEST_KEY } from './guest';
@@ -67,6 +68,8 @@ export interface SaveData {
    * columns, word problems and the clock. Missing means the bottom rung.
    */
   ramp?: Partial<Record<RampKind, RampState>>;
+  /** How he's doing right now, which sets how many questions a set asks (see skills/stamina.ts). */
+  stamina?: Stamina;
   /** The solar system's vehicles: how many parts of each he has built in its bay (see skills/bays.ts). */
   rides?: Partial<Record<import('./three/rides').RideKind, number>>;
   /** The starship: how many of its parts he has built at the Starship Dock (see skills/compare.ts). */
@@ -265,7 +268,18 @@ export function recordSkill(skill: string, correct: boolean): void {
   if (correct) stat.right++;
   stat.recent = [...stat.recent, correct].slice(-10);
   s.skills[skill] = stat;
+  s.stamina = afterAnswer(s.stamina, correct);
   persist();
+}
+
+/** How many of a set's `planned` questions to ask now, `done` of them already answered (see skills/stamina.ts). */
+export function setTotal(planned: number, done = 0, s: SaveData = save()): number {
+  return setTotalFor(planned, done, s.stamina);
+}
+
+/** Whether a set is finished after `done` answers: all of them, or he just struggled. */
+export function setOver(done: number, total: number, s: SaveData = save()): boolean {
+  return setOverFor(done, total, s.stamina);
 }
 
 // ---- Gear stats --------------------------------------------------------

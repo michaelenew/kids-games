@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import * as THREE from 'three';
 import { music, sfx } from '../audio';
 import { type BaySet, bayById, bayParts, nextBayPart } from '../skills/bays';
-import { bumpGuide, guideCount, persist, rampDone, rampOf, recordSkill, save } from '../state';
+import { bumpGuide, guideCount, persist, rampDone, rampOf, recordSkill, save, setOver, setTotal } from '../state';
 import { missionById } from '../three/missions';
 import { RIDES } from '../three/rides';
 import { Showcase } from '../three/showcase';
@@ -39,6 +39,7 @@ export class VehicleBay extends Phaser.Scene {
   private then?: string;
   private part = 0;
   private jobIndex = 0;
+  private total = 0;
   private seeds: number[] = [];
   private pips: Phaser.GameObjects.Arc[] = [];
   private stepLabel!: Phaser.GameObjects.Text;
@@ -72,12 +73,14 @@ export class VehicleBay extends Phaser.Scene {
     // and every job keeps its numbers (a seed for each).
     const kept = keepValue(this.wipSlot(next), () => ({ index: 0, seeds: part.jobs.map(() => newSeed()) }));
     this.jobIndex = Math.min(kept.index, part.jobs.length - 1);
+    // How many of the part's jobs to ask this time (fewer when he's struggling: skills/stamina.ts).
+    this.total = setTotal(part.jobs.length, this.jobIndex);
     this.seeds = kept.seeds;
     text(this, CX, 46, `${this.bay.title} · ${part.name.toUpperCase()}`, 34, this.bay.color).setStroke('#000000', 8);
-    part.jobs.forEach((_, i) => {
-      const x = CX + (i - (part.jobs.length - 1) / 2) * 100;
+    for (let i = 0; i < this.total; i++) {
+      const x = CX + (i - (this.total - 1) / 2) * 100;
       this.pips.push(this.add.circle(x, 92, 10, 0x3d4458).setStrokeStyle(2, 0xffffff, 0.6));
-    });
+    }
     const card = this.add.graphics();
     card.fillStyle(0x10203a, 0.96).fillRoundedRect(LEFT, 112, RIGHT - LEFT, 110, 16);
     card.lineStyle(3, Phaser.Display.Color.HexStringToColor(this.bay.color).color, 0.9).strokeRoundedRect(LEFT, 112, RIGHT - LEFT, 110, 16);
@@ -160,7 +163,7 @@ export class VehicleBay extends Phaser.Scene {
         if (rampKind) rampDone(rampKind, solo);
         bumpGuide(`job-${kind}`);
         this.jobIndex++;
-        if (this.jobIndex < part.jobs.length) {
+        if (!setOver(this.jobIndex, this.total)) {
           wipPut(this.wipSlot(this.part), { index: this.jobIndex, seeds: this.seeds });
           this.startJob();
         } else this.partDone();

@@ -194,7 +194,7 @@ export class ArmorBench extends BenchScene {
       for (const place of this.places) this.notes[place].setColor('#06d6a0').setText('✓');
       sparks(this, 800, 300, 0xffd166, 40);
       this.celebrate(800, 330, 'WELDED!');
-      this.say(this.index + 1 < this.jobSize ? `Yes! ${formatNumber(value)}, exactly right.` : 'All the armor is built!');
+      this.say(this.index + 1 < this.jobTotal ? `Yes! ${formatNumber(value)}, exactly right.` : 'All the armor is built!');
       this.solved();
       return;
     }

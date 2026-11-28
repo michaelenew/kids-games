@@ -5,6 +5,7 @@ import {
   BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName,
   botsUnlocked, endPreview, gearInfo, alertQueue, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
   paperStep, rampOf, startPreview, takeFreshAlert,
+  setTotal,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
 import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
@@ -431,7 +432,8 @@ export class GarageScene extends Phaser.Scene {
     // Paper mode: how far each written kind of problem has moved toward a blank page.
     const STEP = ['', 'boxes', 'tap where it goes', 'blank scratch page'];
     const paperLine = PAPER_KINDS.map((k) => `${PAPER_NAMES[k].split(' ')[0]}: ${STEP[paperStep(k, s)]}`).join('   ·   ');
-    items.push(text(this, W / 2, 600, `Paper mode  ${paperLine}`, 16, '#e0aaff').setDepth(52));
+    // Questions per set stretch with how he's doing (skills/stamina.ts).
+    items.push(text(this, W / 2, 600, `Paper mode  ${paperLine}   ·   Questions per set now: ${setTotal(3, 0, s)}`, 16, '#e0aaff').setDepth(52));
     // The difficulty ramp (skills/ramp.ts): which rung each kind is on.
     const rampLine = (['column', 'story', 'clock'] as const).map((k) => {
       const r = rampOf(k, s);

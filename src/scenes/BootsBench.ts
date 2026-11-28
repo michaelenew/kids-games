@@ -390,9 +390,9 @@ export class BootsBench extends BenchScene {
 
   private drawFactSpring() {
     this.gauge.clear();
-    const fill = this.index / this.jobSize;
+    const fill = this.index / this.jobTotal;
     this.drawSpring(fill);
-    this.layer.add(text(this, 400, 160, `${this.index} / ${this.jobSize}`, 30, '#ffffff'));
+    this.layer.add(text(this, 400, 160, `${this.index} / ${this.jobTotal}`, 30, '#ffffff'));
   }
 
   private key(k: string) {

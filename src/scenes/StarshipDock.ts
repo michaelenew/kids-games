@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { music, sfx } from '../audio';
 import { type CompareJob, type Sign, SHIP_PARTS, decidingPlace, nextShipPart, partJobs, shipParts, signOf } from '../skills/compare';
 import { formatNumber } from '../skills/placeValue';
-import { bumpGuide, guideCount, persist, recordSkill, save } from '../state';
+import { bumpGuide, guideCount, persist, recordSkill, save, setOver, setTotal } from '../state';
 import { Showcase } from '../three/showcase';
 import { getStage, px2w, py2w } from '../three/stage';
 import { starshipPieceModel } from '../three/starship';
@@ -50,6 +50,7 @@ export class StarshipDock extends Phaser.Scene {
   private part = 0;
   private jobs: CompareJob[] = [];
   private jobIndex = 0;
+  private total = 0;
   private misses = 0;
   private busy = false;
   private layer!: Phaser.GameObjects.Container;
@@ -85,9 +86,11 @@ export class StarshipDock extends Phaser.Scene {
     const kept = keepValue(`dock:${next}`, () => ({ jobs: partJobs(next), index: 0 }));
     this.jobs = kept.jobs;
     this.jobIndex = Math.min(kept.index, this.jobs.length - 1);
+    // How many of the readings to ask this time (fewer when he's struggling: skills/stamina.ts).
+    this.total = setTotal(this.jobs.length, this.jobIndex);
     text(this, CX, 46, `STARSHIP DOCK · ${SHIP_PARTS[next].name.toUpperCase()}`, 36, '#9ff0ff').setStroke('#000000', 8);
-    this.jobs.forEach((_, i) => {
-      const x = CX + (i - (this.jobs.length - 1) / 2) * 100;
+    Array.from({ length: this.total }).forEach((_, i) => {
+      const x = CX + (i - (this.total - 1) / 2) * 100;
       this.pips.push(this.add.circle(x, 92, 10, 0x3d4458).setStrokeStyle(2, 0xffffff, 0.6));
     });
     this.layer = this.add.container(0, 0);
@@ -337,7 +340,7 @@ export class StarshipDock extends Phaser.Scene {
 
   private nextJob() {
     this.jobIndex++;
-    if (this.jobIndex < this.jobs.length) {
+    if (!setOver(this.jobIndex, this.total)) {
       wipPut(`dock:${this.part}`, { jobs: this.jobs, index: this.jobIndex });
       this.startJob();
     } else this.partDone();

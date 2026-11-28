@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import * as THREE from 'three';
 import { music, sfx } from '../audio';
 import { type AreaJob, BASE_PIECES, areaOf, basePieces, nextPiece, perimeterOf, pieceJobs, sidesOf, splitL } from '../skills/area';
-import { bumpGuide, guideCount, persist, recordSkill, save } from '../state';
+import { bumpGuide, guideCount, persist, recordSkill, save, setOver, setTotal } from '../state';
 import { basePieceModel } from '../three/moon';
 import { Showcase } from '../three/showcase';
 import { getStage, px2w, py2w } from '../three/stage';
@@ -50,6 +50,7 @@ export class BaseBuilder extends Phaser.Scene {
   private piece = 0;
   private jobs: AreaJob[] = [];
   private jobIndex = 0;
+  private total = 0;
   private misses = 0;
   private layer!: Phaser.GameObjects.Container;
   private work!: Phaser.GameObjects.Container;
@@ -94,9 +95,11 @@ export class BaseBuilder extends Phaser.Scene {
     const kept = keepValue(`base:${next}`, () => ({ jobs: pieceJobs(next), index: 0 }));
     this.jobs = kept.jobs;
     this.jobIndex = Math.min(kept.index, this.jobs.length - 1);
+    // How many of the piece's jobs to ask this time (fewer when he's struggling: skills/stamina.ts).
+    this.total = setTotal(this.jobs.length, this.jobIndex);
     text(this, CX, 46, `MOON BASE · ${BASE_PIECES[next].name.toUpperCase()}`, 36, '#bfe6ff').setStroke('#000000', 8);
-    this.jobs.forEach((_, i) => {
-      const x = CX + (i - (this.jobs.length - 1) / 2) * 110;
+    Array.from({ length: this.total }).forEach((_, i) => {
+      const x = CX + (i - (this.total - 1) / 2) * 110;
       this.pips.push(this.add.circle(x, 92, 10, 0x3d4458).setStrokeStyle(2, 0xffffff, 0.6));
     });
     this.layer = this.add.container(0, 0);
@@ -613,7 +616,7 @@ export class BaseBuilder extends Phaser.Scene {
 
   private nextJob() {
     this.jobIndex++;
-    if (this.jobIndex < this.jobs.length) {
+    if (!setOver(this.jobIndex, this.total)) {
       wipPut(`base:${this.piece}`, { jobs: this.jobs, index: this.jobIndex });
       this.startJob();
     } else this.pieceDone();

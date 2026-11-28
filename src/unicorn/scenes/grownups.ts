@@ -3,7 +3,7 @@ import { type CaseMode, lessonShare, MATH_LEVELS, MAX_BOX, MAX_LESSON_SHARE } fr
 import { hush } from '../speak';
 import { restoreRanch } from '../restore';
 import { persist, resetSave, save } from '../state';
-import { openSyncPanel } from '../../sync/panel';
+import { openSaves } from '../../sync/open';
 import type { UI } from '../ui';
 import { voice } from '../voice';
 
@@ -98,7 +98,7 @@ export function openGrownups(ui: UI, onChange: () => void): void {
         break;
       case 'sync':
         close();
-        openSyncPanel({ root: new URL('../', location.href).href, game: 'unicorn' });
+        void openSaves({ root: new URL('../', location.href).href, game: 'unicorn' });
         break;
       case 'set': {
         const num = (id: string) => Number((ui.panel.querySelector(`#${id}`) as HTMLInputElement).value) || 0;

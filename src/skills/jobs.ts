@@ -80,11 +80,57 @@ const st = (label: string, a: number, op: StoryOp, b: number, from?: number, fro
   answer: op === '+' ? a + b : op === '−' ? a - b : op === '×' ? a * b : a / b,
 });
 
+/** Word problems about Perseverance and Ingenuity: one step at level 0, two steps after that. */
+function nasaStory(rng: Rng, level: number): StoryJob {
+  if (level <= 0) {
+    if (rng() < 0.5) {
+      // Ingenuity really flew 72 times.
+      const a = int(rng, 12, 30);
+      const b = int(rng, 11, 40);
+      return story([
+        { text: `Ingenuity, the Mars helicopter, flew ${a} times in its first year.`, step: 0 },
+        { text: `After that it flew ${b} more times.`, step: 0 },
+        { text: 'How many flights is that in all?', step: -1 },
+      ], [st('All its flights together', a, '+', b)], 'flights');
+    }
+    // Perseverance really carries 43 sample tubes.
+    const b = int(rng, 11, 30);
+    return story([
+      { text: 'Perseverance carries 43 sample tubes.', step: 0 },
+      { text: `It has filled ${b} of them with Mars rock.`, step: 0 },
+      { text: 'How many tubes are still empty?', step: -1 },
+    ], [st('Tubes still empty', 43, '−', b)], 'tubes');
+  }
+  if (rng() < 0.5) {
+    const a = int(rng, 20, 45);
+    const b = int(rng, 20, 45);
+    const h = int(rng, a + b + 10, 150);
+    return story([
+      { text: `Perseverance wants to reach a rock ${h} meters away.`, step: 1 },
+      { text: `It drove ${a} meters on Monday`, step: 0 },
+      { text: `and ${b} meters on Tuesday.`, step: 0 },
+      { text: 'How many more meters does it have to drive?', step: -1 },
+    ], [st('Driven so far', a, '+', b), st('Still to go', h, '−', a + b, 0, 'b')], 'meters');
+  }
+  const a = int(rng, 30, 60);
+  const b = int(rng, 10, a - 10);
+  const c = int(rng, 10, 35);
+  return story([
+    { text: `Ingenuity's battery had ${a} minutes of power.`, step: 0 },
+    { text: `A scouting flight used ${b} minutes.`, step: 0 },
+    { text: `Then the sun charged it up by ${c} minutes.`, step: 1 },
+    { text: 'How many minutes of power does it have now?', step: -1 },
+  ], [st('After the flight', a, '−', b), st('After charging', a - b, '+', c, 0)], 'minutes');
+}
+
 /**
  * Word problems. `level` 0 is the easy kind (two numbers, one step); 1 to 5
  * are two steps with three numbers, the templates getting harder with the level.
  */
-export function storyJob(rng: Rng, level: number): StoryJob {
+export function storyJob(rng: Rng, level: number, nasa = false): StoryJob {
+  // Once he has helped Perseverance and Ingenuity (a special mission), some
+  // stories are about them, with true-to-life numbers.
+  if (nasa && rng() < 0.35) return nasaStory(rng, level);
   if (level <= 0) {
     // Two numbers, one step: adding or taking away, small numbers.
     switch (int(rng, 0, 3)) {
@@ -296,12 +342,12 @@ export function calendarJob(rng: Rng, level: number): CalendarJob {
 export type Job = Add3Job | RulerJob | FracDiffJob | StoryJob | GraphJob | EvenOddJob | TimesJob | CalendarJob;
 
 /** One problem of a kind ('mixed' picks one of the others; see ui/jobs.ts for the paper-only kinds). */
-export function makeJob(kind: Exclude<JobKind, 'mixed'>, rng: Rng, level: number): Job {
+export function makeJob(kind: Exclude<JobKind, 'mixed'>, rng: Rng, level: number, nasa = false): Job {
   switch (kind) {
     case 'add3': return add3Job(rng, level);
     case 'ruler8': return rulerJob(rng, level);
     case 'fracdiff': return fracDiffJob(rng);
-    case 'story': return storyJob(rng, level);
+    case 'story': return storyJob(rng, level, nasa);
     case 'graph': return graphJob(rng, level);
     case 'evenodd': return evenOddJob(rng, level);
     case 'times01': return timesJob(rng, level);

@@ -1088,6 +1088,56 @@ export function build(path: THREE.Curve<THREE.Vector3>, opts: CityOptions): City
     tube.scale.setScalar(1.6);
     root.add(tube);
     props.push(tube);
+  } else if (opts.seed === 661 || opts.seed === 673 || opts.seed === 677) {
+    // A special mission (see skills/special.ts): Perseverance drives along
+    // beside the track the whole way, a little ahead of him, with Ingenuity
+    // flying overhead. They keep pace with the camera.
+    const scout = opts.seed === 673;
+    const rover = perseverance();
+    rover.scale.setScalar(1.4);
+    root.add(rover);
+    props.push(rover);
+    const heli = ingenuity({ flying: true, height: 0 });
+    // On its scouting flight the helicopter is the star: bigger, lower and closer.
+    heli.scale.setScalar(scout ? 2.3 : 1.6);
+    root.add(heli);
+    props.push(heli);
+    if (opts.seed === 677) {
+      // The sample run: tube depots beside the track on the way.
+      for (const u of [0.22, 0.55, 0.82]) {
+        const { p, f } = spot(len * u, 1, 11.5);
+        const depot = sampleDepot(10, 1.7);
+        depot.position.copy(p);
+        depot.scale.setScalar(1.5);
+        depot.rotation.y = Math.atan2(-f.t.z, f.t.x);
+        root.add(depot);
+        props.push(depot);
+      }
+    }
+    let rAlong = 30;
+    let hAlong = 50;
+    let first = true;
+    const hGoal = new THREE.Vector3();
+    props.push({
+      update: (dt: number, t: number) => {
+        const cam = Math.max(0, Math.min(len, start.z - camPos.z));
+        const k = first ? 1 : Math.min(1, dt * 1.2);
+        // The rover: 30 units ahead on the left, wheels on the dunes, nose down the track.
+        rAlong += (Math.min(len, cam + 30) - rAlong) * k;
+        const f = frame(rAlong / len);
+        const side = 12.5 + Math.sin(rAlong * 0.03) * 1.2;
+        rover.position.copy(f.p).addScaledVector(f.n, -side);
+        rover.position.y = heightAt(rover.position.x, rover.position.z);
+        rover.rotation.y = Math.atan2(f.t.x, f.t.z);
+        // The helicopter: further ahead, weaving across the track.
+        hAlong += (Math.min(len, cam + (scout ? 34 : 48)) - hAlong) * k;
+        const g = frame(hAlong / len);
+        hGoal.copy(g.p).addScaledVector(g.n, Math.sin(t * 0.35) * (scout ? 6 : 9) + (scout ? 2 : -3));
+        hGoal.y = heightAt(hGoal.x, hGoal.z) + (scout ? 8 : 11) + Math.sin(t * 0.5) * 1.5;
+        heli.position.lerp(hGoal, first ? 1 : Math.min(1, dt * 2));
+        first = false;
+      },
+    } as Prop);
   } else if (olympus) {
     // The boss: Perseverance held in an alien tractor beam, off to the side of the walker.
     const cage = tractorCage();

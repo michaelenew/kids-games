@@ -3,12 +3,12 @@ import { type Tuning, botForMission, cheapestUpgrade, missionStart, tuning, onMi
 import { MissionArmor, REGIONS, type Region, forgeScene, lookFromSave, repairsNeeded, totalMax } from '../armor';
 import { music, sfx } from '../audio';
 import {
-  BOTS, type BotId, actionDone, botsUnlocked, alertQueue, botColor, botData, botName, clearAlert, persist, queueAlert, save, setActiveBot,
+  BOTS, type BotId, actionDone, botsUnlocked, alertQueue, botColor, botData, botName, clearAlert, countMissionWon, specialDone, persist, queueAlert, save, setActiveBot,
   gadgetInfo, gadgetOf, setGadget, wallStage, wantsRecap, writtenStage,
 } from '../state';
 import { Invasion, type Shooter, type Target } from '../three/invasion';
 import { GUEST_PLACE, GUEST_PLACES, backToRanch } from '../guest';
-import { type Mission, alertMission, isHandOver, missionBot, missionById, startBot } from '../three/missions';
+import { type Mission, SPECIAL_THANKS, alertMission, isHandOver, isSpecial, missionBot, missionById, startBot } from '../three/missions';
 import { nextPiece } from '../skills/area';
 import { nextShipPart } from '../skills/compare';
 import { BAYS, bayFor, readyBay } from '../skills/bays';
@@ -136,7 +136,7 @@ export class InvasionScene extends Phaser.Scene {
       banner: (t, c) => this.banner(t, c),
       say: (lines, done) => {
         // Alerts skip the story talk: he's heard it.
-        if (this.alert) {
+        if (this.alert && !isSpecial(this.mission.id)) {
           done();
           return;
         }
@@ -528,6 +528,7 @@ export class InvasionScene extends Phaser.Scene {
     if (this.over) return;
     this.over = true;
     this.game3d.pointer.down = false;
+    countMissionWon();
     if (this.alert) {
       this.blowOffGadget();
       this.alertDone(true);
@@ -786,6 +787,7 @@ export class InvasionScene extends Phaser.Scene {
     if (won) {
       s.scrap += earned;
       clearAlert(this.mission.id, s);
+      if (isSpecial(this.mission.id)) specialDone(s);
       const g = gadgetOf(this.bot, s);
       if (g) {
         this.brokenGadget = gadgetInfo(this.bot, g).title;
@@ -798,7 +800,7 @@ export class InvasionScene extends Phaser.Scene {
     else sfx.alarm();
     this.time.delayedCall(700, () => {
       panel(this, W / 2, H / 2, 700, 380).setDepth(60);
-      const title = this.guest ? (won ? GUEST_PLACES[GUEST_PLACE].saved : 'GOOD TRY!') : won ? 'ALERT CLEARED!' : 'RETREAT!';
+      const title = this.guest ? (won ? GUEST_PLACES[GUEST_PLACE].saved : 'GOOD TRY!') : won ? (SPECIAL_THANKS[this.mission.id] ?? 'ALERT CLEARED!') : 'RETREAT!';
       text(this, W / 2, H / 2 - 120, title, 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
       const line = this.guest ? `Score ${this.score.toLocaleString()}` : won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!';
       text(this, W / 2, H / 2 - 30, line, 30, '#ffffff').setDepth(61);

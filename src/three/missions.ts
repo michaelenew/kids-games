@@ -1690,8 +1690,49 @@ export const MISSIONS: Mission[] = [
   ...SOLAR,
 ];
 
+/**
+ * Special missions: calls from Mars (see skills/special.ts). Not part of the
+ * numbered story: they pop up in the garage from time to time. He rides
+ * RHINO's rover beside Perseverance, with Ingenuity overhead, and the talk is
+ * real facts. Seeds 661, 673 and 677 tell the Mars world which one it is.
+ */
+export const SPECIALS: Mission[] = [
+  rideMission({ id: 'nasa-escort', title: 'Escort Perseverance', blurb: 'Perseverance and Ingenuity need help!', seed: 661, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1,
+    say: 'A call from MARS! It\'s PERSEVERANCE, the real rover NASA landed in Jezero Crater in 2021. Aliens are closing in on it!',
+    more: [
+      { who: 'sprocket', text: 'Perseverance is as big as a car and has six wheels. It drills into rocks to look for signs of tiny life from long ago, when Jezero was a lake.' },
+      { who: 'sprocket', text: 'And look up! That\'s INGENUITY, its little helicopter: the first aircraft ever to fly on another planet.' },
+      { who: 'volt', text: 'Drive beside Perseverance and keep the aliens off it. It can\'t go fast: its top speed is slower than you walk!' },
+    ], banners: ['GUARD THE ROVER!', 'KEEP THEM BACK!', 'LAST WAVE!'] }),
+  rideMission({ id: 'nasa-scout', title: 'Ingenuity\'s Scouting Flight', blurb: 'Fly cover for the little helicopter!', seed: 673, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1,
+    say: 'Mars calling again! Ingenuity is scouting a path for Perseverance, and alien skimmers are chasing it.',
+    more: [
+      { who: 'sprocket', text: 'Ingenuity was only meant to fly 5 times. It flew 72 times! Then a rotor blade broke on a landing. I patched it up, so today it flies again.' },
+      { who: 'sprocket', text: 'The air on Mars is super thin, so its blades spin 2,400 times a minute to stay up. That\'s way faster than a helicopter on Earth.' },
+      { who: 'volt', text: 'Follow Ingenuity and Perseverance, and shoot anything that gets near them!' },
+    ], banners: ['SKIMMERS!', 'PROTECT INGENUITY!', 'LAST WAVE!'] }),
+  rideMission({ id: 'nasa-tubes', title: 'The Sample Run', blurb: 'Help Perseverance save its rock samples!', seed: 677, env: 'mars', ride: 'rover', y: 2.2, mix: 'ground', tier: 1,
+    say: 'Perseverance needs us! It\'s carrying rock samples in little metal tubes, and the aliens want them.',
+    more: [
+      { who: 'sprocket', text: 'It left 10 tubes in a row on the ground at a place called Three Forks. One day another mission may bring them home to Earth for scientists to study.' },
+      { who: 'sprocket', text: 'Perseverance isn\'t the only one up here. Its big sister CURIOSITY has been exploring Mars since 2012, in a crater called Gale. They\'re almost twins!' },
+      { who: 'volt', text: 'Guard the tubes and stay with the rover. Let\'s roll!' },
+    ], banners: ['TUBE RAIDERS!', 'GUARD THE SAMPLES!', 'LAST WAVE!'] }),
+];
+
+/** What the win screen says after each special. */
+export const SPECIAL_THANKS: Record<string, string> = {
+  'nasa-escort': 'PERSEVERANCE IS SAFE!',
+  'nasa-scout': 'INGENUITY IS SAFE!',
+  'nasa-tubes': 'SAMPLES SAVED!',
+};
+
+export function isSpecial(id: string): boolean {
+  return SPECIALS.some((m) => m.id === id);
+}
+
 export function missionById(id: string): Mission {
-  return MISSIONS.find((m) => m.id === id) ?? MISSIONS[0];
+  return MISSIONS.find((m) => m.id === id) ?? SPECIALS.find((m) => m.id === id) ?? MISSIONS[0];
 }
 
 export const MISSION_IDS = MISSIONS.map((m) => m.id);

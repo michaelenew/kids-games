@@ -63,6 +63,11 @@ export function readyThenGo(scene: Phaser.Scene, missionId: string, next: () => 
   else next();
 }
 
+/** Answer a call from Mars (a special mission): pick any robot, then straight out. No math on the way. */
+export function startSpecial(scene: Phaser.Scene, missionId: string) {
+  scene.scene.start('Pick', { missionId, alert: true, special: true });
+}
+
 /**
  * Answer a patrol alert: pick any robot when the mission allows it (see
  * alertBots), then the pre-launch check. Alerts never wait on repairs.

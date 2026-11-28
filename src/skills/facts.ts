@@ -49,7 +49,9 @@ export function makeChainProblem(rng: Rng): ChainProblem {
     const target = mid + s2;
     if (mid < 0 || mid > 20 || target < 1 || target > 20 || target === start) continue;
     const cells = new Set([s1, s2]);
-    while (cells.size < 5) {
+    // Five cells on the bench, counting the second copy when both steps are the same.
+    const distinct = s1 === s2 ? 4 : 5;
+    while (cells.size < distinct) {
       const d = randInt(rng, 1, 7) * (rng() < 0.5 ? -1 : 1);
       // A single cell that solves it alone would skip the two-step thinking.
       if (start + d === target) continue;

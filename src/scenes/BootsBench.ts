@@ -146,22 +146,24 @@ export class BootsBench extends BenchScene {
   private drawCards() {
     this.cardLayer.removeAll(true);
     const cells = this.problem.cells;
-    const per = Math.min(5, cells.length);
+    // Every cell gets its own place in the row (more than five squeeze closer together).
+    const gap = Math.min(135, 540 / Math.max(1, cells.length - 1));
+    const cw = Math.min(110, gap - 8);
     cells.forEach((v, i) => {
-      const x = 560 + (i % per) * 135 + 60;
+      const x = 620 + i * gap;
       const y = 260;
       const g = this.add.graphics();
       if (this.used[i]) {
         // Picked: just an empty socket, so it's clear the cell moved to a slot.
-        g.lineStyle(3, 0x5c677d, 0.8).strokeRoundedRect(x - 55, y - 60, 110, 120, 14);
+        g.lineStyle(3, 0x5c677d, 0.8).strokeRoundedRect(x - cw / 2, y - 60, cw, 120, 14);
         this.cardLayer.add(g);
         return;
       }
       const color = v >= 0 ? 0x06d6a0 : 0xef476f;
-      g.fillStyle(color, 1).fillRoundedRect(x - 55, y - 60, 110, 120, 14);
+      g.fillStyle(color, 1).fillRoundedRect(x - cw / 2, y - 60, cw, 120, 14);
       g.fillStyle(0x1a1423, 0.5).fillRect(x - 15, y - 72, 30, 14);
       const label = text(this, x, y, this.problem.kind === 'pair' ? `${v}` : signed(v), 48, '#ffffff');
-      const zone = this.add.zone(x, y, 120, 130).setInteractive({ useHandCursor: true });
+      const zone = this.add.zone(x, y, cw + 10, 130).setInteractive({ useHandCursor: true });
       zone.on('pointerup', () => this.pickCell(i));
       this.cardLayer.add([g, label, zone]);
     });

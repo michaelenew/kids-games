@@ -120,6 +120,8 @@ describe('facts', () => {
         }
       }
       expect(solvable).toBe(true);
+      // Five tiles fit on the bench: a sixth used to sit hidden under the first.
+      expect(p.cells).toHaveLength(5);
       expect(p.target).toBeGreaterThanOrEqual(1);
       expect(p.target).toBeLessThanOrEqual(20);
     }

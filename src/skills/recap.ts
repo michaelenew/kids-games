@@ -56,6 +56,19 @@ export function makeGraphQuestion(rng: Rng, bars: Bar[], easy = false): GraphQue
 }
 
 /**
+ * A "twice as many" question for the picture graph: a row with exactly twice
+ * another's hits, as long as it's the only row with that many (two rows tied
+ * at double would both be right, and only one could be the answer).
+ */
+export function twiceRows(rows: Bar[]): { twice: Bar; half: Bar } | null {
+  for (const twice of rows) {
+    const half = rows.find((b) => b !== twice && b.value > 0 && b.value * 2 === twice.value);
+    if (half && rows.filter((b) => b.value === twice.value).length === 1) return { twice, half };
+  }
+  return null;
+}
+
+/**
  * Two two-digit hits to add. The first time, a pair whose ones don't make a
  * new ten (no carrying); after that, a pair that does, when he took such hits.
  */

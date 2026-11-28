@@ -1,3 +1,4 @@
+import { stampLayout } from './stampLayout';
 import Phaser from 'phaser';
 import { sfx } from '../audio';
 import { formatNumber } from '../skills/placeValue';
@@ -468,11 +469,11 @@ export function groupsPaper(scene: Phaser.Scene, o: GroupsOptions): void {
 
   // Step 2: stamps. "+ Group" draws a circle; tapping inside a circle adds a dot; "Start over" wipes it.
   const groups: { x: number; y: number; r: number; dots: Phaser.GameObjects.Arc[]; ring: Phaser.GameObjects.Arc }[] = [];
-  const slots = 6;
-  const cols = 3;
-  const gR = Math.min(58, (page.w - 40) / cols / 2 - 6);
-  const gy0 = page.top + 150 + gR;
-  const spot = (i: number) => ({ x: page.left + 20 + gR + (i % cols) * (2 * gR + 12), y: gy0 + Math.floor(i / cols) * (2 * gR + 10) });
+  // Every group the problem needs has its own place, clear of the buttons (see stampLayout.ts).
+  const lay = stampLayout(page, o.groups);
+  const slots = lay.slots;
+  const gR = lay.r;
+  const spot = (i: number) => lay.spots[i];
   const addDot = (gi: number) => {
     const g = groups[gi];
     const n = g.dots.length;
@@ -496,9 +497,10 @@ export function groupsPaper(scene: Phaser.Scene, o: GroupsOptions): void {
     });
     sfx.tick();
   };
-  const bx = page.left + page.w - 90;
-  sh.add(button(scene, bx, page.top + 140, 150, 44, '+ Group', addGroup, { size: 20, fill: 0x3a5a8c, edge: 0xcfe8ff }));
-  sh.add(button(scene, bx, page.top + 192, 150, 44, 'Start over', () => {
+  const ab = lay.addButton;
+  const rb = lay.resetButton;
+  sh.add(button(scene, ab.x, ab.y, ab.w, ab.h, '+ Group', addGroup, { size: 20, fill: 0x3a5a8c, edge: 0xcfe8ff }));
+  sh.add(button(scene, rb.x, rb.y, rb.w, rb.h, 'Start over', () => {
     groups.splice(0).forEach((g) => {
       g.dots.forEach((d) => d.destroy());
       g.ring.destroy();
@@ -507,8 +509,8 @@ export function groupsPaper(scene: Phaser.Scene, o: GroupsOptions): void {
   const detailed = guideCount(`paper-${o.kind}`) < 3;
   sh.setPrompt(detailed
     ? (o.kind === 'multiply'
-      ? `Draw it: tap + Group for each group, then tap inside a group to add dots. Then type the answer.`
-      : `Draw ${o.groups} groups, then share ${total} dots out fairly by tapping inside them. Then type how many in each.`)
+      ? 'Tap + Group for each group, then tap inside to add dots. Then type the answer.'
+      : `Draw ${o.groups} groups and share out ${total} dots, one at a time. Type how many are in each.`)
     : 'Draw it, then type the answer.');
   let misses = 0;
   sh.onEnter((v) => {

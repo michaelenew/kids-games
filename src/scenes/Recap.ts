@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio';
-import { hitBars, makeGraphQuestion, pickAddPair, type Bar } from '../skills/recap';
+import { hitBars, makeGraphQuestion, pickAddPair, twiceRows, type Bar } from '../skills/recap';
 import { addColumns } from '../skills/steps';
 import { bumpGuide, guideCount, mathDone, paperDone, paperStep, persist, rampDone, rampOf, recordSkill, save } from '../state';
 import { rungInfo } from '../skills/ramp';
@@ -417,7 +417,8 @@ export class RecapScene extends Phaser.Scene {
       const b = button(this, 930, 280 + i * 100, 360, 80, c.toUpperCase(), () => answer(c, b), { fill: 0x1f6feb });
       this.layer.add(b);
     });
-    for (const bz of this.barZones) bz.zone.on('pointerup', () => answer(bz.label));
+    // Tapping a bar answers only a "which alien" question; on a number question it does nothing.
+    if (this.barZones.some((bz) => bz.label === q.answer)) for (const bz of this.barZones) bz.zone.on('pointerup', () => answer(bz.label));
   }
 
   private reward(x: number, y: number) {
@@ -466,7 +467,9 @@ export class RecapScene extends Phaser.Scene {
       text(this, x0, y, b.label.toUpperCase(), 20, '#ffffff').setOrigin(0, 0.5);
       const list: Phaser.GameObjects.Graphics[] = [];
       const n = Math.ceil(b.value / PER);
-      for (let i = 0; i < n; i++) list.push(icon(x0 + 140 + i * 42, y, b.label, i === n - 1 && b.value % PER === 1));
+      // Lots of hits: the pictures sit closer (and smaller) so the row stays on the panel.
+      const step = Math.min(42, 300 / Math.max(1, n - 1));
+      for (let i = 0; i < n; i++) list.push(icon(x0 + 140 + i * step, y, b.label, i === n - 1 && b.value % PER === 1).setScale(Math.max(0.5, step / 42)));
       icons.push(list);
     });
     // The key.
@@ -535,9 +538,9 @@ export class RecapScene extends Phaser.Scene {
       return;
     }
     // Later: how many, or how many more, or "twice as many".
-    const twice = rows.find((a) => rows.some((b) => a !== b && a.value === b.value * 2));
-    if (twice && guideCount('picgraph') >= 2) {
-      const half = rows.find((b) => b.value * 2 === twice.value)!;
+    const tw = twiceRows(rows);
+    if (tw && guideCount('picgraph') >= 2) {
+      const { twice, half } = tw;
       ask(`Which alien hit you TWICE as many times as the ${half.label}?`, twice.label.toUpperCase(),
         rows.map((b) => b.label.toUpperCase()), `Twice as many means double: ${half.value} + ${half.value}.`);
     } else if (rows.length >= 2 && rows[0].value !== rows[1].value && guideCount('picgraph') >= 1) {

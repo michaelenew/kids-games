@@ -13,7 +13,8 @@ import { COINS, makePriceProblem } from '../src/skills/money';
 import { addWrites, subtractWrites } from '../src/skills/paper';
 import { makeArmorProblem, toCounts } from '../src/skills/placeValue';
 import { COLUMN_RUNGS, columnPair } from '../src/skills/ramp';
-import { makeGraphQuestion, pickAddPair } from '../src/skills/recap';
+import { makeGraphQuestion, pickAddPair, twiceRows } from '../src/skills/recap';
+import { stampLayout } from '../src/ui/stampLayout';
 import { countUp, rampProblem, writtenSubtraction } from '../src/skills/steps';
 import {
   type TimeQuestion, controlQuestions, makeDay, makeEnds, makeGroups, makeReadClock, makeUntil, missionControlQuestion, rampClockQuestion, typedAnswer,
@@ -640,6 +641,82 @@ describe('solvable: vehicle bays', () => {
           for (let i = 0; i < 20; i++) expect(makeJob(kind, rng, part.level).kind).toBe(kind);
         }
       }
+    }
+  });
+});
+
+// ---- The answer screens: room for everything the problem needs --------------------------------------
+
+describe('solvable: the picture-stamp page (multiplying and dividing on paper)', () => {
+  // The pages the game really uses: the bays (685 × 470) and the wall and hull forges (430 tall).
+  const pages = [
+    { left: 578, top: 241, w: 685 - 248, h: 470 - 16 },
+    { left: 578, top: 263, w: 685 - 248, h: 430 - 16 },
+  ];
+  const overlaps = (c: { x: number; y: number }, r: number, b: { x: number; y: number; w: number; h: number }) =>
+    Math.abs(c.x - b.x) < b.w / 2 + r && Math.abs(c.y - b.y) < b.h / 2 + r
+    && Math.hypot(Math.max(0, Math.abs(c.x - b.x) - b.w / 2), Math.max(0, Math.abs(c.y - b.y) - b.h / 2)) < r;
+
+  it('every group has its own circle, on the page, clear of the buttons and of each other', () => {
+    for (const page of pages) {
+      for (let groups = 1; groups <= 8; groups++) {
+        const lay = stampLayout(page, groups);
+        expect(lay.slots).toBeGreaterThanOrEqual(groups);
+        // Big enough to tap and to hold a dozen dots.
+        expect(lay.r).toBeGreaterThanOrEqual(36);
+        lay.spots.forEach((c, i) => {
+          expect(c.x - lay.r).toBeGreaterThanOrEqual(page.left);
+          expect(c.x + lay.r).toBeLessThanOrEqual(page.left + page.w);
+          expect(c.y + lay.r).toBeLessThanOrEqual(page.top + page.h);
+          expect(overlaps(c, lay.r, lay.addButton)).toBe(false);
+          expect(overlaps(c, lay.r, lay.resetButton)).toBe(false);
+          lay.spots.forEach((d, k) => {
+            if (k > i) expect(Math.hypot(c.x - d.x, c.y - d.y)).toBeGreaterThanOrEqual(2 * lay.r);
+          });
+        });
+        // The two buttons don't sit on each other, and stay on the page.
+        expect(Math.abs(lay.addButton.x - lay.resetButton.x)).toBeGreaterThanOrEqual(lay.addButton.w);
+        for (const b of [lay.addButton, lay.resetButton]) {
+          expect(b.x - b.w / 2).toBeGreaterThanOrEqual(page.left);
+          expect(b.x + b.w / 2).toBeLessThanOrEqual(page.left + page.w);
+        }
+      }
+    }
+  });
+
+  it('every wall and hull he can be asked to draw fits: enough circles for its rows, at most a dozen dots in each', () => {
+    const rng = seeded(42);
+    for (const mark of MARKS) {
+      for (const r of REGIONS) {
+        for (let i = 0; i < 60; i++) {
+          // A wall is drawn as one group per row, with a dot per brick.
+          const w = wallTarget(rng, mark, r, i);
+          expect(stampLayout(pages[1], w.rows).slots).toBeGreaterThanOrEqual(w.rows);
+          expect(w.cols).toBeLessThanOrEqual(12);
+          // A hull is shared into one group per row.
+          const h = hullTarget(rng, mark, r, i);
+          expect(stampLayout(pages[1], h.rows).slots).toBeGreaterThanOrEqual(h.rows);
+          expect(h.cols).toBeLessThanOrEqual(12);
+        }
+      }
+    }
+  });
+});
+
+describe('solvable: the mission report\'s picture graph', () => {
+  it('"twice as many" is only asked when exactly one row is the answer', () => {
+    const bar = (label: string, value: number) => ({ label, value });
+    // Two rows tied at double: either would be right, so it isn't asked.
+    expect(twiceRows([bar('a', 4), bar('b', 4), bar('c', 2)])).toBeNull();
+    expect(twiceRows([bar('a', 5), bar('b', 3), bar('c', 2)])).toBeNull();
+    expect(twiceRows([bar('a', 6), bar('b', 3), bar('c', 2)])).toEqual({ twice: bar('a', 6), half: bar('b', 3) });
+    const rng = seeded(43);
+    for (let i = 0; i < RUNS; i++) {
+      const rows = Array.from({ length: 1 + Math.floor(rng() * 3) }, (_, k) => bar(`row ${k}`, 1 + Math.floor(rng() * 12)));
+      const t = twiceRows(rows);
+      if (!t) continue;
+      expect(t.twice.value).toBe(2 * t.half.value);
+      expect(rows.filter((b) => b.value === 2 * t.half.value)).toEqual([t.twice]);
     }
   });
 });

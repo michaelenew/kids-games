@@ -212,14 +212,53 @@ function fromStored(parsed: Partial<SaveData> | null): SaveData {
   return freshSave();
 }
 
+/**
+ * A second copy of the save, kept beside it in this browser and only ever
+ * replaced by one that is at least as far along. If the save itself is ever
+ * lost, unreadable or replaced by one that is further back, the game carries
+ * on from this copy instead of from the start. Starting over on purpose
+ * (`resetSave`) clears it. Previews and guest visits don't use it.
+ */
+function backupKey(): string {
+  return `${storeKey()}~backup`;
+}
+
 function load(): SaveData {
+  const key = storeKey();
+  const plain = !inPreview() && !GUEST;
+  let raw: string | null = null;
+  let loaded: SaveData | null = null;
   try {
-    const raw = localStorage.getItem(storeKey());
-    if (raw) return fromStored(JSON.parse(raw) as Partial<SaveData>);
+    raw = localStorage.getItem(key);
+    if (raw) loaded = fromStored(JSON.parse(raw) as Partial<SaveData>);
   } catch {
-    // Storage blocked or corrupt: start fresh rather than crash.
+    // Storage blocked or the save can't be read: don't crash, and don't lose
+    // what was there. Keep it aside before anything writes over it.
+    try {
+      if (raw) localStorage.setItem(`${key}~unreadable`, raw);
+    } catch {
+      // Nowhere to keep it.
+    }
+    loaded = null;
   }
-  return freshSave();
+  if (plain) {
+    try {
+      const kept = localStorage.getItem(backupKey());
+      const backup = kept ? fromStored(JSON.parse(kept) as Partial<SaveData>) : null;
+      const here = loaded?.levelsDone.length ?? 0;
+      if (backup && kept && backup.levelsDone.length > here) {
+        // The save went backwards (or vanished): carry on from the backup.
+        loaded = backup;
+        localStorage.setItem(key, kept);
+        noteSaved('mecha');
+      } else if (loaded && raw && here > 0) {
+        localStorage.setItem(backupKey(), raw);
+      }
+    } catch {
+      // No backup this time.
+    }
+  }
+  return loaded ?? freshSave();
 }
 
 export function persist(): void {
@@ -243,8 +282,9 @@ onRemoteSave('mecha', (data) => {
 /** Start over. A synced save stops syncing first, so other devices keep it. */
 export function resetSave(): void {
   if (!inPreview() && !GUEST) leaveSyncGroup('mecha');
-  // Half-done problems belong to the old game.
+  // Half-done problems belong to the old game, and so does its backup copy.
   try {
+    if (!inPreview() && !GUEST) localStorage.removeItem(backupKey());
     localStorage.removeItem(wipKey());
   } catch {
     // Nothing to clear.

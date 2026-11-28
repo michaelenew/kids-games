@@ -11,7 +11,10 @@ import { type Area, columnPaper, groupsPaper, scratchButtons, sheet } from './pa
 import { button, text, toast } from './widgets';
 import { wipDrop, wipGet, wipPut } from '../wip';
 import { columnPair, rungInfo } from '../skills/ramp';
-import { rampOf } from '../state';
+import { rampOf, save } from '../state';
+
+/** He has helped Perseverance and Ingenuity (a special mission), so some word problems are about them. */
+const metNasa = () => (save().special?.done ?? 0) > 0;
 import { writtenSubtractPanel } from './written';
 
 /**
@@ -670,7 +673,7 @@ export function runJob(scene: Phaser.Scene, kind: JobKind, o: JobOptions, rng: (
     mixedJob(scene, o, rng);
     return;
   }
-  const j: Job = makeJob(kind, rng, o.level);
+  const j: Job = makeJob(kind, rng, o.level, metNasa());
   switch (j.kind) {
     case 'add3': return add3Screen(scene, j, o);
     case 'ruler8': return rulerScreen(scene, j, o);
@@ -728,7 +731,7 @@ function mixedJob(scene: Phaser.Scene, o: JobOptions, rng: () => number) {
     case 4: {
       const ramp = rampOf('story');
       const rung = rungInfo('story', ramp);
-      return storyScreen(scene, storyJob(rng, ramp.rung === 0 ? 0 : 5), { ...o, help: rung.breakdown ? 'guided' : 'solo', level: 5 });
+      return storyScreen(scene, storyJob(rng, ramp.rung === 0 ? 0 : 5, metNasa()), { ...o, help: rung.breakdown ? 'guided' : 'solo', level: 5 });
     }
     case 5: return graphScreen(scene, graphJob(rng, 4), solo);
     case 6: return evenOddScreen(scene, evenOddJob(rng, 4), solo);

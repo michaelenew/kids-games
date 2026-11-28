@@ -5,6 +5,7 @@ import { onUpgradeBuilt } from '../assist';
 import { getStage } from '../three/stage';
 import {
   BUILD_COST, GADGETS, type GadgetId, type GearId, actionDone, activeBot, botName, gadgetInfo, gearInfo, persist, recordSkill, rig, save, setGadget,
+  setOver, setTotal,
 } from '../state';
 import { H, W, button, panel, sparks, text, toast } from '../ui/widgets';
 import { type HowTo, howTo, needsIntro } from '../ui/howto';
@@ -46,9 +47,12 @@ export abstract class BenchScene extends Phaser.Scene {
 
   protected abstract readonly jobSize: number;
   protected gadget?: GadgetId;
+  /** Problems this visit, fixed when the bench opens (fewer when he's struggling: skills/stamina.ts). */
+  private total = 0;
+  private elastic = true;
   /** Problems in this job (a gadget is a quick two). */
   protected get jobTotal() {
-    return this.gadget ? 2 : this.jobSize;
+    return this.total || (this.gadget ? 2 : this.jobSize);
   }
   protected abstract readonly timeLimit: number;
   /** Pause between solving one problem and showing the next, in ms. */
@@ -85,6 +89,12 @@ export abstract class BenchScene extends Phaser.Scene {
     text(this, W / 2, 50, title, 36, '#ffd166');
     button(this, 80, 50, 120, 60, '◀ Exit', () => this.exit(), { size: 24, fill: 0x3d4458 });
 
+    this.total = 0;
+    const planned = this.jobTotal;
+    const had = wipGet<{ index: number }>(this.wipSlot);
+    // A timed drill (lots of quick facts against the clock) keeps its full length.
+    this.elastic = !(this.timeLimit > 0 && !this.gadget);
+    this.total = this.elastic ? setTotal(planned, had && had.index > 0 && had.index < planned ? had.index : 0) : planned;
     const gap = this.jobTotal > 5 ? 26 : 40;
     for (let i = 0; i < this.jobTotal; i++) {
       this.pips.push(this.add.circle(W - 50 - (this.jobTotal - 1 - i) * gap, 50, gap / 3, 0x3d4458).setStrokeStyle(3, 0xffffff, 0.6));
@@ -109,7 +119,6 @@ export abstract class BenchScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown-ESC', () => this.exit());
     // Back after quitting in the middle: carry on from the problem he was on.
-    const had = wipGet<{ index: number }>(this.wipSlot);
     if (had && had.index > 0 && had.index < this.jobTotal) {
       this.index = had.index;
       for (let i = 0; i < this.index; i++) this.pips[i]?.setFillStyle(0x06d6a0);
@@ -186,7 +195,7 @@ export abstract class BenchScene extends Phaser.Scene {
     this.index++;
     wipPut(this.wipSlot, { index: this.index });
     this.misses = 0;
-    if (this.index >= this.jobTotal) {
+    if (this.elastic ? setOver(this.index, this.jobTotal) : this.index >= this.jobTotal) {
       this.timerRunning = false;
       this.time.delayedCall(900, () => this.complete());
     } else {

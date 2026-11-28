@@ -22,12 +22,15 @@ export class PickScene extends Phaser.Scene {
   private main: BotId | null = null;
   /** Answering a patrol alert: any robot, then the pre-launch check. */
   private alert = false;
+  /** A call from Mars (a special mission): any robot, then straight out. */
+  private special = false;
 
   constructor() {
     super('Pick');
   }
 
-  init(data: { missionId: string; main?: BotId; alert?: boolean }) {
+  init(data: { missionId: string; main?: BotId; alert?: boolean; special?: boolean }) {
+    this.special = !!data.special;
     this.missionId = data.missionId;
     this.main = data.main ?? null;
     this.alert = !!data.alert;
@@ -46,7 +49,7 @@ export class PickScene extends Phaser.Scene {
     })));
     text(this, W / 2, 46, main ? 'WHO\'S YOUR BACKUP?' : 'WHO\'S GOING?', 50, '#ffd166').setStroke('#000000', 8);
     const where = m.title.replace(/^Invasion \d+: /, '');
-    const sub = main ? `Joins ${botName(main, s)} halfway, when you call for help` : this.alert ? `🚨 ALERT: aliens are back at ${where}!` : where;
+    const sub = main ? `Joins ${botName(main, s)} halfway, when you call for help` : this.special ? `📡 CALL FROM MARS: ${m.blurb}` : this.alert ? `🚨 ALERT: aliens are back at ${where}!` : where;
     text(this, W / 2, 96, sub, 26, '#e0aaff').setStroke('#000000', 5);
     if (main) button(this, 95, 46, 160, 60, '◀ Back', () => this.scene.restart({ missionId: this.missionId }), { size: 24, fill: 0x3d4458 });
     else button(this, 95, 46, 160, 60, '◀ Garage', () => this.scene.start('Garage'), { size: 24, fill: 0x3d4458 });
@@ -85,7 +88,9 @@ export class PickScene extends Phaser.Scene {
       this.add.zone(x, 360, gap - 30, 300).setInteractive().on('pointerup', () => this.send(b));
     });
 
-    if (this.alert && !hasSeen('alert-pick')) {
+    if (this.special) {
+      // Nothing to explain: pick and go.
+    } else if (this.alert && !hasSeen('alert-pick')) {
       dialog(this, [
         { who: 'sprocket', text: 'An alert! Any robot can go. Want to use a super gadget? Build one in the Super Lab first!' },
       ], () => markSeen('alert-pick'));
@@ -104,6 +109,10 @@ export class PickScene extends Phaser.Scene {
   private send(bot: BotId) {
     const s = save();
     sfx.success();
+    if (this.special) {
+      this.scene.start('Invasion', { missionId: this.missionId, alert: true, bot });
+      return;
+    }
     if (this.alert) {
       this.scene.start('PreLaunch', { missionId: this.missionId, bot });
       return;

@@ -4,7 +4,8 @@ import { LEVELS } from '../levels';
 import {
   BLASTER_DAMAGE, BOTS, BUILD_COST, type BotId, type GearId, activeBot, botData, botName,
   botsUnlocked, endPreview, gearInfo, alertQueue, hasSeen, inPreview, markSeen, persist, resetSave, save, setActiveBot,
-  paperStep, rampOf, startPreview, takeFreshAlert,
+  paperStep, rampOf, specialOffer, startPreview, takeFreshAlert,
+  setTotal,
 } from '../state';
 import { forgeScene, lookFromSave, totalHp, totalMax } from '../armor';
 import { BASE_PIECES, basePieces, nextPiece, piecesNeeded } from '../skills/area';
@@ -13,7 +14,8 @@ import { CLOCK_RUNGS, COLUMN_RUNGS, RAMP_NAMES, STORY_RUNGS } from '../skills/ra
 import { SHIP_PARTS, nextShipPart, partsNeeded, shipParts } from '../skills/compare';
 import { bayFor, bayParts, bayPartsNeeded, readyBay } from '../skills/bays';
 import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
-import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert } from './launch';
+
+import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert, startSpecial } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
 import { openSyncPanel } from '../sync/panel';
 import { onMissionCleared } from '../assist';
@@ -200,13 +202,25 @@ export class GarageScene extends Phaser.Scene {
       });
     });
     // Patrol alerts waiting: one button each, side by side (up to three).
+    // A call from Mars (a special mission, see skills/special.ts) waits in the same tray, first.
+    const special = hasSeen('garage-intro') ? specialOffer() : undefined;
     const queue = alertQueue(s);
-    const aw = queue.length > 1 ? (560 - 8 * (queue.length - 1)) / queue.length : 560;
-    queue.forEach((id, i) => {
+    const slots = queue.length + (special ? 1 : 0);
+    const aw = slots > 1 ? (560 - 8 * (slots - 1)) / slots : 560;
+    const slotX = (i: number) => 600 + aw / 2 + i * (aw + 8);
+    if (special) {
+      const sm = missionById(special.id);
+      const sb = button(this, slotX(0), 566, aw, 46, slots === 1 ? `📡 CALL FROM MARS: ${sm.title}!` : '📡 MARS', () => startSpecial(this, special.id), {
+        fill: 0xb5541f, edge: 0xffd6a5, size: slots === 1 ? 19 : 17,
+      });
+      this.tweens.add({ targets: sb, scale: 1.03, duration: 520, yoyo: true, repeat: -1 });
+    }
+    queue.forEach((id, k) => {
+      const i = k + (special ? 1 : 0);
       const am = missionById(id);
-      const label = queue.length === 1 ? `🚨 ALERT: aliens are back at ${shortTitle(am.title)}!` : `🚨 ${placeOf(am)}`;
-      const ab = button(this, 600 + aw / 2 + i * (aw + 8), 566, aw, 46, label, () => startAlert(this, id), {
-        fill: 0xc1121f, edge: 0xffb3b3, size: queue.length === 1 ? 19 : 17,
+      const label = slots === 1 ? `🚨 ALERT: aliens are back at ${shortTitle(am.title)}!` : `🚨 ${placeOf(am)}`;
+      const ab = button(this, slotX(i), 566, aw, 46, label, () => startAlert(this, id), {
+        fill: 0xc1121f, edge: 0xffb3b3, size: slots === 1 ? 19 : 17,
       });
       this.tweens.add({ targets: ab, scale: 1.03, duration: 450 + i * 60, yoyo: true, repeat: -1 });
     });
@@ -281,7 +295,9 @@ export class GarageScene extends Phaser.Scene {
 
     // A new alert pops up once, when he comes back to the garage.
     const fresh = hasSeen('garage-intro') ? takeFreshAlert(s) : undefined;
-    if (fresh) this.alertPopup(fresh);
+    // A call from Mars that has only just come in pops up first (the alert waits in the tray).
+    if (special?.fresh) this.specialPopup(special.id);
+    else if (fresh) this.alertPopup(fresh);
 
     if (s.levelsDone.length > 0 && !hasSeen('garage-intro')) {
       dialog(this, [
@@ -291,6 +307,25 @@ export class GarageScene extends Phaser.Scene {
         { who: 'sprocket', text: 'Oh! And I fixed your transformation gears. You can turn into a car now! Try the TRANSFORM button.' },
       ], () => markSeen('garage-intro'));
     }
+  }
+
+  /** A call from Mars, big: who needs help, and GO or LATER (it waits in the tray). */
+  private specialPopup(id: string) {
+    const m = missionById(id);
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const close = () => items.forEach((o) => o.destroy());
+    items.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55).setInteractive().setDepth(50));
+    items.push(panel(this, W / 2, H / 2, 700, 390, 0x2a1408, 0xffb06b).setDepth(51));
+    const head = text(this, W / 2, H / 2 - 132, '📡 CALL FROM MARS! 📡', 50, '#ffb06b').setStroke('#000000', 8).setDepth(52);
+    this.tweens.add({ targets: head, scale: 1.06, duration: 480, yoyo: true, repeat: -1 });
+    items.push(head);
+    items.push(text(this, W / 2, H / 2 - 56, m.title, 36, '#ffffff', { wordWrap: { width: 640 } }).setDepth(52));
+    items.push(text(this, W / 2, H / 2 - 4, m.blurb, 26, '#ffd6a5', { wordWrap: { width: 640 } }).setDepth(52));
+    items.push(text(this, W / 2, H / 2 + 50, 'A special mission with NASA\'s real Mars rover. Send any robot!', 21, '#c9d6ff', { wordWrap: { width: 640 } }).setDepth(52));
+    items.push(button(this, W / 2 - 130, H / 2 + 130, 220, 76, 'GO! 🚀', () => startSpecial(this, id), {
+      fill: 0xb5541f, edge: 0xffd6a5, size: 32,
+    }).setDepth(52));
+    items.push(button(this, W / 2 + 130, H / 2 + 130, 220, 76, 'Later', close, { fill: 0x3d4458, size: 28 }).setDepth(52));
   }
 
   /** The new alert, big: where it is, and GO or LATER (it waits in the tray). */
@@ -431,7 +466,8 @@ export class GarageScene extends Phaser.Scene {
     // Paper mode: how far each written kind of problem has moved toward a blank page.
     const STEP = ['', 'boxes', 'tap where it goes', 'blank scratch page'];
     const paperLine = PAPER_KINDS.map((k) => `${PAPER_NAMES[k].split(' ')[0]}: ${STEP[paperStep(k, s)]}`).join('   ·   ');
-    items.push(text(this, W / 2, 600, `Paper mode  ${paperLine}`, 16, '#e0aaff').setDepth(52));
+    // Questions per set stretch with how he's doing (skills/stamina.ts).
+    items.push(text(this, W / 2, 600, `Paper mode  ${paperLine}   ·   Questions per set now: ${setTotal(3, 0, s)}`, 16, '#e0aaff').setDepth(52));
     // The difficulty ramp (skills/ramp.ts): which rung each kind is on.
     const rampLine = (['column', 'story', 'clock'] as const).map((k) => {
       const r = rampOf(k, s);

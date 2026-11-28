@@ -1,4 +1,6 @@
 import { leaveSyncGroup, noteSaved, onRemoteSave, saveKey } from './sync/game';
+import { type Stamina, afterAnswer, setOver as setOverFor, setTotal as setTotalFor } from './skills/stamina';
+import { type SpecialState, specialDue } from './skills/special';
 import { type RampKind, type RampState, afterRamp, rampRung } from './skills/ramp';
 import { type PaperKind, type PaperProgress, type PaperStep, afterProblem as afterPaperProblem, stepOf as stepOfPaper } from './skills/paper';
 import { GUEST, GUEST_KEY } from './guest';
@@ -67,6 +69,10 @@ export interface SaveData {
    * columns, word problems and the clock. Missing means the bottom rung.
    */
   ramp?: Partial<Record<RampKind, RampState>>;
+  /** Special missions: the calls from Mars (see skills/special.ts). */
+  special?: SpecialState;
+  /** How he's doing right now, which sets how many questions a set asks (see skills/stamina.ts). */
+  stamina?: Stamina;
   /** The solar system's vehicles: how many parts of each he has built in its bay (see skills/bays.ts). */
   rides?: Partial<Record<import('./three/rides').RideKind, number>>;
   /** The starship: how many of its parts he has built at the Starship Dock (see skills/compare.ts). */
@@ -265,7 +271,18 @@ export function recordSkill(skill: string, correct: boolean): void {
   if (correct) stat.right++;
   stat.recent = [...stat.recent, correct].slice(-10);
   s.skills[skill] = stat;
+  s.stamina = afterAnswer(s.stamina, correct);
   persist();
+}
+
+/** How many of a set's `planned` questions to ask now, `done` of them already answered (see skills/stamina.ts). */
+export function setTotal(planned: number, done = 0, s: SaveData = save()): number {
+  return setTotalFor(planned, done, s.stamina);
+}
+
+/** Whether a set is finished after `done` answers: all of them, or he just struggled. */
+export function setOver(done: number, total: number, s: SaveData = save()): boolean {
+  return setOverFor(done, total, s.stamina);
 }
 
 // ---- Gear stats --------------------------------------------------------
@@ -602,6 +619,44 @@ export function clearAlert(mission: string, s: SaveData = save()): void {
   const q = alertQueue(s);
   const i = q.indexOf(mission);
   if (i >= 0) q.splice(i, 1);
+  persist();
+}
+
+// ---- Special missions (see skills/special.ts) -------------------------------------------
+
+/** Special missions open up once he has been to Mars. */
+export function specialsUnlocked(s: SaveData = save()): boolean {
+  return s.levelsDone.includes('mars-land');
+}
+
+/**
+ * Called when the garage opens: the special mission on offer, if any, and
+ * whether it has only just come up (so it pops up big once). Also notes that
+ * the game was open now, for "it's been a while".
+ */
+export function specialOffer(now: number = Date.now(), s: SaveData = save()): { id: string; fresh: boolean } | undefined {
+  if (inPreview() || GUEST) return undefined;
+  const st = (s.special ??= { done: 0, plays: 0 });
+  const had = st.waiting;
+  const id = specialDue(st, now, specialsUnlocked(s));
+  st.seen = now;
+  if (id) st.waiting = id;
+  persist();
+  return id ? { id, fresh: id !== had } : undefined;
+}
+
+/** A mission was won: one step closer to the next special. */
+export function countMissionWon(s: SaveData = save()): void {
+  const st = (s.special ??= { done: 0, plays: 0 });
+  st.plays++;
+}
+
+/** A special mission was finished. */
+export function specialDone(s: SaveData = save()): void {
+  const st = (s.special ??= { done: 0, plays: 0 });
+  st.done++;
+  st.plays = 0;
+  delete st.waiting;
   persist();
 }
 

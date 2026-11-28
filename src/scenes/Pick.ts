@@ -45,7 +45,7 @@ export class PickScene extends Phaser.Scene {
     const gap = W / bots.length;
     const xOf = (i: number) => gap * (i + 0.5);
     new Showcase(getStage(this.game.canvas), bots.map((b, i) => ({
-      look: lookFromSave(s, b), x: xOf(i), y: 470, height: 250, spin: 0.5, yaw: 0.6 + i,
+      look: lookFromSave(s, b), x: xOf(i), y: 470, height: gap < 170 ? 200 : 250, spin: 0.5, yaw: 0.6 + i,
     })));
     text(this, W / 2, 46, main ? 'WHO\'S YOUR BACKUP?' : 'WHO\'S GOING?', 50, '#ffd166').setStroke('#000000', 8);
     const where = m.title.replace(/^Invasion \d+: /, '');
@@ -57,6 +57,7 @@ export class PickScene extends Phaser.Scene {
     const last = main ? s.backups?.[this.missionId] : this.alert ? undefined : s.picks?.[this.missionId];
     // TITAN and RHINO can combine; the backup card for the other one says so.
     const partner: BotId | null = main === 'titan' ? 'tank' : main === 'tank' ? 'titan' : null;
+    const small = gap < 170;
     bots.forEach((b, i) => {
       const x = xOf(i);
       const d = botData(b, s);
@@ -64,7 +65,9 @@ export class PickScene extends Phaser.Scene {
       const card = this.add.graphics();
       const on = b === last;
       card.lineStyle(4, on ? 0x06d6a0 : BOTS[b].tab.card, 0.9).strokeRoundedRect(x - gap / 2 + 12, 130, gap - 24, 560, 20);
-      text(this, x, 160, botName(b, s), 34, BOTS[b].nameColor).setStroke('#000000', 6);
+      // Long names (and a big collection) shrink to fit their card.
+      const name = botName(b, s);
+      text(this, x, 160, name, Math.min(34, Math.floor((gap - 34) / (name.length * 0.66))), BOTS[b].nameColor).setStroke('#000000', 6);
       if (main) {
         // Backup never takes damage (so it never needs repairs).
         text(this, x, 520, 'Never gets hurt', 18, '#9ad1ff').setStroke('#000000', 4);
@@ -74,11 +77,11 @@ export class PickScene extends Phaser.Scene {
         }
       } else {
         const armor = d.armor ? `Armor ${totalHp(d.armor)} / ${totalMax(d.armor)}` : 'No armor yet';
-        text(this, x, 520, armor, 18, '#9ad1ff').setStroke('#000000', 4);
+        text(this, x, 520, armor, small ? 13 : 18, '#9ad1ff').setStroke('#000000', 4);
         if (g) text(this, x, 548, `⚡ ${gadgetInfo(b, g).title}`, 18, '#e0aaff').setStroke('#000000', 4);
         // Alerts never wait on repairs.
         const fix = this.alert ? '' : needsFirstArmor(b) ? 'Build armor first' : needsRepairs(b) ? 'Repairs first' : '';
-        if (fix) text(this, x, 576, `🔧 ${fix}`, 17, '#ffb3b3').setStroke('#000000', 4);
+        if (fix) text(this, x, 576, `🔧 ${fix}`, small ? 12 : 17, '#ffb3b3').setStroke('#000000', 4);
       }
       const go = button(this, x, 640, Math.min(220, gap - 50), 66, main ? 'CALL!' : 'SEND!', () => this.send(b), {
         fill: 0x2a9d8f, edge: 0x9ff0e3, size: 28,

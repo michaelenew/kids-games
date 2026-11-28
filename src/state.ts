@@ -8,7 +8,7 @@ import { GUEST, GUEST_KEY } from './guest';
 export type GearId = 'armor' | 'blaster' | 'boots';
 export type Mark = 0 | 1 | 2 | 3;
 /** The robots he can build up: BOLT (his first), STRIKER (the fighter jet), TITAN (the construction robot), RHINO (the tank) and TRIDENT (the submarine). */
-export type BotId = 'bolt' | 'jet' | 'titan' | 'tank' | 'sub' | 'stealth' | 'astro';
+export type BotId = 'bolt' | 'jet' | 'titan' | 'tank' | 'sub' | 'stealth' | 'astro' | 'rover' | 'heli';
 
 /** One robot's upgrades and armor plates. */
 export interface BotData {
@@ -313,6 +313,8 @@ export interface BotSpec {
   /** The name's color on screen. */
   nameColor: string;
   joinsAt?: string;
+  /** Joins after this many special missions instead (the calls from Mars, see skills/special.ts). */
+  joinsAfterSpecials?: number;
   /** Shot damage and time between shots (seconds), by blaster mark. */
   damage: number[];
   cooldown: number[];
@@ -428,11 +430,39 @@ export const BOTS: Record<BotId, BotSpec> = {
       },
       boots: { title: 'Jet Pack', skill: 'Adding & subtracting', perks: ['No jet pack', 'Jet pack: dashes past some shots', 'Twin jets: dashes past more', 'Rocket pack: dashes past lots of shots'] },
     },
-  }
+  },
+  // PERSEVERANCE, NASA's real Mars rover: joins after the first call from Mars. Its benches are review.
+  rover: {
+    name: 'PERSEVERANCE', color: 0xf2efe8, nameColor: '#ffb06b', joinsAfterSpecials: 1,
+    damage: [3, 4, 6, 8], cooldown: [0.22, 0.19, 0.15, 0.1], dodge: [0, 0.1, 0.2, 0.3], vehicle: 'ROVER',
+    tab: { icon: '🛰', fill: 0x7a3d1f, edge: 0xffb06b, card: 0xffb06b },
+    gear: {
+      armor: { title: 'Dust Armor', skill: 'Place value', perks: ['No armor panels', 'Armor panels', 'Steel-framed panels', 'Gold-trimmed panels + spikes'] },
+      blaster: {
+        title: 'SuperCam Laser', skill: 'Measuring',
+        perks: ['Rock laser, damage 3', 'Long laser, damage 4', 'Ringed laser, damage 6', 'Gold mega laser, damage 8'],
+      },
+      boots: { title: 'Boosters', skill: 'Adding & subtracting', perks: ['No boosters', 'One booster: dashes past some shots', 'Twin boosters: dashes past more', 'Triple boosters: dashes past lots of shots'] },
+    },
+  },
+  // INGENUITY, the Mars helicopter: joins after the second call from Mars.
+  heli: {
+    name: 'INGENUITY', color: 0xffc940, nameColor: '#ffe28a', joinsAfterSpecials: 2,
+    damage: [3, 4, 6, 8], cooldown: [0.18, 0.16, 0.13, 0.09], dodge: [0.08, 0.16, 0.26, 0.36], vehicle: 'HELICOPTER',
+    tab: { icon: '🚁', fill: 0x5a4a1f, edge: 0xffe28a, card: 0xffe28a },
+    gear: {
+      armor: { title: 'Feather Armor', skill: 'Place value', perks: ['No armor panels', 'Armor panels', 'Steel-framed panels', 'Gold-trimmed panels + spikes'] },
+      blaster: {
+        title: 'Nose Laser', skill: 'Measuring',
+        perks: ['Little laser, damage 3', 'Long laser, damage 4', 'Ringed laser, damage 6', 'Gold mega laser, damage 8'],
+      },
+      boots: { title: 'Boosters', skill: 'Adding & subtracting', perks: ['No boosters', 'One booster: dashes past some shots', 'Twin boosters: dashes past more', 'Triple boosters: dashes past lots of shots'] },
+    },
+  },
 };
 
 /** Robots in the order they join. */
-export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank', 'sub', 'stealth', 'astro'];
+export const BOT_ORDER: BotId[] = ['bolt', 'jet', 'titan', 'tank', 'sub', 'stealth', 'astro', 'rover', 'heli'];
 
 /** STRIKER's paint. */
 export const JET_COLOR = BOTS.jet.color;
@@ -440,7 +470,9 @@ export const JET_COLOR = BOTS.jet.color;
 export const TITAN_COLOR = BOTS.titan.color;
 
 export function botUnlocked(bot: BotId, s: SaveData = save()): boolean {
-  const at = BOTS[bot].joinsAt;
+  const spec = BOTS[bot];
+  if (spec.joinsAfterSpecials) return (s.special?.done ?? 0) >= spec.joinsAfterSpecials;
+  const at = spec.joinsAt;
   return !at || s.levelsDone.includes(at);
 }
 
@@ -540,6 +572,8 @@ const GADGET_NAMES: Record<BotId, Record<GadgetId, string>> = {
   sub: { mega: 'Mega Torpedo', shield: 'Bubble Shield', drones: 'Robo Dolphins', hyper: 'Turbo Props' },
   stealth: { mega: 'Mega Pulse Cannon', shield: 'Ghost Shield', drones: 'Shadow Drones', hyper: 'Warp Boosters' },
   astro: { mega: 'Mega Star Cannon', shield: 'Star Shield', drones: 'Satellite Drones', hyper: 'Warp Drive' },
+  rover: { mega: 'Mega Laser', shield: 'Dust Shield', drones: 'Scout Drones', hyper: 'Rocket Wheels' },
+  heli: { mega: 'Mega Laser', shield: 'Bubble Shield', drones: 'Mini Copters', hyper: 'Turbo Rotors' },
 };
 
 /** A gadget as a robot calls it. BOLT, TITAN and RHINO dash aside where the jet does rainbow rolls. */

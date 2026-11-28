@@ -33,6 +33,16 @@ const STORY: Record<BotId, Record<GearId, string>> = {
     blaster: 'Cut new torpedo tubes for bigger shots.',
     boots: 'Fuel the jet fins to dash past shots.',
   },
+  rover: {
+    armor: 'Forge dust-proof panels so hits hurt less.',
+    blaster: 'Cut a longer laser barrel for bigger shots.',
+    boots: 'Fuel the boosters to dash past shots.',
+  },
+  heli: {
+    armor: 'Forge feather-light panels so hits hurt less.',
+    blaster: 'Cut a longer laser barrel for bigger shots.',
+    boots: 'Fuel the boosters to dash past shots.',
+  },
   astro: {
     armor: 'Forge space armor plates so hits hurt less.',
     blaster: 'Cut new star-blaster barrels for bigger shots.',

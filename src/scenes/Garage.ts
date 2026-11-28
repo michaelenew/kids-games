@@ -129,7 +129,8 @@ export class GarageScene extends Phaser.Scene {
       }, { fill: 0x3d4458, size: 20 });
     }
 
-    if ((carUnlocked() && bot === 'bolt') || bot !== 'bolt') {
+    // (PERSEVERANCE and INGENUITY have nothing to turn into: a rover drives and a helicopter flies.)
+    if ((carUnlocked() && bot === 'bolt') || (bot !== 'bolt' && bot !== 'rover' && bot !== 'heli')) {
       // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a bulldozer, RHINO a tank.
       const label = () => (robot.isVehicle ? 'ROBOT MODE ⇄' : bot === 'bolt' ? 'TRANSFORM ⇄' : `${spec.vehicle} MODE ⇄`);
       const tf = button(this, 300, 660, 260, 70, label(), () => {

@@ -269,7 +269,12 @@ export function graphJob(rng: Rng, level: number): GraphJob {
   const rows = CREATURES.map(([name, color], i) => ({ name, color, value: counts[i] * key }));
   const a = int(rng, 0, 3);
   let b = (a + int(rng, 1, 3)) % 4;
-  if (type === 'more' && rows[a].value === rows[b].value) b = (b + 1) % 4;
+  if (type === 'more' && rows[a].value === rows[b].value) {
+    // "How many more" needs two rows with different amounts (and never the same row twice).
+    const other = [0, 1, 2, 3].find((k) => k !== a && rows[k].value !== rows[a].value);
+    if (other !== undefined) b = other;
+    else rows[b].value = (counts[a] === 6 ? 5 : counts[a] + 1) * key;
+  }
   if (type === 'count') return { kind: 'graph', key, rows, ask: { type, row: a }, answer: rows[a].value };
   if (type === 'total') return { kind: 'graph', key, rows, ask: { type, a, b }, answer: rows[a].value + rows[b].value };
   const [hi, lo] = rows[a].value >= rows[b].value ? [a, b] : [b, a];

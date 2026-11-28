@@ -55,6 +55,15 @@ game.events.on('poststep', (_time: number, delta: number) => {
   if (hasStage()) getStage().frame(delta / 1000);
 });
 
+// The page says "Loading…" until the first real screen is up (see mecha-forge/index.html).
+const tellPage = () => {
+  const up = game.scene.getScenes(false).some((s) => s.scene.key !== 'Boot' && s.sys.settings.status === Phaser.Scenes.RUNNING);
+  if (!up) return;
+  game.events.off('poststep', tellPage);
+  (window as unknown as { mechaStarted?: () => void }).mechaStarted?.();
+};
+game.events.on('poststep', tellPage);
+
 // Handy for poking at the game from the browser console while developing.
 (window as unknown as { game: Phaser.Game }).game = game;
 Object.defineProperty(window, 'stage', { get: () => (hasStage() ? getStage() : null) });

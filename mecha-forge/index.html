@@ -22,6 +22,21 @@
         background: #0b0f1a; color: #ffd166; font: bold 28px system-ui, sans-serif;
         align-items: center; justify-content: center; text-align: center; padding: 24px;
       }
+      /* Shown until the first screen is up, so a slow or failed start is never a blank page. */
+      #boot {
+        position: fixed; inset: 0; z-index: 5; pointer-events: none;
+        display: flex; flex-direction: column; gap: 18px;
+        align-items: center; justify-content: center; text-align: center; padding: 24px;
+        color: #ffd166; font: bold 28px system-ui, sans-serif;
+      }
+      #boot.gone { display: none; }
+      #boot-detail { color: #8fa3c8; font: 14px system-ui, sans-serif; max-width: 640px; word-break: break-word; }
+      #boot-retry, #boot-home {
+        pointer-events: auto; font: bold 24px system-ui, sans-serif; padding: 14px 32px; border-radius: 16px;
+        border: 3px solid #9ff0e3; background: #2a9d8f; color: #fff; text-decoration: none;
+      }
+      #boot-home { font-size: 16px; padding: 8px 18px; border-color: #8fa3c8; background: transparent; color: #8fa3c8; }
+      #boot [hidden] { display: none; }
       @media (orientation: portrait) and (pointer: coarse) {
         #rotate { display: flex; }
       }
@@ -30,6 +45,77 @@
   <body>
     <div id="game"></div>
     <div id="rotate">Turn the iPad sideways to play! ↻</div>
+    <div id="boot">
+      <div id="boot-msg">Loading…</div>
+      <button id="boot-retry" hidden>Try again</button>
+      <a id="boot-home" href="../" hidden>Back to the games</a>
+      <div id="boot-detail"></div>
+    </div>
+    <script>
+      // Watches the start-up. Plain script, kept in the page itself, so it works
+      // even when the game's own files fail to load. If starting fails (most
+      // often: the browser kept an old copy of this page that points at files a
+      // newer version replaced), it reloads a fresh copy once; if that fails
+      // too it says so, with the reason, instead of leaving a blank screen.
+      (function () {
+        var box = document.getElementById('boot');
+        var msg = document.getElementById('boot-msg');
+        var detail = document.getElementById('boot-detail');
+        var retry = document.getElementById('boot-retry');
+        var home = document.getElementById('boot-home');
+        var KEY = 'mecha-forge-auto-retry';
+        var started = false;
+        var failed = false;
+
+        /** Load the page again, skipping the browser's stored copy of it. */
+        function fresh() {
+          var u = new URL(location.href);
+          u.searchParams.set('fresh', Date.now().toString(36));
+          location.replace(u.href);
+        }
+        function fail(why) {
+          if (started || failed) return;
+          failed = true;
+          var last;
+          try {
+            last = Number(sessionStorage.getItem(KEY)) || 0;
+            if (Date.now() - last > 60000) {
+              sessionStorage.setItem(KEY, String(Date.now()));
+              fresh();
+              return;
+            }
+          } catch (e) {
+            // No session storage: don't risk reloading forever, just say so.
+          }
+          msg.textContent = "Mecha Forge couldn't start.";
+          detail.textContent = 'For a grown-up: ' + why;
+          retry.hidden = false;
+          home.hidden = false;
+        }
+        retry.addEventListener('click', fresh);
+
+        // The game calls this once its first screen is showing (see src/main.ts).
+        window.mechaStarted = function () {
+          started = true;
+          box.className = 'gone';
+        };
+        window.addEventListener('error', function (e) {
+          var t = e.target;
+          if (t && t !== window && t.tagName) fail("couldn't load " + (t.src || t.href || t.tagName));
+          else fail((e.message || 'error') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason;
+          fail(String((r && r.message) || r));
+        });
+        setTimeout(function () {
+          if (started || failed) return;
+          msg.textContent = 'Still loading…';
+          retry.hidden = false;
+          home.hidden = false;
+        }, 20000);
+      })();
+    </script>
     <script type="module" src="../src/mechaBoot.ts"></script>
   </body>
 </html>

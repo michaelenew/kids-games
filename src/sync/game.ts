@@ -44,8 +44,12 @@ export async function startSynced(game: GameId, load: () => Promise<unknown>): P
   const id = playingId(game);
   const synced = () => !!slot(game, id)?.group;
   if (synced()) {
-    await Promise.race([syncSlot(game, id), new Promise((r) => setTimeout(r, 5000))]);
-    takeChanged();
+    try {
+      await Promise.race([syncSlot(game, id), new Promise((r) => setTimeout(r, 5000))]);
+      takeChanged();
+    } catch {
+      // Syncing must never keep the game from starting.
+    }
   }
   await load();
   document.addEventListener('visibilitychange', async () => {

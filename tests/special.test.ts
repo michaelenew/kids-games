@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { storyJob } from '../src/skills/jobs';
 import { SPECIAL_IDS, specialDue } from '../src/skills/special';
+import { BOTS, botUnlocked, botsUnlocked, freshSave } from '../src/state';
+import { regionName } from '../src/armor';
 import { MISSIONS, SPECIALS, alertBots, isSpecial, missionById } from '../src/three/missions';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -54,5 +56,23 @@ describe('special missions (calls from Mars)', () => {
       }
     }
     expect(themed).toBeGreaterThan(60);
+  });
+
+  it('PERSEVERANCE joins his robots after the first call from Mars, INGENUITY after the second', () => {
+    const s = freshSave();
+    expect(botUnlocked('rover', s)).toBe(false);
+    expect(botUnlocked('heli', s)).toBe(false);
+    s.special = { done: 1, plays: 0 };
+    expect(botUnlocked('rover', s)).toBe(true);
+    expect(botUnlocked('heli', s)).toBe(false);
+    s.special = { done: 2, plays: 0 };
+    expect(botsUnlocked(s).slice(0, 2)).toEqual(['heli', 'rover']);
+    // Each has its own name, upgrades and plate names, like any other robot.
+    for (const b of ['rover', 'heli'] as const) {
+      expect(BOTS[b].damage).toHaveLength(4);
+      expect(BOTS[b].dodge).toHaveLength(4);
+      for (const g of ['armor', 'blaster', 'boots'] as const) expect(BOTS[b].gear[g].perks).toHaveLength(4);
+      expect(regionName('chest', b).length).toBeGreaterThan(0);
+    }
   });
 });

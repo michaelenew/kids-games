@@ -76,9 +76,19 @@ export const ASTRO_REGION_NAMES: Record<Region, string> = {
   legR: 'Right leg suit plate',
 };
 
+/** PERSEVERANCE's and INGENUITY's plates: panels on the body, front and sides. */
+export const NASA_REGION_NAMES: Record<Region, string> = {
+  chest: 'Nose panel',
+  armL: 'Left side',
+  armR: 'Right side',
+  legL: 'Left rear',
+  legR: 'Right rear',
+};
+
 export function regionName(r: Region, bot: BotId): string {
   const names = {
     bolt: REGION_NAMES, jet: JET_REGION_NAMES, titan: TITAN_REGION_NAMES, tank: TANK_REGION_NAMES, sub: SUB_REGION_NAMES, stealth: STEALTH_REGION_NAMES, astro: ASTRO_REGION_NAMES,
+    rover: NASA_REGION_NAMES, heli: NASA_REGION_NAMES,
   };
   return names[bot][r];
 }

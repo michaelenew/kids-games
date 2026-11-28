@@ -153,7 +153,7 @@ export class ArmorForge extends Phaser.Scene {
       });
       this.places = this.mark === 3 ? [0, 1, 2, 3] : [1, 2, 3];
       const who = activeBot() !== 'bolt' ? `${botName(activeBot())} ` : '';
-      text(this, (LEFT + RIGHT) / 2, 46, `${who}ARMOR FORGE · MARK ${ROMAN[this.mark]}`, 40, '#ffd166').setStroke('#000000', 8);
+      text(this, (LEFT + RIGHT) / 2, 46, `${who}ARMOR FORGE · MARK ${ROMAN[this.mark]}`, who.length > 10 ? 30 : 40, '#ffd166').setStroke('#000000', 8);
       if (!this.jobs.length) {
         this.allDone();
         return;

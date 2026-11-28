@@ -784,10 +784,16 @@ export class InvasionScene extends Phaser.Scene {
   private alertDone(won: boolean) {
     const s = save();
     const earned = won ? Math.ceil(this.scrap / 2) + ALERT_BONUS : 0;
+    let joined: BotId | undefined;
     if (won) {
       s.scrap += earned;
       clearAlert(this.mission.id, s);
-      if (isSpecial(this.mission.id)) specialDone(s);
+      if (isSpecial(this.mission.id)) {
+        // The first two calls from Mars each bring a new robot home: PERSEVERANCE, then INGENUITY.
+        const had = botsUnlocked(s);
+        specialDone(s);
+        joined = botsUnlocked(s).find((b) => !had.includes(b));
+      }
       const g = gadgetOf(this.bot, s);
       if (g) {
         this.brokenGadget = gadgetInfo(this.bot, g).title;
@@ -804,7 +810,10 @@ export class InvasionScene extends Phaser.Scene {
       text(this, W / 2, H / 2 - 120, title, 54, won ? '#06d6a0' : '#ef476f').setStroke('#000000', 6).setDepth(61);
       const line = this.guest ? `Score ${this.score.toLocaleString()}` : won ? `Score ${this.score.toLocaleString()}   +${earned} scrap` : 'They\'re still out there. Try again any time!';
       text(this, W / 2, H / 2 - 30, line, 30, '#ffffff').setDepth(61);
-      this.gadgetNote(H / 2 + 20);
+      if (joined) {
+        const j = text(this, W / 2, H / 2 + 24, `⭐ ${botName(joined)} joined your robots! ⭐`, 30, '#ffd166').setStroke('#000000', 6).setDepth(61);
+        this.tweens.add({ targets: j, scale: 1.08, duration: 450, yoyo: true, repeat: -1 });
+      } else this.gadgetNote(H / 2 + 20);
       const b = this.guest
         ? button(this, W / 2, H / 2 + 100, 420, 84, 'Back to the unicorns!', () => backToRanch(won), { fill: 0xc77dff, edge: 0xffd6f0 }).setDepth(62)
         : button(this, W / 2, H / 2 + 100, 320, 84, 'Back to Garage', () => this.scene.start('Garage'), { fill: 0x2a9d8f, edge: 0x9ff0e3 }).setDepth(62);

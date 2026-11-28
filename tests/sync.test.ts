@@ -272,3 +272,68 @@ describe('the device JSONBin key', () => {
     expect(deviceApiKey()).toBe(api);
   });
 });
+
+describe('progress never goes backwards through sync', () => {
+  const full = { v: 1, scrap: 900, levelsDone: ['a', 'b', 'c', 'd'] };
+  const blank = { v: 1, scrap: 0, levelsDone: [] };
+
+  /** The iPad starts a group with his real save; the phone joins it. Returns the save's id on each. */
+  async function twoDevices() {
+    on(ipad);
+    ipad.clear();
+    phone.clear();
+    put(MAIN, full);
+    await startGroup('mecha', MAIN, 'His save', 'key');
+    const group = slot('mecha', MAIN)!.group!;
+    on(phone);
+    const j = await joinGroup(group);
+    return { group, phoneId: j.id };
+  }
+  const online = async (group: { blob: string; key: string }) => ((await open(group.key, JSON.parse(blobs.get(group.blob)!))) as { save: Record<string, any> }).save;
+
+  it('a browser that lost its copy takes the online one, and uploads nothing', async () => {
+    const { group, phoneId } = await twoDevices();
+    localStorage.removeItem(mechaKey(phoneId));
+    expect(await syncSlot('mecha', phoneId)).toBe('ok');
+    expect(get(phoneId).levelsDone).toEqual(full.levelsDone);
+    expect((await online(group)).levelsDone).toEqual(full.levelsDone);
+  });
+
+  it('a blank save written over his (a game that started fresh) is never uploaded: the online copy comes back', async () => {
+    const { group, phoneId } = await twoDevices();
+    put(phoneId, blank);
+    noteSaved('mecha', phoneId, 1e9);
+    expect(await syncSlot('mecha', phoneId)).toBe('ok');
+    expect((await online(group)).levelsDone).toEqual(full.levelsDone);
+    expect(get(phoneId).levelsDone).toEqual(full.levelsDone);
+  });
+
+  it('if a blank copy did get online, a device that still has his progress keeps it and puts it back', async () => {
+    const { group, phoneId } = await twoDevices();
+    // The online copy is replaced by a blank one that says it was built on his save.
+    const cur = (await open(group.key, JSON.parse(blobs.get(group.blob)!))) as Record<string, any>;
+    blobs.set(group.blob, JSON.stringify(await seal(group.key, { ...cur, edits: cur.edits + 1, write: 'blank-write', history: [...cur.history, cur.write], save: blank })));
+    on(ipad);
+    expect(await syncSlot('mecha', MAIN)).toBe('ok');
+    expect(get(MAIN).levelsDone).toEqual(full.levelsDone);
+    expect((await online(group)).levelsDone).toEqual(full.levelsDone);
+    // And the device that had the blank copy gets his progress back too.
+    on(phone);
+    put(phoneId, blank);
+    expect(await syncSlot('mecha', phoneId)).toBe('ok');
+    expect(get(phoneId).levelsDone).toEqual(full.levelsDone);
+  });
+
+  it('ordinary progress still flows both ways', async () => {
+    const { group, phoneId } = await twoDevices();
+    put(phoneId, { ...full, scrap: 950, levelsDone: [...full.levelsDone, 'e'] });
+    noteSaved('mecha', phoneId, 1e9);
+    await syncSlot('mecha', phoneId);
+    expect((await online(group)).levelsDone).toHaveLength(5);
+    on(ipad);
+    await syncSlot('mecha', MAIN);
+    expect(get(MAIN).levelsDone).toHaveLength(5);
+    expect(get(MAIN).scrap).toBe(950);
+  });
+});
+

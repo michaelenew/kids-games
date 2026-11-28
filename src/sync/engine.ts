@@ -1,7 +1,7 @@
 import { fromB64, newKey, open, randomId, seal, toB64 } from './crypto';
 import { merge3, same } from './merge';
 import {
-  baseKey, deviceApiKey, deviceId, setDeviceApiKey, type GameId, type Group, readJson, setActive, slot, slots, storageKey, updateSlot, writeJson,
+  baseKey, deviceApiKey, deviceId, GAMES, setDeviceApiKey, type GameId, type Group, readJson, setActive, slot, slots, storageKey, updateSlot, writeJson,
 } from './registry';
 import { createWithKey, MissingBlob, storeFor } from './store';
 
@@ -146,15 +146,31 @@ async function runSync(game: GameId, id: string, opts: { keepalive?: boolean }):
     const gen = gens.get(k) ?? 0;
     const local = readJson(storageKey(game, id));
     let next: unknown;
+    // Progress never goes backwards through sync. A save that is further back
+    // than the other copy (a blank one, after this browser lost or couldn't read
+    // its copy) must never replace it, here or online.
+    const far = GAMES[game].progress;
+    if (local === undefined) {
+      // Nothing here at all: take the online copy, and upload nothing.
+      adopt(game, id, doc.save, local);
+      updateSlot(game, id, (x) => Object.assign(x, { write: doc.write, edits: doc.edits, pending: false, synced: Date.now(), problem: undefined }));
+      writeJson(baseKey(game, id), doc.save);
+      return 'ok';
+    }
     if (doc.write === s.write) {
-      if (!s.pending && local !== undefined) {
+      if (!s.pending) {
         updateSlot(game, id, (x) => ((x.synced = Date.now()), (x.problem = undefined)));
         return 'ok';
       }
-      next = local ?? doc.save;
+      next = local;
+      if (far(next) < far(doc.save)) {
+        // This device's copy went backwards: keep the online one instead.
+        next = doc.save;
+        adopt(game, id, next, local);
+      }
     } else {
       const builtOnOurs = doc.history.includes(s.write ?? '') || doc.edits - (s.edits ?? 0) > HISTORY;
-      if (builtOnOurs && (!s.pending || local === undefined)) {
+      if (builtOnOurs && !s.pending && far(doc.save) >= far(local)) {
         // Someone else played on; we have nothing new. Take theirs.
         adopt(game, id, doc.save, local);
         updateSlot(game, id, (x) => Object.assign(x, { write: doc.write, edits: doc.edits, pending: false, synced: Date.now(), problem: undefined }));
@@ -162,6 +178,9 @@ async function runSync(game: GameId, id: string, opts: { keepalive?: boolean }):
         return 'ok';
       }
       next = merge3(builtOnOurs ? readJson(baseKey(game, id)) : undefined, local, doc.save);
+      // Whatever combining made of it, never end up further back than either copy.
+      const best = far(local) >= far(doc.save) ? local : doc.save;
+      if (far(next) < far(best)) next = best;
       adopt(game, id, next, local);
     }
 

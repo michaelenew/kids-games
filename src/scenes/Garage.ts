@@ -17,7 +17,7 @@ import { MISSIONS, isPick, missionById, startBot } from '../three/missions';
 
 import { launchMission, needsFirstArmor, needsRepairs, readyThenGo, startAlert, startSpecial } from './launch';
 import { updatePreviewBanner } from '../ui/previewBanner';
-import { openSyncPanel } from '../sync/panel';
+import { openSaves } from '../sync/open';
 import { onMissionCleared } from '../assist';
 import { Showcase } from '../three/showcase';
 import { getStage } from '../three/stage';
@@ -129,7 +129,8 @@ export class GarageScene extends Phaser.Scene {
       }, { fill: 0x3d4458, size: 20 });
     }
 
-    if ((carUnlocked() && bot === 'bolt') || bot !== 'bolt') {
+    // (PERSEVERANCE and INGENUITY have nothing to turn into: a rover drives and a helicopter flies.)
+    if ((carUnlocked() && bot === 'bolt') || (bot !== 'bolt' && bot !== 'rover' && bot !== 'heli')) {
       // BOLT starts as a robot (transforms into a car); STRIKER starts as a jet; TITAN becomes a bulldozer, RHINO a tank.
       const label = () => (robot.isVehicle ? 'ROBOT MODE ⇄' : bot === 'bolt' ? 'TRANSFORM ⇄' : `${spec.vehicle} MODE ⇄`);
       const tf = button(this, 300, 660, 260, 70, label(), () => {
@@ -375,7 +376,7 @@ export class GarageScene extends Phaser.Scene {
     }, { fill: 0x3d4458, size: 24 }).setDepth(52));
     items.push(button(this, W / 2 + 110, H / 2 + 30, 200, 76, 'Saves & sync', () => {
       close();
-      openSyncPanel({ root: new URL('../', location.href).href, game: 'mecha' });
+      void openSaves({ root: new URL('../', location.href).href, game: 'mecha' });
     }, { fill: 0x3d4458, size: 24 }).setDepth(52));
     if (inPreview()) {
       // Previewing on a copy: tools to skip ahead, and the way back.

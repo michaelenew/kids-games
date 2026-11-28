@@ -12,6 +12,13 @@ export interface GameInfo {
   /** Where the game always kept its save (the "main" save). */
   key: string;
   summary(save: unknown): string;
+  /**
+   * How far along a save is, as one number that only ever goes up while he
+   * plays (missions beaten, unicorns and ribbons). Sync uses it to refuse to
+   * replace a save with one that is further back: starting over is always
+   * done on purpose, and leaves the sync group first.
+   */
+  progress(save: unknown): number;
 }
 
 type Any = Record<string, any>;
@@ -25,6 +32,7 @@ export const GAMES: Record<GameId, GameInfo> = {
       const done = v.levelsDone?.length ?? 0;
       return done || v.scrap ? `${done} missions beaten · ${v.scrap ?? 0} scrap` : 'Not started';
     },
+    progress: (s) => ((s ?? {}) as Any).levelsDone?.length ?? 0,
   },
   unicorn: {
     title: 'Unicorn Rancher',
@@ -34,6 +42,10 @@ export const GAMES: Record<GameId, GameInfo> = {
       const n = v.unicorns?.length ?? 0;
       const ribbons = (v.ribbons ?? []).reduce((a: number, b: number) => a + b, 0);
       return n || ribbons ? `${n} unicorns · ${ribbons} ribbons` : 'Not started';
+    },
+    progress: (s) => {
+      const v = (s ?? {}) as Any;
+      return (v.unicorns?.length ?? 0) + (v.ribbons ?? []).reduce((a: number, b: number) => a + b, 0);
     },
   },
 };
